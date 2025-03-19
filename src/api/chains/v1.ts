@@ -10,9 +10,12 @@ const Schema = {
         Type.Object({
           id: Type.Number({ description: "The id of the chain" }),
           name: Type.String({ description: "The name of the chain" }),
-          creditAddress: Type.Optional(
+          vmType: Type.Union([Type.Literal("ethereum-vm")], {
+            description: "The VM type of the chain",
+          }),
+          escrow: Type.Optional(
             Type.String({
-              description: "The credit address for the chain",
+              description: "The escrow address for the chain",
             })
           ),
         }),
@@ -36,7 +39,8 @@ export default {
       chains: Object.values(chains).map((chain) => ({
         id: chain.id,
         name: chain.name,
-        creditAddress: chain.metadata?.creditAddress,
+        vmType: chain.vmType,
+        escrow: chain.metadata?.escrow,
       })),
     });
   },

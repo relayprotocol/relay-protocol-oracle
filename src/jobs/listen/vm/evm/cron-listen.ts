@@ -9,8 +9,6 @@ import * as jobs from "../../../../jobs";
 
 const COMPONENT = "cron-listen-evm";
 
-const MAX_BLOCKS_TO_PROCESS = 10000;
-
 // Continuously listen for new events via websocket (if available)
 (async () => {
   const chains = await getChains();
@@ -20,14 +18,14 @@ const MAX_BLOCKS_TO_PROCESS = 10000;
       if (rpc) {
         rpc.watchEvent({
           events: ABI,
-          onLogs: async (logs) => {
-            await extractAndProcessLogs(chain.id, logs);
-          },
+          onLogs: async (logs) => extractAndProcessLogs(chain.id, logs),
         });
       }
     })
   );
 })();
+
+const MAX_BLOCKS_TO_POLL = 10000;
 
 // Every few seconds, poll new blocks for events
 cron.schedule("*/5 * * * * *", async () => {
@@ -46,7 +44,7 @@ cron.schedule("*/5 * * * * *", async () => {
           .then((b) => Number(b.number));
 
         // Avoid processing too many blocks
-        if (lastBlock && currentBlock - MAX_BLOCKS_TO_PROCESS > lastBlock) {
+        if (lastBlock && currentBlock - MAX_BLOCKS_TO_POLL > lastBlock) {
           logger.error(
             COMPONENT,
             JSON.stringify({
@@ -57,15 +55,14 @@ cron.schedule("*/5 * * * * *", async () => {
             })
           );
 
-          lastBlock = currentBlock - MAX_BLOCKS_TO_PROCESS;
+          lastBlock = currentBlock - MAX_BLOCKS_TO_POLL;
         }
 
-        const fromBlock = Number(lastBlock ? lastBlock + 1 : currentBlock - 10);
-        const toBlock = currentBlock;
+        // Send to the event processing queue
         await jobs.mqProcessEventsEvm.send({
           chainId: chain.id,
-          fromBlock,
-          toBlock,
+          fromBlock: lastBlock ? lastBlock + 1 : currentBlock - 10,
+          toBlock: currentBlock,
         });
 
         // Have some redundancy to avoid issues where the transactions of the latest block are not available

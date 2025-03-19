@@ -45,23 +45,41 @@ const Schema = {
             entryId: Type.String({
               description: "The id of the entry within the transaction",
             }),
-            ownerAddress: Type.String({
-              description:
-                "The owner for which the balance changed as part of this transaction entry",
-            }),
-            currencyAddress: Type.String({
-              description: "The currency of the balance change",
-            }),
-            balanceDiff: Type.String({
-              description:
-                "The balance difference resulted from this transaction entry",
-            }),
-            commitmentId: Type.Optional(
-              Type.String({
-                description:
-                  "The commitment id associated to this transaction entry",
-              })
-            ),
+            data: Type.Union([
+              Type.Object({
+                type: Type.Literal("deposit"),
+                data: Type.Object({
+                  depositorAddress: Type.String({
+                    description: "The depositor",
+                  }),
+                  currencyAddress: Type.String({
+                    description: "The deposit currency",
+                  }),
+                  amount: Type.String({
+                    description: "The deposit amount",
+                  }),
+                  depositId: Type.Optional(
+                    Type.String({
+                      description: "The id associated to the deposit",
+                    })
+                  ),
+                }),
+              }),
+              Type.Object({
+                type: Type.Literal("withdrawal"),
+                data: Type.Object({
+                  currencyAddress: Type.String({
+                    description: "The withdrawal currency",
+                  }),
+                  amount: Type.String({
+                    description: "The withdrawal amount",
+                  }),
+                  withdrawalId: Type.String({
+                    description: "The id associated to the withdrawal",
+                  }),
+                }),
+              }),
+            ]),
             createdAt: Type.String({
               description: "The creation time of the transaction entry",
             }),
@@ -130,10 +148,7 @@ export default {
           transaction_entries.chain_id,
           transaction_entries.transaction_id,
           transaction_entries.entry_id,
-          transaction_entries.owner_address,
-          transaction_entries.currency_address,
-          transaction_entries.balance_diff,
-          transaction_entries.commitment_id,
+          transaction_entries.data,
           transaction_entries.created_at,
           transaction_entries.updated_at
         FROM transaction_entries
@@ -167,10 +182,7 @@ export default {
         chainId: result.chain_id,
         transactionId: result.transaction_id,
         entryId: result.entry_id,
-        ownerAddress: result.owner_address,
-        currencyAddress: result.currency_address,
-        balanceDiff: result.balance_diff,
-        commitmentId: result.commitment_id,
+        data: result.data,
         createdAt: new Date(result.created_at).toISOString(),
         updatedAt: new Date(result.updated_at).toISOString(),
       })),

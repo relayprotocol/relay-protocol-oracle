@@ -152,7 +152,7 @@ describe("evm-extract-transaction-entries", () => {
       transactionHash,
       logIndex: 0,
       from,
-      to: chain.metadata!.creditAddress!,
+      to: chain.metadata!.escrow!,
       token,
       amount,
     });
@@ -169,14 +169,19 @@ describe("evm-extract-transaction-entries", () => {
         } as any)
     );
     expect(transactionEntries.length === 1).toBeTruthy();
+
+    const te = transactionEntries[0];
+
+    expect(te.chainId === chain.id).toBeTruthy();
+    expect(te.transactionId === transactionHash).toBeTruthy();
+    expect(te.entryId === "0").toBeTruthy();
     expect(
-      transactionEntries[0].chainId === chain.id &&
-        transactionEntries[0].transactionId === transactionHash &&
-        transactionEntries[0].entryId === "0" &&
-        transactionEntries[0].ownerAddress === from &&
-        transactionEntries[0].currencyAddress === token &&
-        transactionEntries[0].balanceDiff === amount &&
-        transactionEntries[0].commitmentId === undefined
+      te.data.type === "deposit" && te.data.data.depositorAddress === from
+    ).toBeTruthy();
+    expect(te.data.data.currencyAddress === token).toBeTruthy();
+    expect(te.data.data.amount === amount).toBeTruthy();
+    expect(
+      te.data.type === "deposit" && te.data.data.depositId === undefined
     ).toBeTruthy();
   });
 
@@ -192,7 +197,7 @@ describe("evm-extract-transaction-entries", () => {
       transactionHash,
       logIndex: 0,
       from,
-      to: chain.metadata!.creditAddress!,
+      to: chain.metadata!.escrow!,
       token,
       amount,
     });
@@ -210,19 +215,24 @@ describe("evm-extract-transaction-entries", () => {
             encodeFunctionData({
               abi: ERC20_ABI,
               functionName: "transfer",
-              args: [chain.metadata!.creditAddress! as Hex, BigInt(amount)],
+              args: [chain.metadata!.escrow! as Hex, BigInt(amount)],
             }) + id.slice(2),
         } as any)
     );
     expect(transactionEntries.length === 1).toBeTruthy();
+
+    const te = transactionEntries[0];
+
+    expect(te.chainId === chain.id).toBeTruthy();
+    expect(te.transactionId === transactionHash).toBeTruthy();
+    expect(te.entryId === "0").toBeTruthy();
     expect(
-      transactionEntries[0].chainId === chain.id &&
-        transactionEntries[0].transactionId === transactionHash &&
-        transactionEntries[0].entryId === "0" &&
-        transactionEntries[0].ownerAddress === from &&
-        transactionEntries[0].currencyAddress === token &&
-        transactionEntries[0].balanceDiff === amount &&
-        transactionEntries[0].commitmentId === id
+      te.data.type === "deposit" && te.data.data.depositorAddress === from
+    ).toBeTruthy();
+    expect(te.data.data.currencyAddress === token).toBeTruthy();
+    expect(te.data.data.amount === amount).toBeTruthy();
+    expect(
+      te.data.type === "deposit" && te.data.data.depositId === id
     ).toBeTruthy();
   });
 
@@ -237,7 +247,7 @@ describe("evm-extract-transaction-entries", () => {
     const params = {
       transactionHash,
       from,
-      to: chain.metadata!.creditAddress!,
+      to: chain.metadata!.escrow!,
       token,
       amount,
     };
@@ -259,14 +269,19 @@ describe("evm-extract-transaction-entries", () => {
         } as any)
     );
     expect(transactionEntries.length === 1).toBeTruthy();
+
+    const te = transactionEntries[0];
+
+    expect(te.chainId === chain.id).toBeTruthy();
+    expect(te.transactionId === transactionHash).toBeTruthy();
+    expect(te.entryId === "0").toBeTruthy();
     expect(
-      transactionEntries[0].chainId === chain.id &&
-        transactionEntries[0].transactionId === transactionHash &&
-        transactionEntries[0].entryId === "0" &&
-        transactionEntries[0].ownerAddress === from &&
-        transactionEntries[0].currencyAddress === token &&
-        transactionEntries[0].balanceDiff === amount &&
-        transactionEntries[0].commitmentId === id
+      te.data.type === "deposit" && te.data.data.depositorAddress === from
+    ).toBeTruthy();
+    expect(te.data.data.currencyAddress === token).toBeTruthy();
+    expect(te.data.data.amount === amount).toBeTruthy();
+    expect(
+      te.data.type === "deposit" && te.data.data.depositId === id
     ).toBeTruthy();
   });
 
@@ -281,7 +296,7 @@ describe("evm-extract-transaction-entries", () => {
     const params = {
       transactionHash,
       from,
-      to: chain.metadata!.creditAddress!,
+      to: chain.metadata!.escrow!,
       token,
       amount,
     };
@@ -303,14 +318,19 @@ describe("evm-extract-transaction-entries", () => {
         } as any)
     );
     expect(transactionEntries.length === 1).toBeTruthy();
+
+    const te = transactionEntries[0];
+
+    expect(te.chainId === chain.id).toBeTruthy();
+    expect(te.transactionId === transactionHash).toBeTruthy();
+    expect(te.entryId === "0").toBeTruthy();
     expect(
-      transactionEntries[0].chainId === chain.id &&
-        transactionEntries[0].transactionId === transactionHash &&
-        transactionEntries[0].entryId === "0" &&
-        transactionEntries[0].ownerAddress === from &&
-        transactionEntries[0].currencyAddress === token &&
-        transactionEntries[0].balanceDiff === amount &&
-        transactionEntries[0].commitmentId === undefined
+      te.data.type === "deposit" && te.data.data.depositorAddress === from
+    ).toBeTruthy();
+    expect(te.data.data.currencyAddress === token).toBeTruthy();
+    expect(te.data.data.amount === amount).toBeTruthy();
+    expect(
+      te.data.type === "deposit" && te.data.data.depositId === undefined
     ).toBeTruthy();
   });
 });

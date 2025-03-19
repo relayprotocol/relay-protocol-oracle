@@ -39,6 +39,7 @@ export type Endpoint = {
   handler: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 };
 
+// Generic wrapper for standard error handling across all endpoints
 export const errorWrapper = (
   url: string,
   handler: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
@@ -62,6 +63,8 @@ export const errorWrapper = (
     }
   };
 };
+
+// Helpers for API response continuations
 
 export const buildContinuation = (...components: string[]) =>
   Buffer.from(components.join("_")).toString("base64");

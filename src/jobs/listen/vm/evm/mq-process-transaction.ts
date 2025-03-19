@@ -18,6 +18,7 @@ const handler = async (data: Data) => {
 
   const rpc = await httpRpc(chainId);
 
+  // Extract any transaction entries
   const transactionEntries = await extractTransactionEntries(
     chainId,
     await rpc.getTransactionReceipt({
@@ -28,6 +29,9 @@ const handler = async (data: Data) => {
         hash: transactionHash as Hex,
       })
   );
+  if (!transactionEntries.length) {
+    return;
+  }
 
   if (waitForFinalization) {
     // TODO: Implement logic to wait for transaction finalization

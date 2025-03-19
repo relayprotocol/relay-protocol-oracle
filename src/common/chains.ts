@@ -1,12 +1,17 @@
 import { db } from "./db";
 
+export enum ChainVmType {
+  EthereumVM = "ethereum-vm",
+}
+
 export type Chain = {
   id: number;
   name: string;
+  vmType: ChainVmType;
   httpRpcUrl: string;
   wsRpcUrl?: string;
   metadata?: {
-    creditAddress?: string;
+    escrow?: string;
   };
 };
 
@@ -18,8 +23,9 @@ export const getChains = async () => {
     const chains = await db.manyOrNone("SELECT * FROM chains");
     for (const chain of chains) {
       __chains[chain.id] = {
-        id: chain.id,
+        id: Number(chain.id),
         name: chain.name,
+        vmType: chain.vm_type,
         httpRpcUrl: chain.http_rpc_url,
         wsRpcUrl: chain.ws_rpc_url,
         metadata: chain.metadata,

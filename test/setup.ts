@@ -13,11 +13,13 @@ export default async () => {
         INSERT INTO chains (
           id,
           name,
+          vm_type,
           http_rpc_url,
           metadata
         ) VALUES (
           $/id/,
           $/name/,
+          $/vmType/,
           $/httpRpcUrl/,
           $/metadata:json/
         ) ON CONFLICT DO NOTHING
@@ -25,6 +27,7 @@ export default async () => {
       {
         id: chain.id,
         name: chain.name,
+        vmType: chain.vmType,
         httpRpcUrl: chain.httpRpcUrl,
         metadata: chain.metadata ?? null,
       }

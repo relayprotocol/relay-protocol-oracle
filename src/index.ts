@@ -1,4 +1,4 @@
-// Initialize queues and crobs
+// Initialize jobs and crons
 import "./jobs";
 
 // Initialize http server

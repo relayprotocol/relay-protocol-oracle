@@ -1,66 +1,39 @@
 import { DbEntry } from "./utils";
 import { db } from "../common/db";
 
-export type Transaction = {
-  chainId: number;
-  transactionId: string;
-  data: any;
-  block: number;
-  timestamp: number;
-};
+type Data =
+  | {
+      type: "deposit";
+      data: {
+        currencyAddress: string;
+        amount: string;
+        depositorAddress: string;
+        depositId?: string;
+      };
+    }
+  | {
+      type: "withdrawal";
+      data: {
+        currencyAddress: string;
+        amount: string;
+        withdrawalId: string;
+      };
+    };
 
 export type TransactionEntry = {
   chainId: number;
   transactionId: string;
   entryId: string;
-  ownerAddress: string;
-  currencyAddress: string;
-  balanceDiff: string;
-  commitmentId?: string;
+  data: Data;
 };
 
-export const saveTransaction = async (
-  transaction: Transaction
-): Promise<DbEntry<Transaction> | undefined> => {
-  const result = await db.oneOrNone(
-    `
-      INSERT INTO transactions (
-        chain_id,
-        transaction_id,
-        data,
-        block,
-        timestamp
-      ) VALUES (
-        $/chainId/,
-        $/transactionId/,
-        $/data:json/,
-        $/block/,
-        $/timestamp/ 
-      ) ON CONFLICT DO NOTHING
-      RETURNING *
-    `,
-    {
-      chainId: transaction.chainId,
-      transactionId: transaction.transactionId,
-      data: transaction.data,
-      block: transaction.block,
-      timestamp: transaction.timestamp,
-    }
-  );
-  if (!result) {
-    return undefined;
-  }
-
-  return {
-    chainId: result.chain_id,
-    transactionId: result.transaction_id,
-    data: result.data,
-    block: result.block,
-    timestamp: result.timestamp,
-    createdAt: result.created_at,
-    updatedAt: result.updatet_at,
-  };
-};
+// Allocator:
+// - listens to the oracle
+// - the oracle emits two types of messages
+//   - deposit messages: deposits from users into the escrow
+//     - allocator modifies balance of depositor
+//   - withdraw messages: withdrawals to users from the escrow
+//     - allocator modifies balance of requester
 
 export const saveTransactionEntry = async (
   transactionEntry: TransactionEntry
@@ -71,18 +44,12 @@ export const saveTransactionEntry = async (
         chain_id,
         transaction_id,
         entry_id,
-        owner_address,
-        currency_address,
-        balance_diff,
-        commitment_id
+        data
       ) VALUES (
         $/chainId/,
         $/transactionId/,
         $/entryId/,
-        $/ownerAddress/,
-        $/currencyAddress/,
-        $/balanceDiff/,
-        $/commitmentId/
+        $/data:json/
       ) ON CONFLICT DO NOTHING
       RETURNING *
     `,
@@ -90,10 +57,7 @@ export const saveTransactionEntry = async (
       chainId: transactionEntry.chainId,
       transactionId: transactionEntry.transactionId,
       entryId: transactionEntry.entryId,
-      ownerAddress: transactionEntry.ownerAddress,
-      currencyAddress: transactionEntry.currencyAddress,
-      balanceDiff: transactionEntry.balanceDiff,
-      commitmentId: transactionEntry.commitmentId ?? null,
+      data: transactionEntry.data,
     }
   );
   if (!result) {
@@ -104,10 +68,7 @@ export const saveTransactionEntry = async (
     chainId: result.chain_id,
     transactionId: result.transaction_id,
     entryId: result.entry_id,
-    ownerAddress: result.owner_address,
-    currencyAddress: result.currency_address,
-    balanceDiff: result.balance_diff,
-    commitmentId: result.commitment_id ?? undefined,
+    data: result.data,
     createdAt: result.created_at,
     updatedAt: result.updated_at,
   };

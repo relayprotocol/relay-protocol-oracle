@@ -18,8 +18,8 @@ import { TransactionEntry } from "../../../../models/transactions";
 export const ABI = parseAbi([
   "event NativeDeposit(address from, uint256 amount, bytes32 id)",
   "event Erc20Deposit(address from, address token, uint256 amount, bytes32 id)",
-  "event Withdrawal(address to, address token, uint256 amount, bytes32 id)",
   "event Transfer(address indexed from, address indexed to, uint256 amount)",
+  "event CallExecuted(bytes32 id, (address to, bytes data, uint256 value, bool allowFailure) call)",
 ]);
 
 // Define standard ERC20 transfer methods which allow the request id to be appended at the end of calldata
@@ -33,39 +33,39 @@ const extractRelevantLogs = async (chainId: number, logs: Log[]) => {
   const relevantLogs: Log[] = [];
 
   const chain = await getChain(chainId);
-  const creditAddress = chain.metadata!.creditAddress!;
+  const escrow = chain.metadata!.escrow!;
 
   const parsedLogs = parseEventLogs({
     abi: ABI,
     logs,
-    eventName: ["NativeDeposit", "Erc20Deposit", "Transfer", "Withdrawal"],
+    eventName: ["NativeDeposit", "Erc20Deposit", "Transfer", "CallExecuted"],
   });
   await Promise.all(
     parsedLogs.map(async (log) => {
       if (
         log.eventName === "NativeDeposit" &&
-        log.address.toLowerCase() === creditAddress.toLowerCase()
+        log.address.toLowerCase() === escrow.toLowerCase()
       ) {
         relevantLogs.push(log);
       }
 
       if (
         log.eventName === "Erc20Deposit" &&
-        log.address.toLowerCase() === creditAddress.toLowerCase()
+        log.address.toLowerCase() === escrow.toLowerCase()
       ) {
         relevantLogs.push(log);
       }
 
       if (
         log.eventName === "Transfer" &&
-        log.args.to.toLowerCase() === creditAddress.toLowerCase()
+        log.args.to.toLowerCase() === escrow.toLowerCase()
       ) {
         relevantLogs.push(log);
       }
 
       if (
-        log.eventName === "Withdrawal" &&
-        log.address.toLowerCase() === creditAddress.toLowerCase()
+        log.eventName === "CallExecuted" &&
+        log.address.toLowerCase() === escrow.toLowerCase()
       ) {
         relevantLogs.push(log);
       }
@@ -75,7 +75,7 @@ const extractRelevantLogs = async (chainId: number, logs: Log[]) => {
   return relevantLogs;
 };
 
-// Given an array of logs, extract the relevant ones and send them to the transaction processing job
+// Given an array of logs, extract the relevant ones and send them to the transaction processing queue
 export const extractAndProcessLogs = async (chainId: number, logs: Log[]) => {
   const relevantLogs = await extractRelevantLogs(chainId, logs);
   await Promise.all(
@@ -109,7 +109,7 @@ export const extractTransactionEntries = async (
   const parsedLogs = parseEventLogs({
     abi: ABI,
     logs: await extractRelevantLogs(chainId, transactionReceipt.logs),
-    eventName: ["NativeDeposit", "Erc20Deposit", "Transfer", "Withdrawal"],
+    eventName: ["NativeDeposit", "Erc20Deposit", "Transfer", "CallExecuted"],
   });
 
   // Sort the logs to their original onchain order
@@ -120,28 +120,31 @@ export const extractTransactionEntries = async (
     const nextLog = i + 1 < parsedLogs.length ? parsedLogs[i + 1] : undefined;
 
     if (currentLog?.eventName === "NativeDeposit") {
-      // Case 1:
-      // If the id is not the zero hash, associate the deposit to a commitment instead of the sender
-      let commitmentId: string | undefined;
+      // If the id is not the zero hash, use it
+      let depositId: string | undefined;
       if (currentLog.args.id.toLowerCase() !== zeroHash) {
-        commitmentId = currentLog.args.id.toLowerCase();
+        depositId = currentLog.args.id.toLowerCase();
       }
 
       transactionEntries.push({
         chainId,
         transactionId: transactionReceipt.transactionHash,
         entryId: currentLog.logIndex.toString(),
-        ownerAddress: currentLog.args.from.toLowerCase(),
-        currencyAddress: zeroAddress,
-        balanceDiff: currentLog.args.amount.toString(),
-        commitmentId,
+        data: {
+          type: "deposit",
+          data: {
+            depositorAddress: currentLog.args.from.toLowerCase(),
+            currencyAddress: zeroAddress,
+            amount: currentLog.args.amount.toString(),
+            depositId,
+          },
+        },
       });
     }
 
     if (currentLog?.eventName === "Transfer") {
-      // Case 1:
-      // If the next event in the transaction is a matching `Erc20Deposit` event, then take the commitment id from there
-      let commitmentId: string | undefined;
+      // If the next event in the transaction is a matching `Erc20Deposit` event, take the id from there
+      let depositId: string | undefined;
       if (
         nextLog &&
         nextLog.logIndex === currentLog.logIndex + 1 &&
@@ -151,13 +154,12 @@ export const extractTransactionEntries = async (
         nextLog.args.token.toLowerCase() === currentLog.address.toLowerCase() &&
         nextLog.args.amount === currentLog.args.amount
       ) {
-        commitmentId = nextLog.args.id;
+        depositId = nextLog.args.id;
       }
 
-      // Case 2:
-      // If the transaction involves a single `Transfer` event and the calldata matches a standard ERC20 transfer method,
-      // then take the commitment id from the end of calldata (if the end of calldata has at least 32 bytes)
-      if (!commitmentId && parsedLogs.length === 1) {
+      // If the transaction involves a single `Transfer` event and the calldata matches a standard ERC20 transfer,
+      // take the deposit id from the end of calldata (if the end of calldata has at least 32 bytes)
+      if (!depositId && parsedLogs.length === 1) {
         const transactionCalldata = (await transaction()).input;
         const decodedFunctionData = await undefinedOnThrow(() =>
           decodeFunctionData({
@@ -170,12 +172,13 @@ export const extractTransactionEntries = async (
             // The `0x` prefix
             2 +
               // The 4byte method signature
-              4 * 2 +
+              8 +
               // Either 64 or 96 bytes depending on the called method
               64 * (decodedFunctionData.functionName === "transfer" ? 2 : 3)
           );
           if (endOfCalldata.length >= 64) {
-            commitmentId = "0x" + endOfCalldata;
+            // We take the first 32 bytes from the end of calldata
+            depositId = "0x" + endOfCalldata.slice(0, 64);
           }
         }
       }
@@ -184,15 +187,45 @@ export const extractTransactionEntries = async (
         chainId,
         transactionId: transactionReceipt.transactionHash,
         entryId: currentLog.logIndex.toString(),
-        ownerAddress: currentLog.args.from.toLowerCase(),
-        currencyAddress: currentLog.address.toLowerCase(),
-        balanceDiff: currentLog.args.amount.toString(),
-        commitmentId,
+        data: {
+          type: "deposit",
+          data: {
+            depositorAddress: currentLog.args.from.toLowerCase(),
+            currencyAddress: currentLog.address.toLowerCase(),
+            amount: currentLog.args.amount.toString(),
+            depositId,
+          },
+        },
       });
     }
 
-    if (currentLog?.eventName === "Withdrawal") {
-      // TODO: Implement
+    if (currentLog?.eventName === "CallExecuted") {
+      const decodedFunctionData = await undefinedOnThrow(() =>
+        decodeFunctionData({
+          abi: ERC20_ABI,
+          data: currentLog.args.call.data,
+        })
+      );
+      if (!decodedFunctionData) {
+        throw new Error("Unable to decode CallExecuted event");
+      }
+
+      transactionEntries.push({
+        chainId,
+        transactionId: transactionReceipt.transactionHash,
+        entryId: currentLog.logIndex.toString(),
+        data: {
+          type: "withdrawal",
+          data: {
+            currencyAddress: currentLog.args.call.to.toLowerCase(),
+            amount:
+              decodedFunctionData.functionName === "transfer"
+                ? decodedFunctionData.args[0].toLowerCase()
+                : decodedFunctionData.args[1].toLowerCase(),
+            withdrawalId: currentLog.args.id,
+          },
+        },
+      });
     }
   }
 
