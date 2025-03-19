@@ -11,7 +11,7 @@ import {
 
 import { getChain } from "../../../../common/chains";
 import { Lazy, undefinedOnThrow } from "../../../../common/utils";
-import { TransactionEntry } from "../../../../models/transactions";
+import { TransactionEntry } from "../../../../models/transaction-entries";
 
 // Define the events to listen to
 export const ABI = parseAbi([

@@ -4,7 +4,7 @@ import { extractTransactionEntries } from "./utils";
 import { getChain } from "../../../../common/chains";
 import { setupQueue } from "../../../../common/mq";
 import { httpRpc } from "../../../../common/vm/evm/rpc";
-import { saveTransactionEntry } from "../../../../models/transactions";
+import { saveTransactionEntry } from "../../../../models/transaction-entries";
 import { send as wsSend } from "../../../../ws-server";
 
 const COMPONENT = "mq-evm-process-transaction";
