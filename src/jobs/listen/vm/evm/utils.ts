@@ -178,33 +178,50 @@ export const extractTransactionEntries = async (
     }
 
     if (currentLog?.eventName === "CallExecuted") {
-      const decodedFunctionData = await undefinedOnThrow(() =>
-        decodeFunctionData({
-          abi: ERC20_ABI,
-          data: currentLog.args.call.data,
-        })
-      );
-      if (!decodedFunctionData) {
-        throw new Error("Unable to decode CallExecuted event");
-      }
-
-      transactionEntries.push({
-        chainId,
-        transactionId: transactionReceipt.transactionHash,
-        entryId: currentLog.logIndex.toString(),
-        escrow: currentLog.address.toLowerCase(),
-        data: {
-          type: "withdrawal",
+      if (currentLog.args.call.value > 0n) {
+        transactionEntries.push({
+          chainId,
+          transactionId: transactionReceipt.transactionHash,
+          entryId: currentLog.logIndex.toString(),
+          escrow: currentLog.address.toLowerCase(),
           data: {
-            currencyAddress: currentLog.args.call.to.toLowerCase(),
-            amount:
-              decodedFunctionData.functionName === "transfer"
-                ? decodedFunctionData.args[0].toLowerCase()
-                : decodedFunctionData.args[1].toLowerCase(),
-            withdrawalId: currentLog.args.id,
+            type: "withdrawal",
+            data: {
+              currencyAddress: zeroAddress,
+              amount: currentLog.args.call.value.toString(),
+              withdrawalId: currentLog.args.id,
+            },
           },
-        },
-      });
+        });
+      } else {
+        const decodedFunctionData = await undefinedOnThrow(() =>
+          decodeFunctionData({
+            abi: ERC20_ABI,
+            data: currentLog.args.call.data,
+          })
+        );
+        if (!decodedFunctionData) {
+          throw new Error("Unable to decode CallExecuted event");
+        }
+
+        transactionEntries.push({
+          chainId,
+          transactionId: transactionReceipt.transactionHash,
+          entryId: currentLog.logIndex.toString(),
+          escrow: currentLog.address.toLowerCase(),
+          data: {
+            type: "withdrawal",
+            data: {
+              currencyAddress: currentLog.args.call.to.toLowerCase(),
+              amount:
+                decodedFunctionData.functionName === "transfer"
+                  ? decodedFunctionData.args[0].toLowerCase()
+                  : decodedFunctionData.args[1].toLowerCase(),
+              withdrawalId: currentLog.args.id,
+            },
+          },
+        });
+      }
     }
   }
 
