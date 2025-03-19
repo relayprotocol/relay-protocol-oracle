@@ -33,7 +33,7 @@ const extractRelevantLogs = async (chainId: number, logs: Log[]) => {
   const relevantLogs: Log[] = [];
 
   const chain = await getChain(chainId);
-  const escrow = chain.metadata!.escrow!;
+  const escrow = chain.metadata.escrow.toLowerCase();
 
   const parsedLogs = parseEventLogs({
     abi: ABI,
@@ -81,17 +81,9 @@ export const extractAndProcessLogs = async (chainId: number, logs: Log[]) => {
   await Promise.all(
     relevantLogs.map(async (log) => {
       if (log.transactionHash) {
-        // One job sent without waiting for finalization
         await jobs.mqProcessTransactionEvm.send({
           chainId,
           transactionHash: log.transactionHash.toLowerCase(),
-        });
-
-        // Another job sent waiting for finalization
-        await jobs.mqProcessTransactionEvm.send({
-          chainId,
-          transactionHash: log.transactionHash.toLowerCase(),
-          waitForFinalization: true,
         });
       }
     })
@@ -130,6 +122,7 @@ export const extractTransactionEntries = async (
         chainId,
         transactionId: transactionReceipt.transactionHash,
         entryId: currentLog.logIndex.toString(),
+        escrow: currentLog.address.toLowerCase(),
         data: {
           type: "deposit",
           data: {
@@ -187,6 +180,7 @@ export const extractTransactionEntries = async (
         chainId,
         transactionId: transactionReceipt.transactionHash,
         entryId: currentLog.logIndex.toString(),
+        escrow: currentLog.args.to.toLowerCase(),
         data: {
           type: "deposit",
           data: {
@@ -214,6 +208,7 @@ export const extractTransactionEntries = async (
         chainId,
         transactionId: transactionReceipt.transactionHash,
         entryId: currentLog.logIndex.toString(),
+        escrow: currentLog.address.toLowerCase(),
         data: {
           type: "withdrawal",
           data: {

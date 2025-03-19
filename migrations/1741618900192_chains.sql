@@ -10,7 +10,7 @@ CREATE TABLE "chains" (
   "http_rpc_url" TEXT NOT NULL,
   "ws_rpc_url" TEXT,
   "vm_type" "vm_type_t" NOT NULL,
-  "metadata" JSONB,
+  "metadata" JSONB NOT NULL,
   "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now()
 );

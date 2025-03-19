@@ -4,6 +4,7 @@ CREATE TABLE "transaction_entries" (
   "chain_id" BIGINT NOT NULL,
   "transaction_id" TEXT NOT NULL,
   "entry_id" TEXT NOT NULL,
+  "escrow" TEXT NOT NULL,
   "data" JSONB NOT NULL,
   "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now()

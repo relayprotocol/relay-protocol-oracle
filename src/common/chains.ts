@@ -4,15 +4,23 @@ export enum ChainVmType {
   EthereumVM = "ethereum-vm",
 }
 
+type CommonMetadata = {
+  escrow: string;
+};
+
+type EthereumVMMetadata = {
+  blockConfirmations: number;
+};
+
+type VMSpecificMetadata = EthereumVMMetadata;
+
 export type Chain = {
   id: number;
   name: string;
   vmType: ChainVmType;
   httpRpcUrl: string;
   wsRpcUrl?: string;
-  metadata?: {
-    escrow?: string;
-  };
+  metadata: CommonMetadata & VMSpecificMetadata;
 };
 
 let _chains: { [id: number]: Chain } | undefined;

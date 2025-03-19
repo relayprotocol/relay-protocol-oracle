@@ -8,6 +8,7 @@ export const chains: Chain[] = [
     httpRpcUrl: "http://127.0.0.1:8545",
     metadata: {
       escrow: "0x0000000000000000000000000000000000001000",
+      blockConfirmations: 1,
     },
   },
 ];
