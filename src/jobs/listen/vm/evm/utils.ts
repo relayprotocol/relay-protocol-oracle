@@ -11,7 +11,6 @@ import {
 
 import { getChain } from "../../../../common/chains";
 import { Lazy, undefinedOnThrow } from "../../../../common/utils";
-import * as jobs from "../../../../jobs";
 import { TransactionEntry } from "../../../../models/transactions";
 
 // Define the events to listen to
@@ -29,7 +28,7 @@ export const ERC20_ABI = parseAbi([
 ]);
 
 // Given an array of logs, filter and return the ones which are relevant from the perspective of the oracle
-const extractRelevantLogs = async (chainId: number, logs: Log[]) => {
+export const extractRelevantLogs = async (chainId: number, logs: Log[]) => {
   const relevantLogs: Log[] = [];
 
   const chain = await getChain(chainId);
@@ -73,21 +72,6 @@ const extractRelevantLogs = async (chainId: number, logs: Log[]) => {
   );
 
   return relevantLogs;
-};
-
-// Given an array of logs, extract the relevant ones and send them to the transaction processing queue
-export const extractAndProcessLogs = async (chainId: number, logs: Log[]) => {
-  const relevantLogs = await extractRelevantLogs(chainId, logs);
-  await Promise.all(
-    relevantLogs.map(async (log) => {
-      if (log.transactionHash) {
-        await jobs.mqProcessTransactionEvm.send({
-          chainId,
-          transactionHash: log.transactionHash.toLowerCase(),
-        });
-      }
-    })
-  );
 };
 
 // Given all logs of a particular transaction, parse any entries to be tracked by the oracle

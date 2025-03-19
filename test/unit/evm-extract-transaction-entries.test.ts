@@ -6,6 +6,7 @@ import {
   encodeAbiParameters,
   encodeEventTopics,
   encodeFunctionData,
+  zeroAddress,
 } from "viem";
 
 import {
@@ -94,6 +95,43 @@ const mockTransferLog = ({
     transactionHash,
     logIndex,
     address: token,
+    data,
+    topics: topics as string[],
+  });
+};
+
+const mockNativeDepositLog = ({
+  transactionHash,
+  logIndex,
+  from,
+  to,
+  amount,
+  id,
+}: {
+  transactionHash: string;
+  logIndex: number;
+  from: string;
+  to: string;
+  amount: string;
+  id: string;
+}) => {
+  const topics = encodeEventTopics({
+    abi: ABI,
+    eventName: "NativeDeposit",
+  });
+  const data = encodeAbiParameters(
+    [
+      { name: "from", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "id", type: "bytes32" },
+    ],
+    [from as Hex, BigInt(amount), id as Hex]
+  );
+
+  return mockTransactionLog({
+    transactionHash,
+    logIndex,
+    address: to,
     data,
     topics: topics as string[],
   });
@@ -236,7 +274,7 @@ describe("evm-extract-transaction-entries", () => {
     ).toBeTruthy();
   });
 
-  it("erc20 transfer event coupled with deposit event", async () => {
+  it("single erc20 transfer event with consecutive erc20deposit event", async () => {
     const chain = chains[randomNumber(chains.length)];
     const transactionHash = randomHex(32);
 
@@ -285,7 +323,7 @@ describe("evm-extract-transaction-entries", () => {
     ).toBeTruthy();
   });
 
-  it("erc20 transfer event coupled with deposit event but not consecutive log indexes", async () => {
+  it("single erc20 transfer event with non-consecutive erc20deposit event", async () => {
     const chain = chains[randomNumber(chains.length)];
     const transactionHash = randomHex(32);
 
@@ -331,6 +369,51 @@ describe("evm-extract-transaction-entries", () => {
     expect(te.data.data.amount === amount).toBeTruthy();
     expect(
       te.data.type === "deposit" && te.data.data.depositId === undefined
+    ).toBeTruthy();
+  });
+
+  it("single nativedeposit event", async () => {
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const from = randomHex(20);
+    const amount = randomNumber(1e10).toString();
+    const id = randomHex(32);
+
+    const transferLog = mockNativeDepositLog({
+      transactionHash,
+      logIndex: 0,
+      from,
+      to: chain.metadata!.escrow!,
+      amount,
+      id,
+    });
+    const transactionReceipt = mockTransactionReceipt(transactionHash, [
+      transferLog,
+    ]);
+
+    const transactionEntries = await extractTransactionEntries(
+      chain.id,
+      transactionReceipt,
+      () =>
+        ({
+          input: "0x",
+        } as any)
+    );
+    expect(transactionEntries.length === 1).toBeTruthy();
+
+    const te = transactionEntries[0];
+
+    expect(te.chainId === chain.id).toBeTruthy();
+    expect(te.transactionId === transactionHash).toBeTruthy();
+    expect(te.entryId === "0").toBeTruthy();
+    expect(
+      te.data.type === "deposit" && te.data.data.depositorAddress === from
+    ).toBeTruthy();
+    expect(te.data.data.currencyAddress === zeroAddress).toBeTruthy();
+    expect(te.data.data.amount === amount).toBeTruthy();
+    expect(
+      te.data.type === "deposit" && te.data.data.depositId === id
     ).toBeTruthy();
   });
 });

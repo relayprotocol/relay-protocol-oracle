@@ -45,6 +45,9 @@ const Schema = {
             entryId: Type.String({
               description: "The id of the entry within the transaction",
             }),
+            escrow: Type.String({
+              description: "The escrow relevant to the transaction entry",
+            }),
             data: Type.Union([
               Type.Object({
                 type: Type.Literal("deposit"),
@@ -148,6 +151,7 @@ export default {
           transaction_entries.chain_id,
           transaction_entries.transaction_id,
           transaction_entries.entry_id,
+          transaction_entries.escrow,
           transaction_entries.data,
           transaction_entries.created_at,
           transaction_entries.updated_at
@@ -182,6 +186,7 @@ export default {
         chainId: result.chain_id,
         transactionId: result.transaction_id,
         entryId: result.entry_id,
+        escrow: result.escrow,
         data: result.data,
         createdAt: new Date(result.created_at).toISOString(),
         updatedAt: new Date(result.updated_at).toISOString(),

@@ -1,6 +1,8 @@
 ## Relay oracle
 
-Reference implementation of a Relay protocol oracle. See the [Overview](./docs/Overview.md) for in-depth documentation around how the oracle works.
+> #### Reference implementation of a Relay protocol oracle
+
+See [Overview](./docs/Overview.md) for in-depth documentation on how the oracle works
 
 ### Installation
 

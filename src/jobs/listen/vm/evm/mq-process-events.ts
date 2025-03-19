@@ -1,6 +1,7 @@
-import { ABI, extractAndProcessLogs } from "./utils";
+import { ABI, extractRelevantLogs } from "./utils";
 import { setupQueue } from "../../../../common/mq";
 import { httpRpc } from "../../../../common/vm/evm/rpc";
+import { mqProcessTransactionEvm } from "../../../../jobs";
 
 const COMPONENT = "mq-process-events-evm";
 
@@ -20,7 +21,17 @@ const handler = async (data: Data) => {
     events: ABI,
   });
 
-  await extractAndProcessLogs(chainId, logs);
+  const relevantLogs = await extractRelevantLogs(chainId, logs);
+  await Promise.all(
+    relevantLogs.map(async (log) => {
+      if (log.transactionHash) {
+        await mqProcessTransactionEvm.send({
+          chainId: chainId,
+          transactionHash: log.transactionHash.toLowerCase(),
+        });
+      }
+    })
+  );
 };
 
 const { send } = setupQueue(COMPONENT, handler);

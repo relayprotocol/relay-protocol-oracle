@@ -1,11 +1,11 @@
 import cron from "node-cron";
 
-import { ABI, extractAndProcessLogs } from "./utils";
+import { ABI, extractRelevantLogs } from "./utils";
 import { getChains } from "../../../../common/chains";
 import { logger } from "../../../../common/logger";
 import { redis } from "../../../../common/redis";
 import { httpRpc, wsRpc } from "../../../../common/vm/evm/rpc";
-import * as jobs from "../../../../jobs";
+import { mqProcessEventsEvm, mqProcessTransactionEvm } from "../../../../jobs";
 
 const COMPONENT = "cron-listen-evm";
 
@@ -18,7 +18,19 @@ const COMPONENT = "cron-listen-evm";
       if (rpc) {
         rpc.watchEvent({
           events: ABI,
-          onLogs: async (logs) => extractAndProcessLogs(chain.id, logs),
+          onLogs: async (logs) => {
+            const relevantLogs = await extractRelevantLogs(chain.id, logs);
+            await Promise.all(
+              relevantLogs.map(async (log) => {
+                if (log.transactionHash) {
+                  await mqProcessTransactionEvm.send({
+                    chainId: chain.id,
+                    transactionHash: log.transactionHash.toLowerCase(),
+                  });
+                }
+              })
+            );
+          },
         });
       }
     })
@@ -59,7 +71,7 @@ cron.schedule("*/5 * * * * *", async () => {
         }
 
         // Send to the event processing queue
-        await jobs.mqProcessEventsEvm.send({
+        await mqProcessEventsEvm.send({
           chainId: chain.id,
           fromBlock: lastBlock ? lastBlock + 1 : currentBlock - 10,
           toBlock: currentBlock,

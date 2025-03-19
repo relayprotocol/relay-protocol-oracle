@@ -6,7 +6,7 @@ import { config } from "../config";
 
 const connection = amqp.connect([config.rabbitUrl]);
 
-// Generic wrapper for standard processing handling across all message queues
+// Generic wrapper for standard processing across all message queues
 export const setupQueue = <T>(
   queue: string,
   handler?: (data: T) => Promise<void>
