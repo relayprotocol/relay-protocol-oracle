@@ -40,7 +40,7 @@ export default {
         id: chain.id,
         name: chain.name,
         vmType: chain.vmType,
-        escrow: chain.metadata?.escrow,
+        escrow: chain.escrow,
       })),
     });
   },

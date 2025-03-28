@@ -7,10 +7,9 @@ CREATE TYPE "vm_type_t" AS ENUM (
 CREATE TABLE "chains" (
   "id" BIGINT NOT NULL,
   "name" TEXT NOT NULL,
-  "http_rpc_url" TEXT NOT NULL,
-  "ws_rpc_url" TEXT,
   "vm_type" "vm_type_t" NOT NULL,
-  "metadata" JSONB NOT NULL,
+  "http_rpc_url" TEXT NOT NULL,
+  "escrow" TEXT NOT NULL,
   "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now()
 );

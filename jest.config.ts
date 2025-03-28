@@ -12,7 +12,7 @@ const config: Config = {
     "^.+\\.ts?$": "ts-jest",
   },
 
-  globalSetup: "./test/setup.ts",
+  // globalSetup: "./test/setup.ts",
 };
 
 export default config;

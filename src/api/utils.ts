@@ -63,11 +63,3 @@ export const errorWrapper = (
     }
   };
 };
-
-// Helpers for API response continuations
-
-export const buildContinuation = (...components: string[]) =>
-  Buffer.from(components.join("_")).toString("base64");
-
-export const splitContinuation = (continuation: string) =>
-  Buffer.from(continuation, "base64").toString("ascii").split("_");

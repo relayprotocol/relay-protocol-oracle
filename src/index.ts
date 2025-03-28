@@ -1,6 +1,3 @@
-// Initialize jobs and crons
-import "./jobs";
-
 // Initialize http server
 import "./http-server";
 
