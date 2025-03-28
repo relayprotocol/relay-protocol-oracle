@@ -1,4 +1,5 @@
-import { db } from "./db";
+import { readConfigValue } from "./utils";
+import { config } from "../config";
 
 export enum ChainVmType {
   EthereumVM = "ethereum-vm",
@@ -17,14 +18,14 @@ export const getChains = async () => {
   if (!_chains) {
     const __chains: { [id: number]: Chain } = {};
 
-    const chains = await db().manyOrNone("SELECT * FROM chains");
+    const chains = require(`../../configs/chains.${config.environment}.json`);
     for (const chain of chains) {
       __chains[chain.id] = {
-        id: chain.id,
-        name: chain.name,
-        vmType: chain.vm_type,
-        httpRpcUrl: chain.http_rpc_url,
-        escrow: chain.escrow,
+        id: readConfigValue(chain.id),
+        name: readConfigValue(chain.name),
+        vmType: readConfigValue(chain.vmType),
+        httpRpcUrl: readConfigValue(chain.httpRpcUrl),
+        escrow: readConfigValue(chain.escrow),
       };
     }
 

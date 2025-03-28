@@ -8,3 +8,13 @@ export const undefinedOnThrow = async <T>(
     return undefined;
   }
 };
+
+// Reads a configuration value:
+// - strings starting with "$" are assumed to point to environment variables
+// - anything else is returned as-is
+export const readConfigValue = (value: any) => {
+  if (typeof value === "string" && value.startsWith("$")) {
+    return process.env[value.slice(1)];
+  }
+  return value;
+};
