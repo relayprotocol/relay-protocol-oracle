@@ -3,6 +3,7 @@ import { config } from "../config";
 
 export enum ChainVmType {
   EthereumVM = "ethereum-vm",
+  SolanaVM = "solana-vm",
 }
 
 export type Chain = {

@@ -10,7 +10,7 @@ const Schema = {
         Type.Object({
           id: Type.Number({ description: "The id of the chain" }),
           name: Type.String({ description: "The name of the chain" }),
-          vmType: Type.Union([Type.Literal("ethereum-vm")], {
+          vmType: Type.Union([Type.Literal("ethereum-vm"), Type.Literal("solana-vm")], {
             description: "The VM type of the chain",
           }),
           escrow: Type.Optional(

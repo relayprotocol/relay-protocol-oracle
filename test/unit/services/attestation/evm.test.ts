@@ -20,7 +20,7 @@ import {
 } from "../../../../src/services/attestation/evm";
 import { EscrowDepositMessage } from "../../../../src/services/attestation/types";
 
-jest.mock("../../src/common/chains", () => {
+jest.mock("../../../../src/common/chains", () => {
   const chains: Record<number, any> = {
     1000: {
       id: 1000,
@@ -35,7 +35,7 @@ jest.mock("../../src/common/chains", () => {
     getChain: (chainId: number) => chains[chainId],
   };
 });
-jest.mock("../../src/common/vm/evm/rpc", () => {
+jest.mock("../../../../src/common/vm/evm/rpc", () => {
   return {
     httpRpc: jest.fn(),
   };
