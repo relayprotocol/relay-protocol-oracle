@@ -69,24 +69,61 @@ describe("SuiAttestationService", () => {
     });
 
     it("should attest deposit event", async () => {
-        const events = [{
-            id: {
-                txDigest: "5JAY6Fq3qyp1CVy91nxhuhtEBeyx15Wdv42wzpLbmqRw",
-                eventSeq: "0"
-            },
-            packageId: "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e", 
-            transactionModule: "escrow",
-            sender: "0x70d8697b66fbc6c63130ec17a3a1c0e12030070851a9a3a717574a767a03c48c",
-            type: "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e::escrow::DepositEvent",
-            parsedJson: {
-                amount: "1000",
-                coin_type: {
-                    name: "ad1dd9d79dc28f7e7fb00ba4adca54e9847aa6ea959330f4249319f18f16300d::usdc::USDC"
+        const events = [
+            {
+              "id": {
+                "txDigest": "2p3QBA3rXV6VSQBsu8SmtEnaWSXAu7P9p5xEPaDDz6sE",
+                "eventSeq": "0"
+              },
+              "packageId": "0x0b50c9a37ec3e171b115455e73158c6aa2d7d079bf2915720f022457dc987bd4",
+              "transactionModule": "escrow",
+              "sender": "0x5f7f85e64cb90f4fad427c119cfcfe916397e6f559e052e686df05fe561f9f80",
+              "type": "0x0b50c9a37ec3e171b115455e73158c6aa2d7d079bf2915720f022457dc987bd4::escrow::DepositEvent",
+              "parsedJson": {
+                "amount": "3000",
+                "coin_type": {
+                  "name": "0000000000000000000000000000000000000000000000000000000000000002::sui::SUI"
                 },
-                deposit_id: "0x444dc5b0f731cf61ee5872e21189da034158935f00b511e630f5d34e4563e7ac",
-                from: "0x70d8697b66fbc6c63130ec17a3a1c0e12030070851a9a3a717574a767a03c48c"
+                "deposit_id": [
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3,
+                  3
+                ],
+                "from": "0x5f7f85e64cb90f4fad427c119cfcfe916397e6f559e052e686df05fe561f9f80"
+              },
+              "bcsEncoding": "base64",
+              "bcs": "SjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDI6OnN1aTo6U1VJuAsAAAAAAABff4XmTLkPT61CfBGc/P6RY5fm9VngUuaG3wX+Vh+fgCADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAw=="
             }
-        }];
+        ];
 
         (httpRpc as jest.Mock).mockImplementation(() => ({
             getTransactionBlock: () => ({
@@ -100,10 +137,10 @@ describe("SuiAttestationService", () => {
 
         expect(messages.length).toBe(1);
         expect(msg.kind).toBe("escrow-deposit");
-        expect(msg.output.currency).toBe("ad1dd9d79dc28f7e7fb00ba4adca54e9847aa6ea959330f4249319f18f16300d::usdc::USDC");
-        expect(msg.output.amount).toBe("1000");
-        expect(msg.output.depositor).toBe("0x70d8697b66fbc6c63130ec17a3a1c0e12030070851a9a3a717574a767a03c48c");
-        expect(msg.output.id).toBe("0x444dc5b0f731cf61ee5872e21189da034158935f00b511e630f5d34e4563e7ac");
+        expect(msg.output.currency).toBe("0000000000000000000000000000000000000000000000000000000000000002::sui::SUI");
+        expect(msg.output.amount).toBe("3000");
+        expect(msg.output.depositor).toBe("0x5f7f85e64cb90f4fad427c119cfcfe916397e6f559e052e686df05fe561f9f80");
+        expect(msg.output.id).toBe("0303030303030303030303030303030303030303030303030303030303030303");
     });
 
     it("should return empty array when no events found", async () => {

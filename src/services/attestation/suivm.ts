@@ -153,7 +153,7 @@ export class SuiAttestationService implements AttestationService {
                 depositor: data.from,
                 currency: data.coin_type.name,
                 amount: data.amount.toString(),
-                id: data.deposit_id,
+                id: Buffer.from(data.deposit_id).toString('hex'),
             }
         };
     }

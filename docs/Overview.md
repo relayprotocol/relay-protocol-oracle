@@ -7,4 +7,6 @@ See [`relay-protocol-contracts`](https://github.com/reservoirprotocol/relay-prot
 The indexing logic the oracle uses depends on the VM type of the chain being indexed, as follows:
 
 - [Ethereum VM](./EthereumVMIndexing.md)
-- More VM types coming soon
+- [Solana VM](./SolanaVMIndexing.md)
+- [Sui VM](./SuiVMIndexing.md)
+- [Ton VM](./TonVMIndexing.md)
