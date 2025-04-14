@@ -605,10 +605,10 @@
   resolved "https://registry.yarnpkg.com/@noble/hashes/-/hashes-1.7.1.tgz#5738f6d765710921e7a751e00c20ae091ed8db0f"
   integrity sha512-B8XBPsn4vT/KJAGqDzbwztd+6Yte3P4V7iafm24bxgDe/mlRuK6xmWPuCNrKt2vDafZ8MfJLlchDG/vYafQEjQ==
 
-"@reservoir0x/relay-protocol-sdk@^0.0.1":
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.1.tgz#3afd3a1f7d0ce9bd8652e0426188fd2889686987"
-  integrity sha512-eMZc/D5rvJDCGPRBth9vud5Vcm/VCS5nGXyJFTBKSSpEy8JCIGNQtKvfEVXHwXrUY/jkvI69mIXt70T3oCEP+A==
+"@reservoir0x/relay-protocol-sdk@^0.0.2":
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.2.tgz#d3ed69d01ed799c56d313573ea88d52270a9db1e"
+  integrity sha512-KSYzdKyw3nfWZWtaji+lEEPQrdAzXOmChQrc8KTLdvT70n0F46iUFbpQMYeoDYr+OalwG9ZxtdjFmzci+MSFWw==
   dependencies:
     viem "^2.26.3"
 

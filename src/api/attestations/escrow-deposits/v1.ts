@@ -7,7 +7,6 @@ import {
   FastifyRequestTypeBox,
 } from "../../utils";
 import { getAttestationService } from "../../../services";
-import { EscrowDepositMessage } from "../../../services/attestation/types";
 
 const Schema = {
   body: Type.Object({
@@ -67,13 +66,11 @@ export default {
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
     const attestationService = await getAttestationService(req.body.chainId);
-    const messages = await attestationService.attestEscrowDeposits(
-      req.body.chainId,
-      req.body.transactionId
-    );
-
-    return reply.send({
-      messages: messages.map((m) => m as EscrowDepositMessage),
+    const messages = await attestationService.attestEscrowDeposits({
+      chainId: req.body.chainId,
+      transactionId: req.body.transactionId,
     });
+
+    return reply.send({ messages });
   },
 } as Endpoint;
