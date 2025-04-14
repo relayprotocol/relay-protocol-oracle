@@ -59,7 +59,7 @@ const Schema = {
 };
 
 export default {
-  method: "GET",
+  method: "POST",
   url: "/attestations/escrow-deposits/v1",
   schema: Schema,
   handler: async (
