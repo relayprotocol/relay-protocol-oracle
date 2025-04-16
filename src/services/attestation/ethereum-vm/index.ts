@@ -9,17 +9,12 @@ import {
   zeroHash,
 } from "viem";
 
-import {
-  AttestationMessage,
-  AttestationService,
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
-} from "./types";
-import { getMessageId } from "./utils";
-import { getChain } from "../../common/chains";
-import { safeError } from "../../common/error";
-import { undefinedOnThrow } from "../../common/utils";
-import { httpRpc } from "../../common/vm/evm/rpc";
+import { AttestationMessage, AttestationService } from "../service";
+import { getMessageId } from "../utils";
+import { getChain } from "../../../common/chains";
+import { safeError } from "../../../common/error";
+import { undefinedOnThrow } from "../../../common/utils";
+import { httpRpc } from "../../../common/vm/ethereum-vm/rpc";
 
 export const ABI = parseAbi([
   "event EscrowNativeDeposit(address from, uint256 amount, bytes32 id)",
@@ -33,107 +28,13 @@ export const ABI = parseAbi([
 ]);
 
 export class EvmAttestationService extends AttestationService {
-  public async attestEscrowDeposits(
-    data: EscrowDepositMessage["input"]
-  ): Promise<EscrowDepositMessage[]> {
-    return this._getEscrowMessages(data.chainId, data.transactionId).then(
-      (messages) => messages.filter((m) => m.kind === "escrow-deposit")
-    );
-  }
-
-  public async attestEscrowWithdrawals(
-    data: EscrowWithdrawalMessage["input"]
-  ): Promise<EscrowWithdrawalMessage[]> {
-    return this._getEscrowMessages(data.chainId, data.transactionId).then(
-      (messages) => messages.filter((m) => m.kind === "escrow-withdrawal")
-    );
-  }
-
-  protected async getPaidAmount(data: {
-    chainId: number;
-    transactionId: string;
-    currency: string;
-    recipient: string;
-    orderHash: string;
-    extraData: string;
-    deadline: number;
-  }): Promise<bigint> {
-    const rpc = await httpRpc(data.chainId);
-
-    const receipt = await rpc.getTransactionReceipt({
-      hash: data.transactionId as Hex,
-    });
-    if (!receipt || receipt.status !== "success") {
-      throw safeError(`Missing transaction receipt: ${data.transactionId}`);
-    }
-
-    const transactionTimestamp = await rpc
-      .getBlock({ blockNumber: receipt.blockNumber })
-      .then((block) => block.timestamp);
-    if (transactionTimestamp > data.deadline) {
-      throw safeError(`Transaction executed after deadline: ${data.deadline}`);
-    }
-
-    const transaction = await rpc.getTransaction({
-      hash: data.transactionId as Hex,
-    });
-    if (!transaction) {
-      throw safeError(`Missing transaction: ${data.transactionId}`);
-    }
-
-    if (!transaction.input.endsWith(data.orderHash.slice(2))) {
-      throw safeError(
-        `Missing order has at the end of calldata: ${data.transactionId}`
-      );
-    }
-
-    if (data.currency === zeroAddress) {
-      // If the payment involves native currency, we first try to see if this is a direct transfer
-      if (
-        transaction.to?.toLowerCase() === data.recipient.toLowerCase() &&
-        transaction.input.startsWith(data.orderHash)
-      ) {
-        return transaction.value;
-      }
-
-      // Otherwise, check for any native transfer events emitted via the fill contract specified by the order
-      const fillContract = decodeExtraData(data.extraData, "ethereum-vm")
-        .extraData.fillContract;
-      return parseEventLogs({
-        abi: ABI,
-        logs: receipt.logs,
-        eventName: ["SolverNativeTransfer"],
-      })
-        .filter(
-          (log) =>
-            log.address.toLowerCase() === fillContract.toLowerCase() &&
-            log.args.to.toLowerCase() === data.recipient.toLowerCase()
-        )
-        .map((log) => log.args.amount)
-        .reduce((a, b) => a + b, 0n);
-    } else {
-      // If the payment involves ERC20 currencies, work off standard tansfer events
-      return parseEventLogs({
-        abi: ABI,
-        logs: receipt.logs,
-        eventName: ["Transfer"],
-      })
-        .filter(
-          (log) =>
-            log.address.toLowerCase() === data.currency.toLowerCase() &&
-            log.args.to.toLowerCase() === data.recipient.toLowerCase()
-        )
-        .map((log) => log.args.amount)
-        .reduce((a, b) => a + b, 0n);
-    }
-  }
-
-  private async _getEscrowMessages(
+  protected async getEscrowMessages(
     chainId: number,
     transactionId: string
   ): Promise<AttestationMessage[]> {
     const rpc = await httpRpc(chainId);
 
+    // Ensure the transaction was successfully included
     const receipt = await rpc.getTransactionReceipt({
       hash: transactionId as Hex,
     });
@@ -347,5 +248,84 @@ export class EvmAttestationService extends AttestationService {
     }
 
     return messages;
+  }
+
+  protected async getSolverPaidAmount(data: {
+    chainId: number;
+    transactionId: string;
+    currency: string;
+    recipient: string;
+    orderHash: string;
+    extraData: string;
+    deadline: number;
+  }): Promise<bigint> {
+    const rpc = await httpRpc(data.chainId);
+
+    const receipt = await rpc.getTransactionReceipt({
+      hash: data.transactionId as Hex,
+    });
+    if (!receipt || receipt.status !== "success") {
+      throw safeError(`Missing transaction receipt: ${data.transactionId}`);
+    }
+
+    const transactionTimestamp = await rpc
+      .getBlock({ blockNumber: receipt.blockNumber })
+      .then((block) => block.timestamp);
+    if (transactionTimestamp > data.deadline) {
+      throw safeError(`Transaction executed after deadline: ${data.deadline}`);
+    }
+
+    const transaction = await rpc.getTransaction({
+      hash: data.transactionId as Hex,
+    });
+    if (!transaction) {
+      throw safeError(`Missing transaction: ${data.transactionId}`);
+    }
+
+    if (!transaction.input.endsWith(data.orderHash.slice(2))) {
+      throw safeError(
+        `Missing order has at the end of calldata: ${data.transactionId}`
+      );
+    }
+
+    if (data.currency === zeroAddress) {
+      // If the payment involves native currency, we first try to see if this is a direct transfer
+      if (
+        transaction.to?.toLowerCase() === data.recipient.toLowerCase() &&
+        transaction.input.startsWith(data.orderHash)
+      ) {
+        return transaction.value;
+      }
+
+      // Otherwise, check for any native transfer events emitted via the fill contract specified by the order
+      const fillContract = decodeExtraData(data.extraData, "ethereum-vm")
+        .extraData.fillContract;
+      return parseEventLogs({
+        abi: ABI,
+        logs: receipt.logs,
+        eventName: ["SolverNativeTransfer"],
+      })
+        .filter(
+          (log) =>
+            log.address.toLowerCase() === fillContract.toLowerCase() &&
+            log.args.to.toLowerCase() === data.recipient.toLowerCase()
+        )
+        .map((log) => log.args.amount)
+        .reduce((a, b) => a + b, 0n);
+    } else {
+      // If the payment involves ERC20 currencies, work off standard tansfer events
+      return parseEventLogs({
+        abi: ABI,
+        logs: receipt.logs,
+        eventName: ["Transfer"],
+      })
+        .filter(
+          (log) =>
+            log.address.toLowerCase() === data.currency.toLowerCase() &&
+            log.args.to.toLowerCase() === data.recipient.toLowerCase()
+        )
+        .map((log) => log.args.amount)
+        .reduce((a, b) => a + b, 0n);
+    }
   }
 }

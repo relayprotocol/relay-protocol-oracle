@@ -66,15 +66,12 @@ export type SolverFillMessage = {
 export type AttestationMessage = EscrowDepositMessage | EscrowWithdrawalMessage;
 
 export abstract class AttestationService {
-  public abstract attestEscrowDeposits(
-    data: EscrowDepositMessage["input"]
-  ): Promise<EscrowDepositMessage[]>;
+  protected abstract getEscrowMessages(
+    chainId: number,
+    transactionId: string
+  ): Promise<AttestationMessage[]>;
 
-  public abstract attestEscrowWithdrawals(
-    data: EscrowWithdrawalMessage["input"]
-  ): Promise<EscrowWithdrawalMessage[]>;
-
-  protected abstract getPaidAmount(data: {
+  protected abstract getSolverPaidAmount(data: {
     chainId: number;
     transactionId: string;
     currency: string;
@@ -83,6 +80,22 @@ export abstract class AttestationService {
     extraData: string;
     deadline: number;
   }): Promise<bigint>;
+
+  public async attestEscrowDeposits(
+    data: EscrowDepositMessage["input"]
+  ): Promise<EscrowDepositMessage[]> {
+    return this.getEscrowMessages(data.chainId, data.transactionId).then(
+      (messages) => messages.filter((m) => m.kind === "escrow-deposit")
+    );
+  }
+
+  public async attestEscrowWithdrawals(
+    data: EscrowWithdrawalMessage["input"]
+  ): Promise<EscrowWithdrawalMessage[]> {
+    return this.getEscrowMessages(data.chainId, data.transactionId).then(
+      (messages) => messages.filter((m) => m.kind === "escrow-withdrawal")
+    );
+  }
 
   public async attestSolverFill(data: SolverFillMessage["input"]) {
     // TODO: Verify order signature
@@ -159,7 +172,7 @@ export abstract class AttestationService {
         ) {
           const payment = data.order.output.payments[paymentIndex];
 
-          const paidAmount = await this.getPaidAmount({
+          const paidAmount = await this.getSolverPaidAmount({
             chainId: data.order.output.chainId,
             transactionId: data.output.fill.transactionId,
             currency: payment.currency,
@@ -208,7 +221,7 @@ export abstract class AttestationService {
             throw safeError(`Missing refund for input ${orderInputIndex}`);
           }
 
-          const paidAmount = await this.getPaidAmount({
+          const paidAmount = await this.getSolverPaidAmount({
             chainId: refund.chainId,
             transactionId: dataInput.transactionId,
             currency: refund.currency,

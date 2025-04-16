@@ -13,12 +13,12 @@ import {
 import { randomHex, randomNumber } from "../../../common/utils";
 
 import { getChains } from "../../../../src/common/chains";
-import { httpRpc } from "../../../../src/common/vm/evm/rpc";
+import { httpRpc } from "../../../../src/common/vm/ethereum-vm/rpc";
 import {
   ABI,
   EvmAttestationService,
-} from "../../../../src/services/attestation/evm";
-import { EscrowDepositMessage } from "../../../../src/services/attestation/types";
+} from "../../../../src/services/attestation/ethereum-vm";
+import { EscrowDepositMessage } from "../../../../src/services/attestation/service";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<number, any> = {
@@ -35,7 +35,7 @@ jest.mock("../../../../src/common/chains", () => {
     getChain: (chainId: number) => chains[chainId],
   };
 });
-jest.mock("../../../../src/common/vm/evm/rpc", () => {
+jest.mock("../../../../src/common/vm/ethereum-vm/rpc", () => {
   return {
     httpRpc: jest.fn(),
   };
@@ -140,7 +140,7 @@ const generateNativeDepositLog = ({
 }) => {
   const topics = encodeEventTopics({
     abi: ABI,
-    eventName: "NativeDeposit",
+    eventName: "EscrowNativeDeposit",
   });
   const data = encodeAbiParameters(
     [
@@ -179,7 +179,7 @@ const generateErc20DepositLog = ({
 }) => {
   const topics = encodeEventTopics({
     abi: ABI,
-    eventName: "Erc20Deposit",
+    eventName: "EscrowErc20Deposit",
   });
   const data = encodeAbiParameters(
     [
@@ -228,10 +228,10 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits(
-      chain.id,
-      transactionHash
-    );
+    const messages = await new EvmAttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0] as EscrowDepositMessage;
@@ -281,10 +281,10 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits(
-      chain.id,
-      transactionHash
-    );
+    const messages = await new EvmAttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0] as EscrowDepositMessage;
@@ -299,7 +299,7 @@ describe("EvmAttestationService", () => {
     expect(msg.output.id).toEqual(id);
   });
 
-  it("attestEscrowDeposits - single Transfer event with consecutive Erc20Deposit event", async () => {
+  it("attestEscrowDeposits - single Transfer event with consecutive EscrowErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -330,10 +330,10 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits(
-      chain.id,
-      transactionHash
-    );
+    const messages = await new EvmAttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0] as EscrowDepositMessage;
@@ -348,7 +348,7 @@ describe("EvmAttestationService", () => {
     expect(msg.output.id).toEqual(id);
   });
 
-  it("attestEscrowDeposits - single Transfer event with non-consecutive Erc20Deposit event", async () => {
+  it("attestEscrowDeposits - single Transfer event with non-consecutive EscrowErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -379,10 +379,10 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits(
-      chain.id,
-      transactionHash
-    );
+    const messages = await new EvmAttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0] as EscrowDepositMessage;
@@ -397,7 +397,7 @@ describe("EvmAttestationService", () => {
     expect(msg.output.id).toBeUndefined();
   });
 
-  it("attestEscrowDeposits - single Transfer event with consecutive Erc20Deposit event but without id", async () => {
+  it("attestEscrowDeposits - single Transfer event with consecutive EscrowErc20Deposit event but without id", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -431,10 +431,10 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits(
-      chain.id,
-      transactionHash
-    );
+    const messages = await new EvmAttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0] as EscrowDepositMessage;
@@ -449,7 +449,7 @@ describe("EvmAttestationService", () => {
     expect(msg.output.id).toBeUndefined();
   });
 
-  it("attestEscrowDeposits - single NativeDeposit event", async () => {
+  it("attestEscrowDeposits - single EscrowNativeDeposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -476,10 +476,10 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits(
-      chain.id,
-      transactionHash
-    );
+    const messages = await new EvmAttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0] as EscrowDepositMessage;
@@ -494,7 +494,7 @@ describe("EvmAttestationService", () => {
     expect(msg.output.id).toEqual(id);
   });
 
-  it("attestEscrowDeposits - single NativeDeposit event without id", async () => {
+  it("attestEscrowDeposits - single EscrowNativeDeposit event without id", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -520,10 +520,10 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits(
-      chain.id,
-      transactionHash
-    );
+    const messages = await new EvmAttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0] as EscrowDepositMessage;

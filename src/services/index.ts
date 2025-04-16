@@ -1,4 +1,4 @@
-import { AttestationService } from "./attestation/types";
+import { AttestationService } from "./attestation/service";
 import { ChainVmType, getChain } from "../common/chains";
 import { safeError } from "../common/error";
 
