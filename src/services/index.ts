@@ -2,7 +2,7 @@ import { AttestationService } from "./attestation/service";
 import { ChainVmType, getChain } from "../common/chains";
 import { safeError } from "../common/error";
 
-import { EvmAttestationService } from "./attestation/evm";
+import { EvmAttestationService } from "./attestation/ethereum-vm";
 
 export const getAttestationService = async (
   chainId: number

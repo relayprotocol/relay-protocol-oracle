@@ -9,7 +9,8 @@ import {
   zeroHash,
 } from "viem";
 
-import { AttestationMessage, AttestationService } from "../service";
+import { AttestationMessage } from "../messages";
+import { AttestationService } from "../service";
 import { getMessageId } from "../utils";
 import { getChain } from "../../../common/chains";
 import { safeError } from "../../../common/error";
@@ -108,11 +109,11 @@ export class EvmAttestationService extends AttestationService {
             transactionId,
             currentLog.logIndex.toString()
           ),
-          input: {
+          data: {
             chainId,
             transactionId,
           },
-          output: {
+          result: {
             escrow: chain.escrow.toLowerCase(),
             depositor: currentLog.args.from.toLowerCase(),
             currency: zeroAddress,
@@ -177,11 +178,11 @@ export class EvmAttestationService extends AttestationService {
             transactionId,
             currentLog.logIndex.toString()
           ),
-          input: {
+          data: {
             chainId,
             transactionId,
           },
-          output: {
+          result: {
             escrow: chain.escrow.toLowerCase(),
             depositor: currentLog.args.from.toLowerCase(),
             currency: currentLog.address.toLowerCase(),
@@ -200,11 +201,11 @@ export class EvmAttestationService extends AttestationService {
               transactionId,
               currentLog.logIndex.toString()
             ),
-            input: {
+            data: {
               chainId,
               transactionId,
             },
-            output: {
+            result: {
               escrow: chain.escrow.toLowerCase(),
               currency: zeroAddress,
               amount: currentLog.args.call.value.toString(),
@@ -229,11 +230,11 @@ export class EvmAttestationService extends AttestationService {
               transactionId,
               currentLog.logIndex.toString()
             ),
-            input: {
+            data: {
               chainId,
               transactionId,
             },
-            output: {
+            result: {
               escrow: chain.escrow.toLowerCase(),
               currency: currentLog.args.call.to.toLowerCase(),
               amount:

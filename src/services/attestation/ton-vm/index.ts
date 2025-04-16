@@ -2,20 +2,20 @@ import { Address, Message } from "@ton/core";
 import { TonClient } from "@ton/ton";
 
 import {
-  AttestationMessage,
-  AttestationService,
-  EscrowWithdrawalMessage,
-  EscrowDepositMessage,
-} from "../service";
-import { getMessageId } from "../utils";
-import { getChain } from "../../../common/chains";
-import { httpRpc } from "../../../common/vm/ton-vm/rpc";
-import {
   RelayEscrow,
   DepositEvent,
   WithdrawEvent,
   ADDRESS_NONE,
 } from "./wrappers/RelayEscrow";
+import {
+  AttestationMessage,
+  EscrowDepositMessage,
+  EscrowWithdrawalMessage,
+} from "../messages";
+import { AttestationService } from "../service";
+import { getMessageId } from "../utils";
+import { getChain } from "../../../common/chains";
+import { httpRpc } from "../../../common/vm/ton-vm/rpc";
 
 export class TonAttestationService extends AttestationService {
   protected async getEscrowMessages(
@@ -127,17 +127,17 @@ export class TonAttestationService extends AttestationService {
     }
   }
 
-  private async createDepositMessage(
+  private createDepositMessage(
     event: DepositEvent,
     messageId: string,
     input: { chainId: number; transactionId: string },
     escrowAddress: string
-  ): Promise<EscrowDepositMessage> {
+  ): EscrowDepositMessage {
     return {
       kind: "escrow-deposit",
       messageId,
-      input,
-      output: {
+      data: input,
+      result: {
         escrow: escrowAddress,
         depositor: event.data.depositor,
         currency:
@@ -159,8 +159,8 @@ export class TonAttestationService extends AttestationService {
     return {
       kind: "escrow-withdrawal",
       messageId,
-      input,
-      output: {
+      data: input,
+      result: {
         escrow: escrowAddress,
         currency: event.data.currency,
         amount: event.data.amount.toString(),

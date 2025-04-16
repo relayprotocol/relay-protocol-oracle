@@ -7,7 +7,7 @@ import { TonAttestationService } from "../../../../src/services/attestation/ton-
 import {
   EscrowDepositMessage,
   EscrowWithdrawalMessage,
-} from "../../../../src/services/attestation/service";
+} from "../../../../src/services/attestation/messages";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<number, any> = {
@@ -69,11 +69,11 @@ describe("TonAttestationService", () => {
 
     expect(messages.length).toBe(1);
     expect(msg.kind).toBe("escrow-withdrawal");
-    expect(msg.output.currency).toBe(
+    expect(msg.result.currency).toBe(
       "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c"
     );
-    expect(msg.output.amount).toBe("1000000000");
-    expect(msg.output.id).toBe(
+    expect(msg.result.amount).toBe("1000000000");
+    expect(msg.result.id).toBe(
       "36837698756550845923548951145281232355085456059853636759437290613526864296112"
     );
   });
@@ -116,14 +116,14 @@ describe("TonAttestationService", () => {
 
     expect(messages.length).toBe(1);
     expect(msg.kind).toBe("escrow-deposit");
-    expect(msg.output.currency).toBe(
+    expect(msg.result.currency).toBe(
       "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c"
     );
-    expect(msg.output.amount).toBe("100000000000");
-    expect(msg.output.depositor).toBe(
+    expect(msg.result.amount).toBe("100000000000");
+    expect(msg.result.depositor).toBe(
       "EQBoxZL3xvd0jxyAelu6w96xPdurEs-8q--LD8gHS2P-k3h3"
     );
-    expect(msg.output.id).toBe("109");
+    expect(msg.result.id).toBe("109");
   });
 
   it("attestEscrowDeposits - should attest jetton deposit event", async () => {
@@ -163,11 +163,11 @@ describe("TonAttestationService", () => {
 
     expect(messages.length).toBe(1);
     expect(msg.kind).toBe("escrow-deposit");
-    expect(msg.output.currency).toBe(mockCurrency.toString());
-    expect(msg.output.amount).toBe("10000000");
-    expect(msg.output.depositor).toBe(
+    expect(msg.result.currency).toBe(mockCurrency.toString());
+    expect(msg.result.amount).toBe("10000000");
+    expect(msg.result.depositor).toBe(
       "EQBoxZL3xvd0jxyAelu6w96xPdurEs-8q--LD8gHS2P-k3h3"
     );
-    expect(msg.output.id).toBe("108");
+    expect(msg.result.id).toBe("108");
   });
 });

@@ -24,7 +24,7 @@ const Schema = {
         Type.Object({
           kind: Type.Literal("escrow-deposit"),
           messageId: Type.String({ description: "The id of the message" }),
-          input: Type.Object({
+          data: Type.Object({
             chainId: Type.Number({
               description: "The chain id of the attested transaction",
             }),
@@ -32,7 +32,7 @@ const Schema = {
               description: "The id of the attested transaction",
             }),
           }),
-          output: Type.Object({
+          result: Type.Object({
             escrow: Type.String({
               description: "The escrow address the deposit occured on",
             }),

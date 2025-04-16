@@ -1,69 +1,12 @@
-import { getOrderHash, Order } from "@reservoir0x/relay-protocol-sdk";
+import { getOrderHash } from "@reservoir0x/relay-protocol-sdk";
 
+import {
+  AttestationMessage,
+  EscrowDepositMessage,
+  EscrowWithdrawalMessage,
+  SolverFillMessage,
+} from "./messages";
 import { safeError } from "../../common/error";
-
-export type EscrowDepositMessage = {
-  kind: "escrow-deposit";
-  messageId: string;
-  input: {
-    chainId: number;
-    transactionId: string;
-  };
-  output: {
-    id?: string;
-    escrow: string;
-    depositor: string;
-    currency: string;
-    amount: string;
-  };
-};
-
-export type EscrowWithdrawalMessage = {
-  kind: "escrow-withdrawal";
-  messageId: string;
-  input: {
-    chainId: number;
-    transactionId: string;
-  };
-  output: {
-    id?: string;
-    escrow: string;
-    currency: string;
-    amount: string;
-  };
-};
-
-export type SolverFillMessage = {
-  kind: "solver-fill";
-  messageId: string;
-  input: {
-    order: Order;
-    inputs: {
-      transactionId: string;
-      inputIndex: number;
-    }[];
-    output:
-      | {
-          status: "success";
-          fill: {
-            transactionId: string;
-          };
-        }
-      | {
-          status: "refund";
-          refunds: {
-            transactionId: string;
-            inputIndex: number;
-            refundIndex: number;
-          }[];
-        };
-  };
-  output: {
-    valid: boolean;
-  };
-};
-
-export type AttestationMessage = EscrowDepositMessage | EscrowWithdrawalMessage;
 
 export abstract class AttestationService {
   protected abstract getEscrowMessages(
@@ -82,7 +25,7 @@ export abstract class AttestationService {
   }): Promise<bigint>;
 
   public async attestEscrowDeposits(
-    data: EscrowDepositMessage["input"]
+    data: EscrowDepositMessage["data"]
   ): Promise<EscrowDepositMessage[]> {
     return this.getEscrowMessages(data.chainId, data.transactionId).then(
       (messages) => messages.filter((m) => m.kind === "escrow-deposit")
@@ -90,14 +33,14 @@ export abstract class AttestationService {
   }
 
   public async attestEscrowWithdrawals(
-    data: EscrowWithdrawalMessage["input"]
+    data: EscrowWithdrawalMessage["data"]
   ): Promise<EscrowWithdrawalMessage[]> {
     return this.getEscrowMessages(data.chainId, data.transactionId).then(
       (messages) => messages.filter((m) => m.kind === "escrow-withdrawal")
     );
   }
 
-  public async attestSolverFill(data: SolverFillMessage["input"]) {
+  public async attestSolverFill(data: SolverFillMessage["data"]) {
     // TODO: Verify order signature
     // TODO: Verify there's at most one input per chain id and currency
     // TODO: Verify the output doesn't include the same currency more than once
@@ -131,8 +74,8 @@ export abstract class AttestationService {
         }).then((escrowDeposits) =>
           escrowDeposits.find(
             (d) =>
-              d.output.id === orderHash &&
-              d.output.currency.toLowerCase() ===
+              d.result.id === orderHash &&
+              d.result.currency.toLowerCase() ===
                 orderInput.payment.currency.toLowerCase() &&
               usedEscrowDepositMessageIds.has(d.messageId)
           )
@@ -146,7 +89,7 @@ export abstract class AttestationService {
 
         // Keep track of the total weighted paid amount
         totalWeightedPaidAmount +=
-          BigInt(escrowDeposit.output.amount) *
+          BigInt(escrowDeposit.result.amount) *
           BigInt(orderInput.payment.weight);
       }
     }

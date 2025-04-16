@@ -2,10 +2,10 @@ import { SuiEvent } from "@mysten/sui/client";
 
 import {
   AttestationMessage,
-  AttestationService,
-  EscrowWithdrawalMessage,
   EscrowDepositMessage,
-} from "../service";
+  EscrowWithdrawalMessage,
+} from "../messages";
+import { AttestationService } from "../service";
 import { getMessageId } from "../utils";
 import { getChain } from "../../../common/chains";
 import { httpRpc } from "../../../common/vm/sui-vm/rpc";
@@ -138,8 +138,8 @@ export class SuiAttestationService extends AttestationService {
     return {
       kind: "escrow-deposit",
       messageId,
-      input,
-      output: {
+      data: input,
+      result: {
         escrow: escrowAddress,
         depositor: data.from,
         currency: data.coin_type.name,
@@ -158,8 +158,8 @@ export class SuiAttestationService extends AttestationService {
     return {
       kind: "escrow-withdrawal",
       messageId,
-      input,
-      output: {
+      data: input,
+      result: {
         escrow: escrowAddress,
         currency: data.coin_type.name,
         amount: data.amount.toString(),

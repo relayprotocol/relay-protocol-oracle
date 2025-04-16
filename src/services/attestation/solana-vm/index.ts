@@ -4,10 +4,10 @@ import { PublicKey } from "@solana/web3.js";
 import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
 import {
   AttestationMessage,
-  AttestationService,
-  EscrowWithdrawalMessage,
   EscrowDepositMessage,
-} from "../service";
+  EscrowWithdrawalMessage,
+} from "../messages";
+import { AttestationService } from "../service";
 import { getMessageId } from "../utils";
 import { getChain } from "../../../common/chains";
 import { httpRpc } from "../../../common/vm/solana-vm/rpc";
@@ -164,8 +164,8 @@ export class SolanaAttestationService extends AttestationService {
     return {
       kind: "escrow-deposit",
       messageId,
-      input,
-      output: {
+      data: input,
+      result: {
         escrow: escrowAddress,
         depositor: data.depositor.toBase58(),
         currency: data.token
@@ -186,8 +186,8 @@ export class SolanaAttestationService extends AttestationService {
     return {
       kind: "escrow-withdrawal",
       messageId,
-      input,
-      output: {
+      data: input,
+      result: {
         escrow: escrowAddress,
         currency: data.request.token
           ? data.request.token.toBase58()

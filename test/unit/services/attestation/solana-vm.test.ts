@@ -4,7 +4,7 @@ import { randomBase58 } from "../../../common/utils";
 import { getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/solana-vm/rpc";
 import { SolanaAttestationService } from "../../../../src/services/attestation/solana-vm";
-import { EscrowDepositMessage } from "../../../../src/services/attestation/service";
+import { EscrowDepositMessage } from "../../../../src/services/attestation/messages";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<number, any> = {
@@ -51,11 +51,11 @@ describe("SolanaAttestationService", () => {
 
     expect(messages.length).toBe(1);
     expect(messages[0].kind).toBe("escrow-withdrawal");
-    expect(messages[0].output.currency).toBe(
+    expect(messages[0].result.currency).toBe(
       "11111111111111111111111111111111"
     );
-    expect(messages[0].output.amount).toBe("100000000");
-    expect(messages[0].output.id).toBe(
+    expect(messages[0].result.amount).toBe("100000000");
+    expect(messages[0].result.id).toBe(
       "AFwk1wX1efTqiV37seaAzJAKHjjUDZxeKnfBU5p6wmbJ"
     );
   });
@@ -111,14 +111,14 @@ describe("SolanaAttestationService", () => {
 
     expect(messages.length).toBe(1);
     expect(msg.kind).toBe("escrow-deposit");
-    expect(msg.output.currency).toBe(
+    expect(msg.result.currency).toBe(
       "AzrxfjSRgePBiRyHoV4mdUX2LVTxwPR9E1Crr9mZVeH"
     );
-    expect(msg.output.amount).toBe("1000000000");
-    expect(msg.output.depositor).toBe(
+    expect(msg.result.amount).toBe("1000000000");
+    expect(msg.result.depositor).toBe(
       "61uUNRFVyDQsyne2cHzEmjA76UYpfsRKi2EaDoYH64Rs"
     );
-    expect(msg.output.id).toBe(
+    expect(msg.result.id).toBe(
       "0202020202020202020202020202020202020202020202020202020202020202"
     );
   });
@@ -151,12 +151,12 @@ describe("SolanaAttestationService", () => {
 
     expect(messages.length).toBe(1);
     expect(msg.kind).toBe("escrow-deposit");
-    expect(msg.output.currency).toBe("11111111111111111111111111111111");
-    expect(msg.output.amount).toBe("1000000000");
-    expect(msg.output.depositor).toBe(
+    expect(msg.result.currency).toBe("11111111111111111111111111111111");
+    expect(msg.result.amount).toBe("1000000000");
+    expect(msg.result.depositor).toBe(
       "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv"
     );
-    expect(msg.output.id).toBe(
+    expect(msg.result.id).toBe(
       "0101010101010101010101010101010101010101010101010101010101010101"
     );
   });
