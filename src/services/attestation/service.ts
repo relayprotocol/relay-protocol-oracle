@@ -7,22 +7,29 @@ import {
   SolverFillMessage,
 } from "./messages";
 import { safeError } from "../../common/error";
+import { Address, Hex, verifyMessage } from "viem";
 
 export abstract class AttestationService {
+  // Abstract methods to be implemented by downstream classes
+
   protected abstract getEscrowMessages(
     chainId: number,
     transactionId: string
   ): Promise<AttestationMessage[]>;
 
-  protected abstract getSolverPaidAmount(data: {
-    chainId: number;
-    transactionId: string;
-    currency: string;
-    recipient: string;
-    orderHash: string;
-    extraData: string;
-    deadline: number;
-  }): Promise<bigint>;
+  protected abstract getSolverPaidAmount(
+    chainId: number,
+    transactionId: string,
+    payment: {
+      currency: string;
+      recipient: string;
+      orderHash: string;
+      extraData: string;
+      deadline: number;
+    }
+  ): Promise<bigint>;
+
+  // Implemented methods working off the above abstract methods
 
   public async attestEscrowDeposits(
     data: EscrowDepositMessage["data"]
@@ -41,12 +48,48 @@ export abstract class AttestationService {
   }
 
   public async attestSolverFill(data: SolverFillMessage["data"]) {
-    // TODO: Verify order signature
-    // TODO: Verify there's at most one input per chain id and currency
-    // TODO: Verify the output doesn't include the same currency more than once
+    // Ensure there's at most one input per chain id and currency
+    {
+      const chainIdAndCurrencySet = new Set<string>();
+      for (const input of data.order.inputs) {
+        const key = `${input.chainId}:${input.payment.currency}`.toLowerCase();
+        if (chainIdAndCurrencySet.has(key)) {
+          throw safeError(
+            "Order has multiple inputs for the same chain id and currency"
+          );
+        }
+
+        chainIdAndCurrencySet.add(key);
+      }
+    }
+
+    // Ensure there's a unique output payment per currency
+    {
+      const currencySet = new Set<string>();
+      for (const payment of data.order.output.payments) {
+        const key = `${payment.currency}`.toLowerCase();
+        if (currencySet.has(key)) {
+          throw safeError("Order has multiple outputs for the same currency");
+        }
+
+        currencySet.add(key);
+      }
+    }
 
     // Get the order hash
     const orderHash = getOrderHash(data.order);
+
+    // Verify the order signature
+    const isSignatureValid = await verifyMessage({
+      address: data.order.solver as Address,
+      message: {
+        raw: orderHash,
+      },
+      signature: data.orderSignature as Hex,
+    });
+    if (!isSignatureValid) {
+      throw safeError("Invalid order signature");
+    }
 
     // Verify the inputs
     let totalWeightedPaidAmount = 0n;
@@ -64,7 +107,7 @@ export abstract class AttestationService {
           ({ inputIndex }) => inputIndex === orderInputIndex
         );
         if (!dataInput) {
-          throw safeError("Missing input");
+          throw safeError(`Missing input ${orderInputIndex}`);
         }
 
         // Get the escrow deposit corresponding to the current order input
@@ -77,7 +120,7 @@ export abstract class AttestationService {
               d.result.id === orderHash &&
               d.result.currency.toLowerCase() ===
                 orderInput.payment.currency.toLowerCase() &&
-              usedEscrowDepositMessageIds.has(d.messageId)
+              !usedEscrowDepositMessageIds.has(d.messageId)
           )
         );
         if (!escrowDeposit) {
@@ -94,7 +137,7 @@ export abstract class AttestationService {
       }
     }
 
-    // Compare the total weighted requested amount to the paid amount in order to determine any underpayment
+    // Compare the total weighted requested amount to the total weighted paid amount in order to determine any underpayment
     const totalWeightedRequestedAmount = data.order.inputs
       .map((input) => input.payment.amount * input.payment.weight)
       .reduce((a, b) => a + b, 0n);
@@ -115,24 +158,26 @@ export abstract class AttestationService {
         ) {
           const payment = data.order.output.payments[paymentIndex];
 
-          const paidAmount = await this.getSolverPaidAmount({
-            chainId: data.order.output.chainId,
-            transactionId: data.output.fill.transactionId,
-            currency: payment.currency,
-            recipient: payment.to,
-            orderHash,
-            extraData: data.order.output.extraData,
-            deadline: data.order.output.deadline,
-          });
+          const paidAmount = await this.getSolverPaidAmount(
+            data.order.output.chainId,
+            data.output.fill.transactionId,
+            {
+              currency: payment.currency,
+              recipient: payment.to,
+              orderHash,
+              extraData: data.order.output.extraData,
+              deadline: data.order.output.deadline,
+            }
+          );
 
-          // Ensure the payment matches the minimum amount requested by the user
+          // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any underpayment)
           if (
             paidAmount <
             payment.minimumAmount -
               (payment.minimumAmount * underpaymentBps) / 10n ** 18n
           ) {
             throw safeError(
-              `Insufficient refund amount for output payment ${paymentIndex}`
+              `Insufficient amount for output payment ${paymentIndex}`
             );
           }
         }
@@ -164,24 +209,26 @@ export abstract class AttestationService {
             throw safeError(`Missing refund for input ${orderInputIndex}`);
           }
 
-          const paidAmount = await this.getSolverPaidAmount({
-            chainId: refund.chainId,
-            transactionId: dataInput.transactionId,
-            currency: refund.currency,
-            recipient: refund.to,
-            orderHash,
-            extraData: refund.extraData,
-            deadline: refund.deadline,
-          });
+          const paidAmount = await this.getSolverPaidAmount(
+            refund.chainId,
+            dataInput.transactionId,
+            {
+              currency: refund.currency,
+              recipient: refund.to,
+              orderHash,
+              extraData: refund.extraData,
+              deadline: refund.deadline,
+            }
+          );
 
-          // Ensure the payment matches the minimum amount requested by the user
+          // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any underpayment)
           if (
             paidAmount <
             refund.minimumAmount -
               (refund.minimumAmount * underpaymentBps) / 10n ** 18n
           ) {
             throw safeError(
-              `Insufficient refund amount for input ${orderInputIndex}`
+              `Insufficient amount for input refund payment ${orderInputIndex}`
             );
           }
         }

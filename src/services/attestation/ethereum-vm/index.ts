@@ -114,11 +114,11 @@ export class EvmAttestationService extends AttestationService {
             transactionId,
           },
           result: {
+            id,
             escrow: chain.escrow.toLowerCase(),
             depositor: currentLog.args.from.toLowerCase(),
             currency: zeroAddress,
             amount: currentLog.args.amount.toString(),
-            id,
           },
         });
       }
@@ -183,11 +183,11 @@ export class EvmAttestationService extends AttestationService {
             transactionId,
           },
           result: {
+            id,
             escrow: chain.escrow.toLowerCase(),
             depositor: currentLog.args.from.toLowerCase(),
             currency: currentLog.address.toLowerCase(),
             amount: currentLog.args.amount.toString(),
-            id,
           },
         });
       }
@@ -251,55 +251,62 @@ export class EvmAttestationService extends AttestationService {
     return messages;
   }
 
-  protected async getSolverPaidAmount(data: {
-    chainId: number;
-    transactionId: string;
-    currency: string;
-    recipient: string;
-    orderHash: string;
-    extraData: string;
-    deadline: number;
-  }): Promise<bigint> {
-    const rpc = await httpRpc(data.chainId);
+  protected async getSolverPaidAmount(
+    chainId: number,
+    transactionId: string,
+    payment: {
+      currency: string;
+      recipient: string;
+      orderHash: string;
+      extraData: string;
+      deadline: number;
+    }
+  ): Promise<bigint> {
+    const rpc = await httpRpc(chainId);
 
+    // Ensure the transaction was successfully included
     const receipt = await rpc.getTransactionReceipt({
-      hash: data.transactionId as Hex,
+      hash: transactionId as Hex,
     });
     if (!receipt || receipt.status !== "success") {
-      throw safeError(`Missing transaction receipt: ${data.transactionId}`);
+      throw safeError(
+        `Missing or reverted transaction receipt: ${transactionId}`
+      );
     }
 
     const transactionTimestamp = await rpc
       .getBlock({ blockNumber: receipt.blockNumber })
       .then((block) => block.timestamp);
-    if (transactionTimestamp > data.deadline) {
-      throw safeError(`Transaction executed after deadline: ${data.deadline}`);
-    }
-
-    const transaction = await rpc.getTransaction({
-      hash: data.transactionId as Hex,
-    });
-    if (!transaction) {
-      throw safeError(`Missing transaction: ${data.transactionId}`);
-    }
-
-    if (!transaction.input.endsWith(data.orderHash.slice(2))) {
+    if (transactionTimestamp > payment.deadline) {
       throw safeError(
-        `Missing order has at the end of calldata: ${data.transactionId}`
+        `Transaction executed after deadline: ${payment.deadline}`
       );
     }
 
-    if (data.currency === zeroAddress) {
+    const transaction = await rpc.getTransaction({
+      hash: transactionId as Hex,
+    });
+    if (!transaction) {
+      throw safeError(`Missing transaction: ${transactionId}`);
+    }
+
+    if (!transaction.input.endsWith(payment.orderHash.slice(2))) {
+      throw safeError(
+        `Missing order has at the end of calldata: ${transactionId}`
+      );
+    }
+
+    if (payment.currency === zeroAddress) {
       // If the payment involves native currency, we first try to see if this is a direct transfer
       if (
-        transaction.to?.toLowerCase() === data.recipient.toLowerCase() &&
-        transaction.input.startsWith(data.orderHash)
+        transaction.to?.toLowerCase() === payment.recipient.toLowerCase() &&
+        transaction.input.startsWith(payment.orderHash)
       ) {
         return transaction.value;
       }
 
       // Otherwise, check for any native transfer events emitted via the fill contract specified by the order
-      const fillContract = decodeExtraData(data.extraData, "ethereum-vm")
+      const fillContract = decodeExtraData(payment.extraData, "ethereum-vm")
         .extraData.fillContract;
       return parseEventLogs({
         abi: ABI,
@@ -309,7 +316,7 @@ export class EvmAttestationService extends AttestationService {
         .filter(
           (log) =>
             log.address.toLowerCase() === fillContract.toLowerCase() &&
-            log.args.to.toLowerCase() === data.recipient.toLowerCase()
+            log.args.to.toLowerCase() === payment.recipient.toLowerCase()
         )
         .map((log) => log.args.amount)
         .reduce((a, b) => a + b, 0n);
@@ -322,8 +329,8 @@ export class EvmAttestationService extends AttestationService {
       })
         .filter(
           (log) =>
-            log.address.toLowerCase() === data.currency.toLowerCase() &&
-            log.args.to.toLowerCase() === data.recipient.toLowerCase()
+            log.address.toLowerCase() === payment.currency.toLowerCase() &&
+            log.args.to.toLowerCase() === payment.recipient.toLowerCase()
         )
         .map((log) => log.args.amount)
         .reduce((a, b) => a + b, 0n);

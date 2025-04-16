@@ -36,6 +36,7 @@ export type SolverFillMessage = {
   messageId: string;
   data: {
     order: Order;
+    orderSignature: string;
     inputs: {
       transactionId: string;
       inputIndex: number;

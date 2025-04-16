@@ -44,15 +44,17 @@ export class TonAttestationService extends AttestationService {
     );
   }
 
-  protected async getSolverPaidAmount(_data: {
-    chainId: number;
-    transactionId: string;
-    currency: string;
-    recipient: string;
-    orderHash: string;
-    extraData: string;
-    deadline: number;
-  }): Promise<bigint> {
+  protected async getSolverPaidAmount(
+    _chainId: number,
+    _transactionId: string,
+    _payment: {
+      currency: string;
+      recipient: string;
+      orderHash: string;
+      extraData: string;
+      deadline: number;
+    }
+  ): Promise<bigint> {
     throw new Error("Not implemented");
   }
 
