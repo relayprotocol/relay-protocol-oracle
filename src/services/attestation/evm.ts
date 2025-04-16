@@ -1,3 +1,5 @@
+import { decodeExtraData } from "@reservoir0x/relay-protocol-sdk";
+
 import {
   decodeFunctionData,
   Hex,
@@ -7,38 +9,123 @@ import {
   zeroHash,
 } from "viem";
 
-import { AttestationMessage, AttestationService } from "./types";
+import {
+  AttestationMessage,
+  AttestationService,
+  EscrowDepositMessage,
+  EscrowWithdrawalMessage,
+} from "./types";
 import { getMessageId } from "./utils";
 import { getChain } from "../../common/chains";
+import { safeError } from "../../common/error";
 import { undefinedOnThrow } from "../../common/utils";
 import { httpRpc } from "../../common/vm/evm/rpc";
 
 export const ABI = parseAbi([
-  "event NativeDeposit(address from, uint256 amount, bytes32 id)",
-  "event Erc20Deposit(address from, address token, uint256 amount, bytes32 id)",
+  "event EscrowNativeDeposit(address from, uint256 amount, bytes32 id)",
+  "event EscrowErc20Deposit(address from, address token, uint256 amount, bytes32 id)",
+  "event EscrowCallExecuted(bytes32 id, (address to, bytes data, uint256 value, bool allowFailure) call)",
+  "event SolverNativeTransfer(address to, uint256 amount)",
+  "event SolverCallExecuted((address to, bytes data, uint256 value) call)",
   "event Transfer(address indexed from, address indexed to, uint256 amount)",
-  "event CallExecuted(bytes32 id, (address to, bytes data, uint256 value, bool allowFailure) call)",
   "function transfer(address to, uint256 amount)",
   "function transferFrom(address from, address to, uint256 amount)",
 ]);
 
-export class EvmAttestationService implements AttestationService {
+export class EvmAttestationService extends AttestationService {
   public async attestEscrowDeposits(
-    chainId: number,
-    transactionId: string
-  ): Promise<AttestationMessage[]> {
-    return this._getEscrowMessages(chainId, transactionId).then((messages) =>
-      messages.filter((m) => m.kind === "escrow-deposit")
+    data: EscrowDepositMessage["input"]
+  ): Promise<EscrowDepositMessage[]> {
+    return this._getEscrowMessages(data.chainId, data.transactionId).then(
+      (messages) => messages.filter((m) => m.kind === "escrow-deposit")
     );
   }
 
   public async attestEscrowWithdrawals(
-    chainId: number,
-    transactionId: string
-  ): Promise<AttestationMessage[]> {
-    return this._getEscrowMessages(chainId, transactionId).then((messages) =>
-      messages.filter((m) => m.kind === "escrow-withdrawal")
+    data: EscrowWithdrawalMessage["input"]
+  ): Promise<EscrowWithdrawalMessage[]> {
+    return this._getEscrowMessages(data.chainId, data.transactionId).then(
+      (messages) => messages.filter((m) => m.kind === "escrow-withdrawal")
     );
+  }
+
+  protected async getPaidAmount(data: {
+    chainId: number;
+    transactionId: string;
+    currency: string;
+    recipient: string;
+    orderHash: string;
+    extraData: string;
+    deadline: number;
+  }): Promise<bigint> {
+    const rpc = await httpRpc(data.chainId);
+
+    const receipt = await rpc.getTransactionReceipt({
+      hash: data.transactionId as Hex,
+    });
+    if (!receipt || receipt.status !== "success") {
+      throw safeError(`Missing transaction receipt: ${data.transactionId}`);
+    }
+
+    const transactionTimestamp = await rpc
+      .getBlock({ blockNumber: receipt.blockNumber })
+      .then((block) => block.timestamp);
+    if (transactionTimestamp > data.deadline) {
+      throw safeError(`Transaction executed after deadline: ${data.deadline}`);
+    }
+
+    const transaction = await rpc.getTransaction({
+      hash: data.transactionId as Hex,
+    });
+    if (!transaction) {
+      throw safeError(`Missing transaction: ${data.transactionId}`);
+    }
+
+    if (!transaction.input.endsWith(data.orderHash.slice(2))) {
+      throw safeError(
+        `Missing order has at the end of calldata: ${data.transactionId}`
+      );
+    }
+
+    if (data.currency === zeroAddress) {
+      // If the payment involves native currency, we first try to see if this is a direct transfer
+      if (
+        transaction.to?.toLowerCase() === data.recipient.toLowerCase() &&
+        transaction.input.startsWith(data.orderHash)
+      ) {
+        return transaction.value;
+      }
+
+      // Otherwise, check for any native transfer events emitted via the fill contract specified by the order
+      const fillContract = decodeExtraData(data.extraData, "ethereum-vm")
+        .extraData.fillContract;
+      return parseEventLogs({
+        abi: ABI,
+        logs: receipt.logs,
+        eventName: ["SolverNativeTransfer"],
+      })
+        .filter(
+          (log) =>
+            log.address.toLowerCase() === fillContract.toLowerCase() &&
+            log.args.to.toLowerCase() === data.recipient.toLowerCase()
+        )
+        .map((log) => log.args.amount)
+        .reduce((a, b) => a + b, 0n);
+    } else {
+      // If the payment involves ERC20 currencies, work off standard tansfer events
+      return parseEventLogs({
+        abi: ABI,
+        logs: receipt.logs,
+        eventName: ["Transfer"],
+      })
+        .filter(
+          (log) =>
+            log.address.toLowerCase() === data.currency.toLowerCase() &&
+            log.args.to.toLowerCase() === data.recipient.toLowerCase()
+        )
+        .map((log) => log.args.amount)
+        .reduce((a, b) => a + b, 0n);
+    }
   }
 
   private async _getEscrowMessages(
@@ -46,9 +133,13 @@ export class EvmAttestationService implements AttestationService {
     transactionId: string
   ): Promise<AttestationMessage[]> {
     const rpc = await httpRpc(chainId);
+
     const receipt = await rpc.getTransactionReceipt({
       hash: transactionId as Hex,
     });
+    if (!receipt || receipt.status !== "success") {
+      return [];
+    }
 
     const chain = await getChain(chainId);
 
@@ -56,17 +147,29 @@ export class EvmAttestationService implements AttestationService {
     const parsedLogs = parseEventLogs({
       abi: ABI,
       logs: receipt.logs,
-      eventName: ["NativeDeposit", "Erc20Deposit", "Transfer", "CallExecuted"],
+      eventName: [
+        "EscrowNativeDeposit",
+        "EscrowErc20Deposit",
+        "EscrowCallExecuted",
+        "Transfer",
+      ],
     }).filter((log) => {
       if (
-        log.eventName === "NativeDeposit" &&
+        log.eventName === "EscrowNativeDeposit" &&
         log.address.toLowerCase() === chain.escrow.toLowerCase()
       ) {
         return true;
       }
 
       if (
-        log.eventName === "Erc20Deposit" &&
+        log.eventName === "EscrowErc20Deposit" &&
+        log.address.toLowerCase() === chain.escrow.toLowerCase()
+      ) {
+        return true;
+      }
+
+      if (
+        log.eventName === "EscrowCallExecuted" &&
         log.address.toLowerCase() === chain.escrow.toLowerCase()
       ) {
         return true;
@@ -75,13 +178,6 @@ export class EvmAttestationService implements AttestationService {
       if (
         log.eventName === "Transfer" &&
         log.args.to.toLowerCase() === chain.escrow.toLowerCase()
-      ) {
-        return true;
-      }
-
-      if (
-        log.eventName === "CallExecuted" &&
-        log.address.toLowerCase() === chain.escrow.toLowerCase()
       ) {
         return true;
       }
@@ -97,7 +193,7 @@ export class EvmAttestationService implements AttestationService {
       const currentLog = parsedLogs[i];
       const nextLog = i + 1 < parsedLogs.length ? parsedLogs[i + 1] : undefined;
 
-      if (currentLog?.eventName === "NativeDeposit") {
+      if (currentLog?.eventName === "EscrowNativeDeposit") {
         // If the id is not the zero hash, use it
         let id: string | undefined;
         if (currentLog.args.id.toLowerCase() !== zeroHash) {
@@ -131,7 +227,7 @@ export class EvmAttestationService implements AttestationService {
         if (
           nextLog &&
           nextLog.logIndex === currentLog.logIndex + 1 &&
-          nextLog.eventName === "Erc20Deposit" &&
+          nextLog.eventName === "EscrowErc20Deposit" &&
           nextLog.args.from.toLowerCase() ===
             currentLog.args.from.toLowerCase() &&
           nextLog.args.token.toLowerCase() ===
@@ -194,7 +290,7 @@ export class EvmAttestationService implements AttestationService {
         });
       }
 
-      if (currentLog?.eventName === "CallExecuted") {
+      if (currentLog?.eventName === "EscrowCallExecuted") {
         if (currentLog.args.call.value > 0n) {
           messages.push({
             kind: "escrow-withdrawal",

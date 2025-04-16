@@ -1,4 +1,4 @@
-import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
+import { Type, type TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type {
   ContextConfigDefault,
   FastifyReply,
@@ -12,6 +12,7 @@ import type { RouteGenericInterface } from "fastify/types/route";
 import type { FastifySchema } from "fastify/types/schema";
 
 import { logger } from "../common/logger";
+import { isSafeError } from "../common/error";
 
 export type FastifyRequestTypeBox<TSchema extends FastifySchema> =
   FastifyRequest<
@@ -39,6 +40,12 @@ export type Endpoint = {
   handler: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 };
 
+export const ErrorResponses = {
+  400: Type.Object({
+    message: Type.String({ description: "Error message" }),
+  }),
+};
+
 // Generic wrapper for standard error handling across all endpoints
 export const errorWrapper = (
   url: string,
@@ -48,6 +55,11 @@ export const errorWrapper = (
     try {
       await handler(req, reply);
     } catch (error) {
+      // Safe errors can be passed-through externally
+      if (isSafeError(error)) {
+        return reply.status(400).send({ message: error.message });
+      }
+
       logger.error(
         url,
         JSON.stringify({

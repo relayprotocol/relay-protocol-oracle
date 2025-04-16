@@ -1,3 +1,4 @@
+import { safeError } from "./error";
 import { readConfigValue } from "./utils";
 import { config } from "../config";
 
@@ -41,7 +42,7 @@ export const getChains = async () => {
 export const getChain = async (chainId: number) => {
   const chains = await getChains();
   if (!chains[chainId]) {
-    throw new Error(`Chain ${chainId} is not available`);
+    throw safeError(`Chain ${chainId} is not available`);
   }
 
   return chains[chainId];
