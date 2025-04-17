@@ -12,13 +12,14 @@ const Schema = {
           name: Type.String({ description: "The name of the chain" }),
           vmType: Type.Union(
             [
-              Type.Literal("ethereum-vm"), 
+              Type.Literal("ethereum-vm"),
               Type.Literal("solana-vm"),
               Type.Literal("sui-vm"),
               Type.Literal("ton-vm"),
+              Type.Literal("tron-vm"),
             ],
             {
-              description: "The VM type of the chain",
+              description: "The vm type of the chain",
             }
           ),
           escrow: Type.Optional(

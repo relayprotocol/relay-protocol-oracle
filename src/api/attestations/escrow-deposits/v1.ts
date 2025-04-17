@@ -22,8 +22,9 @@ const Schema = {
     200: Type.Object({
       messages: Type.Array(
         Type.Object({
-          kind: Type.Literal("escrow-deposit"),
-          messageId: Type.String({ description: "The id of the message" }),
+          onchainId: Type.String({
+            description: "The onchain id of the deposit",
+          }),
           data: Type.Object({
             chainId: Type.Number({
               description: "The chain id of the attested transaction",
@@ -33,6 +34,9 @@ const Schema = {
             }),
           }),
           result: Type.Object({
+            depositId: Type.Optional(
+              Type.String({ description: "The id associated to the deposit" })
+            ),
             escrow: Type.String({
               description: "The escrow address the deposit occured on",
             }),
@@ -43,9 +47,6 @@ const Schema = {
               description: "The address of the deposited currency",
             }),
             amount: Type.String({ description: "The deposited amount" }),
-            id: Type.Optional(
-              Type.String({ description: "The id associated to the deposit" })
-            ),
           }),
         }),
         {
