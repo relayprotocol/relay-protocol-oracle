@@ -7,21 +7,16 @@ import {
   WithdrawEvent,
   ADDRESS_NONE,
 } from "./wrappers/RelayEscrow";
-import {
-  AttestationMessage,
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
-} from "../messages";
 import { AttestationService } from "../service";
-import { getMessageId } from "../utils";
 import { getChain } from "../../../common/chains";
 import { httpRpc } from "../../../common/vm/ton-vm/rpc";
+import { getOnchainId, ProtocolMessage } from "../utils";
 
 export class TonAttestationService extends AttestationService {
   protected async getEscrowMessages(
     chainId: number,
     transactionId: string
-  ): Promise<AttestationMessage[]> {
+  ): Promise<ProtocolMessage[]> {
     const chain = await getChain(chainId);
     const connection = await httpRpc(chainId);
     const [address, lt, hash] = transactionId.split("::");
@@ -44,15 +39,17 @@ export class TonAttestationService extends AttestationService {
     );
   }
 
-  protected async getSolverPaidAmount(_data: {
-    chainId: number;
-    transactionId: string;
-    currency: string;
-    recipient: string;
-    orderHash: string;
-    extraData: string;
-    deadline: number;
-  }): Promise<bigint> {
+  protected async getSolverPaidAmount(
+    _chainId: number,
+    _transactionId: string,
+    _payment: {
+      currency: string;
+      recipient: string;
+      orderHash: string;
+      extraData: string;
+      deadline: number;
+    }
+  ): Promise<bigint> {
     throw new Error("Not implemented");
   }
 
@@ -62,10 +59,10 @@ export class TonAttestationService extends AttestationService {
     events: Message[],
     escrowAddress: string,
     connection: TonClient
-  ): Promise<AttestationMessage[]> {
-    const messages: AttestationMessage[] = [];
-    let messageIndex = 0;
+  ): Promise<ProtocolMessage[]> {
+    const messages: ProtocolMessage[] = [];
 
+    let messageIndex = 0;
     for (const event of events) {
       const message = await this.createMessageFromEvent(
         event,
@@ -75,7 +72,6 @@ export class TonAttestationService extends AttestationService {
         messageIndex++,
         connection
       );
-
       if (message) {
         messages.push(message);
       }
@@ -91,8 +87,8 @@ export class TonAttestationService extends AttestationService {
     escrowAddress: string,
     messageIndex: number,
     connection: TonClient
-  ): Promise<AttestationMessage | null> {
-    const messageId = getMessageId(
+  ): Promise<ProtocolMessage | undefined> {
+    const onchainId = getOnchainId(
       chainId,
       transactionId,
       messageIndex.toString()
@@ -111,60 +107,64 @@ export class TonAttestationService extends AttestationService {
     if (message?.name === "Deposit") {
       return this.createDepositMessage(
         message,
-        messageId,
+        onchainId,
         input,
         escrowAddress
       );
     } else if (message?.name === "Withdraw") {
       return this.createWithdrawalMessage(
         message,
-        messageId,
+        onchainId,
         input,
         escrowAddress
       );
     } else {
-      return null;
+      return undefined;
     }
   }
 
   private createDepositMessage(
     event: DepositEvent,
-    messageId: string,
-    input: { chainId: number; transactionId: string },
+    onchainId: string,
+    data: { chainId: number; transactionId: string },
     escrowAddress: string
-  ): EscrowDepositMessage {
+  ): ProtocolMessage {
     return {
-      kind: "escrow-deposit",
-      messageId,
-      data: input,
-      result: {
-        escrow: escrowAddress,
-        depositor: event.data.depositor,
-        currency:
-          event.data.assetType === 0
-            ? ADDRESS_NONE.toString()
-            : event.data.currency,
-        amount: event.data.amount.toString(),
-        id: event.data.depositId.toString(),
+      type: "escrow-deposit",
+      message: {
+        onchainId,
+        data,
+        result: {
+          depositId: event.data.depositId.toString(),
+          escrow: escrowAddress,
+          depositor: event.data.depositor,
+          currency:
+            event.data.assetType === 0
+              ? ADDRESS_NONE.toString()
+              : event.data.currency,
+          amount: event.data.amount.toString(),
+        },
       },
     };
   }
 
   private createWithdrawalMessage(
     event: WithdrawEvent,
-    messageId: string,
-    input: { chainId: number; transactionId: string },
+    onchainId: string,
+    data: { chainId: number; transactionId: string },
     escrowAddress: string
-  ): EscrowWithdrawalMessage {
+  ): ProtocolMessage {
     return {
-      kind: "escrow-withdrawal",
-      messageId,
-      data: input,
-      result: {
-        escrow: escrowAddress,
-        currency: event.data.currency,
-        amount: event.data.amount.toString(),
-        id: event.data.msgHash.toString(),
+      type: "escrow-withdrawal",
+      message: {
+        onchainId,
+        data,
+        result: {
+          withdrawalId: event.data.msgHash.toString(),
+          escrow: escrowAddress,
+          currency: event.data.currency,
+          amount: event.data.amount.toString(),
+        },
       },
     };
   }

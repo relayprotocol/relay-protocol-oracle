@@ -1271,10 +1271,10 @@
     is-ipfs "^0.6.0"
     path "^0.12.7"
 
-"@reservoir0x/relay-protocol-sdk@^0.0.2":
-  version "0.0.2"
-  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.2.tgz#d3ed69d01ed799c56d313573ea88d52270a9db1e"
-  integrity sha512-KSYzdKyw3nfWZWtaji+lEEPQrdAzXOmChQrc8KTLdvT70n0F46iUFbpQMYeoDYr+OalwG9ZxtdjFmzci+MSFWw==
+"@reservoir0x/relay-protocol-sdk@^0.0.4":
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.4.tgz#d2928cc10bfeee8b0281d0517624b5397eac153c"
+  integrity sha512-v1YbVStav2wCd3QFA3Aj3a1MIraPMQWlxgDatW3aK4vjhC6nUz6T/X3iSMSxjhlT5aaGh+tEKxgh7lOW7+8j0w==
   dependencies:
     viem "^2.26.3"
 

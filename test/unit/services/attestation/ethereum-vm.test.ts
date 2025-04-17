@@ -18,7 +18,6 @@ import {
   ABI,
   EvmAttestationService,
 } from "../../../../src/services/attestation/ethereum-vm";
-import { EscrowDepositMessage } from "../../../../src/services/attestation/messages";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<number, any> = {
@@ -234,16 +233,15 @@ describe("EvmAttestationService", () => {
     });
     expect(messages.length === 1).toBeTruthy();
 
-    const msg = messages[0] as EscrowDepositMessage;
+    const msg = messages[0];
 
-    expect(msg.kind).toEqual("escrow-deposit");
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.id).toBeUndefined();
+    expect(msg.result.depositId).toEqual(zeroHash);
   });
 
   it("attestEscrowDeposits - single Transfer event with id appended at the end of calldata", async () => {
@@ -287,16 +285,15 @@ describe("EvmAttestationService", () => {
     });
     expect(messages.length === 1).toBeTruthy();
 
-    const msg = messages[0] as EscrowDepositMessage;
+    const msg = messages[0];
 
-    expect(msg.kind).toEqual("escrow-deposit");
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.id).toEqual(id);
+    expect(msg.result.depositId).toEqual(id);
   });
 
   it("attestEscrowDeposits - single Transfer event with consecutive EscrowErc20Deposit event", async () => {
@@ -336,16 +333,15 @@ describe("EvmAttestationService", () => {
     });
     expect(messages.length === 1).toBeTruthy();
 
-    const msg = messages[0] as EscrowDepositMessage;
+    const msg = messages[0];
 
-    expect(msg.kind).toEqual("escrow-deposit");
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.id).toEqual(id);
+    expect(msg.result.depositId).toEqual(id);
   });
 
   it("attestEscrowDeposits - single Transfer event with non-consecutive EscrowErc20Deposit event", async () => {
@@ -385,16 +381,15 @@ describe("EvmAttestationService", () => {
     });
     expect(messages.length === 1).toBeTruthy();
 
-    const msg = messages[0] as EscrowDepositMessage;
+    const msg = messages[0];
 
-    expect(msg.kind).toEqual("escrow-deposit");
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.id).toBeUndefined();
+    expect(msg.result.depositId).toEqual(zeroHash);
   });
 
   it("attestEscrowDeposits - single Transfer event with consecutive EscrowErc20Deposit event but without id", async () => {
@@ -437,16 +432,15 @@ describe("EvmAttestationService", () => {
     });
     expect(messages.length === 1).toBeTruthy();
 
-    const msg = messages[0] as EscrowDepositMessage;
+    const msg = messages[0];
 
-    expect(msg.kind).toEqual("escrow-deposit");
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.id).toBeUndefined();
+    expect(msg.result.depositId).toEqual(zeroHash);
   });
 
   it("attestEscrowDeposits - single EscrowNativeDeposit event", async () => {
@@ -482,16 +476,15 @@ describe("EvmAttestationService", () => {
     });
     expect(messages.length === 1).toBeTruthy();
 
-    const msg = messages[0] as EscrowDepositMessage;
+    const msg = messages[0];
 
-    expect(msg.kind).toEqual("escrow-deposit");
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.id).toEqual(id);
+    expect(msg.result.depositId).toEqual(id);
   });
 
   it("attestEscrowDeposits - single EscrowNativeDeposit event without id", async () => {
@@ -526,15 +519,14 @@ describe("EvmAttestationService", () => {
     });
     expect(messages.length === 1).toBeTruthy();
 
-    const msg = messages[0] as EscrowDepositMessage;
+    const msg = messages[0];
 
-    expect(msg.kind).toEqual("escrow-deposit");
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.id).toBeUndefined();
+    expect(msg.result.depositId).toEqual(zeroHash);
   });
 });

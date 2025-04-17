@@ -1,12 +1,7 @@
 import { SuiEvent } from "@mysten/sui/client";
 
-import {
-  AttestationMessage,
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
-} from "../messages";
 import { AttestationService } from "../service";
-import { getMessageId } from "../utils";
+import { getOnchainId, ProtocolMessage } from "../utils";
 import { getChain } from "../../../common/chains";
 import { httpRpc } from "../../../common/vm/sui-vm/rpc";
 import { safeError } from "../../../common/error";
@@ -33,7 +28,7 @@ export class SuiAttestationService extends AttestationService {
   protected async getEscrowMessages(
     chainId: number,
     transactionId: string
-  ): Promise<AttestationMessage[]> {
+  ): Promise<ProtocolMessage[]> {
     const chain = await getChain(chainId);
     const connection = await httpRpc(chainId);
     const transaction = await connection.getTransactionBlock({
@@ -55,19 +50,21 @@ export class SuiAttestationService extends AttestationService {
     );
   }
 
-  protected async getSolverPaidAmount(data: {
-    chainId: number;
-    transactionId: string;
-    currency: string;
-    recipient: string;
-    orderHash: string;
-    extraData: string;
-    deadline: number;
-  }): Promise<bigint> {
-    const connection = await httpRpc(data.chainId);
+  protected async getSolverPaidAmount(
+    chainId: number,
+    transactionId: string,
+    payment: {
+      currency: string;
+      recipient: string;
+      orderHash: string;
+      extraData: string;
+      deadline: number;
+    }
+  ): Promise<bigint> {
+    const connection = await httpRpc(chainId);
     // Get the transaction with all details
     const transaction = await connection.getTransactionBlock({
-      digest: data.transactionId,
+      digest: transactionId,
       options: {
         showBalanceChanges: true,
         showEffects: true,
@@ -76,13 +73,13 @@ export class SuiAttestationService extends AttestationService {
     });
 
     if (!transaction || transaction.effects?.status.status !== "success") {
-      throw safeError(`Transaction failed or not found: ${data.transactionId}`);
+      throw safeError(`Transaction failed or not found: ${transactionId}`);
     }
 
     // Check deadline
     const transactionTimestamp = Math.floor(Number(transaction.timestampMs) / 1000);
-    if (transactionTimestamp > data.deadline) {
-      throw safeError(`Transaction executed after deadline: ${data.deadline}`);
+    if (transactionTimestamp > payment.deadline) {
+      throw safeError(`Transaction executed after deadline: ${payment.deadline}`);
     }
 
     // Verify order hash is included in the transaction
@@ -93,7 +90,7 @@ export class SuiAttestationService extends AttestationService {
         // TODO: validate package Id
         if (event.type.includes("::memo::MemoEvent")) {
           const memo = (event.parsedJson as any).message;
-          if (memo === data.orderHash) {
+          if (memo === payment.orderHash) {
             orderHashFound = true;
             break;
           }
@@ -102,7 +99,7 @@ export class SuiAttestationService extends AttestationService {
     }
 
     if (!orderHashFound) {
-      throw safeError(`Order hash not found in transaction: ${data.transactionId}`);
+      throw safeError(`Order hash not found in transaction: ${transactionId}`);
     }
 
     // Parse balance changes to find the amount paid to the recipient
@@ -115,8 +112,8 @@ export class SuiAttestationService extends AttestationService {
       
       if (
         ownerAddress && 
-        ownerAddress.toLowerCase() === data.recipient.toLowerCase() &&
-        change.coinType === data.currency && 
+        ownerAddress.toLowerCase() === payment.recipient.toLowerCase() &&
+        change.coinType === payment.currency && 
         BigInt(change.amount) > 0n
       ) {
         paidAmount += BigInt(change.amount);
@@ -124,7 +121,7 @@ export class SuiAttestationService extends AttestationService {
     }
     
     if (paidAmount === 0n) {
-      throw safeError(`No payment found to recipient: ${data.recipient}`);
+      throw safeError(`No payment found to recipient: ${payment.recipient}`);
     }
 
     return paidAmount;
@@ -135,10 +132,10 @@ export class SuiAttestationService extends AttestationService {
     transactionId: string,
     events: SuiEvent[],
     escrowAddress: string
-  ): AttestationMessage[] {
-    const messages: AttestationMessage[] = [];
-    let messageIndex = 0;
+  ): ProtocolMessage[] {
+    const messages: ProtocolMessage[] = [];
 
+    let messageIndex = 0;
     for (const event of events) {
       const message = this.createMessageFromEvent(
         event,
@@ -147,7 +144,6 @@ export class SuiAttestationService extends AttestationService {
         escrowAddress,
         messageIndex++
       );
-
       if (message) {
         messages.push(message);
       }
@@ -162,8 +158,8 @@ export class SuiAttestationService extends AttestationService {
     transactionId: string,
     escrowAddress: string,
     messageIndex: number
-  ): AttestationMessage | null {
-    const messageId = getMessageId(
+  ): ProtocolMessage | undefined {
+    const onchainId = getOnchainId(
       chainId,
       transactionId,
       messageIndex.toString()
@@ -177,57 +173,61 @@ export class SuiAttestationService extends AttestationService {
     if (event.type.includes("DepositEvent")) {
       return this.createDepositMessage(
         event.parsedJson as DepositEventData,
-        messageId,
+        onchainId,
         input,
         escrowAddress
       );
     } else if (event.type.includes("TransferExecutedEvent")) {
       return this.createWithdrawalMessage(
         event.parsedJson as TransferExecutedEventData,
-        messageId,
+        onchainId,
         input,
         escrowAddress
       );
     } else {
-      return null;
+      return undefined;
     }
   }
 
   private createDepositMessage(
-    data: DepositEventData,
-    messageId: string,
-    input: { chainId: number; transactionId: string },
+    event: DepositEventData,
+    onchainId: string,
+    data: { chainId: number; transactionId: string },
     escrowAddress: string
-  ): EscrowDepositMessage {
+  ): ProtocolMessage {
     return {
-      kind: "escrow-deposit",
-      messageId,
-      data: input,
-      result: {
-        escrow: escrowAddress,
-        depositor: data.from,
-        currency: data.coin_type.name,
-        amount: data.amount.toString(),
-        id: Buffer.from(data.deposit_id).toString("hex"),
+      type: "escrow-deposit",
+      message: {
+        onchainId,
+        data,
+        result: {
+          depositId: Buffer.from(event.deposit_id).toString("hex"),
+          escrow: escrowAddress,
+          depositor: event.from,
+          currency: event.coin_type.name,
+          amount: event.amount.toString(),
+        },
       },
     };
   }
 
   private createWithdrawalMessage(
-    data: TransferExecutedEventData,
-    messageId: string,
-    input: { chainId: number; transactionId: string },
+    event: TransferExecutedEventData,
+    onchainId: string,
+    data: { chainId: number; transactionId: string },
     escrowAddress: string
-  ): EscrowWithdrawalMessage {
+  ): ProtocolMessage {
     return {
-      kind: "escrow-withdrawal",
-      messageId,
-      data: input,
-      result: {
-        escrow: escrowAddress,
-        currency: data.coin_type.name,
-        amount: data.amount.toString(),
-        id: Buffer.from(data.request_hash).toString("hex"),
+      type: "escrow-withdrawal",
+      message: {
+        onchainId,
+        data,
+        result: {
+          withdrawalId: Buffer.from(event.request_hash).toString("hex"),
+          escrow: escrowAddress,
+          currency: event.coin_type.name,
+          amount: event.amount.toString(),
+        },
       },
     };
   }

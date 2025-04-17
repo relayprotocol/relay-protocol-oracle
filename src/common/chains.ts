@@ -1,18 +1,13 @@
+import { VmType } from "@reservoir0x/relay-protocol-sdk";
+
 import { safeError } from "./error";
 import { readConfigValue } from "./utils";
 import { config } from "../config";
 
-export enum ChainVmType {
-  EthereumVM = "ethereum-vm",
-  SolanaVM = "solana-vm",
-  SuiVM = "sui-vm",
-  TonVM = "ton-vm",
-}
-
 export type Chain = {
   id: number;
   name: string;
-  vmType: ChainVmType;
+  vmType: VmType;
   httpRpcUrl: string;
   escrow: string;
 };
@@ -46,4 +41,10 @@ export const getChain = async (chainId: number) => {
   }
 
   return chains[chainId];
+};
+
+export const getSdkChainsConfig = async () => {
+  return Object.fromEntries(
+    Object.values(await getChains()).map((c) => [c.id, c.vmType])
+  );
 };
