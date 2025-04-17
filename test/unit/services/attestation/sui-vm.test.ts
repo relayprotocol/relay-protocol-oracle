@@ -4,10 +4,6 @@ import { randomBase58 } from "../../../common/utils";
 import { getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/sui-vm/rpc";
 import { SuiAttestationService } from "../../../../src/services/attestation/sui-vm";
-import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
-} from "../../../../src/services/attestation/messages";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<number, any> = {
@@ -72,15 +68,14 @@ describe("SuiAttestationService", () => {
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });
-    const msg = messages[0] as EscrowWithdrawalMessage;
+    const msg = messages[0];
 
     expect(messages.length).toBe(1);
-    expect(msg.kind).toBe("escrow-withdrawal");
     expect(msg.result.currency).toBe(
       "0000000000000000000000000000000000000000000000000000000000000002::sui::SUI"
     );
     expect(msg.result.amount).toBe("500");
-    expect(msg.result.id).toBe(
+    expect(msg.result.withdrawalId).toBe(
       "37dd7decbcb2cbd04916e5b9880ae9c06adcaf239276b494bce8eb905e0baf34"
     );
   });
@@ -125,10 +120,9 @@ describe("SuiAttestationService", () => {
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });
-    const msg = messages[0] as EscrowDepositMessage;
+    const msg = messages[0];
 
     expect(messages.length).toBe(1);
-    expect(msg.kind).toBe("escrow-deposit");
     expect(msg.result.currency).toBe(
       "0000000000000000000000000000000000000000000000000000000000000002::sui::SUI"
     );
@@ -136,7 +130,7 @@ describe("SuiAttestationService", () => {
     expect(msg.result.depositor).toBe(
       "0x5f7f85e64cb90f4fad427c119cfcfe916397e6f559e052e686df05fe561f9f80"
     );
-    expect(msg.result.id).toBe(
+    expect(msg.result.depositId).toBe(
       "0303030303030303030303030303030303030303030303030303030303030303"
     );
   });

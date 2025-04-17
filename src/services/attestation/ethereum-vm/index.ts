@@ -1,4 +1,4 @@
-import { decodeExtraData } from "@reservoir0x/relay-protocol-sdk";
+import { decodeOrderExtraData } from "@reservoir0x/relay-protocol-sdk";
 
 import {
   decodeFunctionData,
@@ -9,9 +9,8 @@ import {
   zeroHash,
 } from "viem";
 
-import { AttestationMessage } from "../messages";
 import { AttestationService } from "../service";
-import { getMessageId } from "../utils";
+import { getOnchainId, ProtocolMessage } from "../utils";
 import { getChain } from "../../../common/chains";
 import { safeError } from "../../../common/error";
 import { undefinedOnThrow } from "../../../common/utils";
@@ -32,7 +31,7 @@ export class EvmAttestationService extends AttestationService {
   protected async getEscrowMessages(
     chainId: number,
     transactionId: string
-  ): Promise<AttestationMessage[]> {
+  ): Promise<ProtocolMessage[]> {
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
@@ -90,42 +89,40 @@ export class EvmAttestationService extends AttestationService {
     // Sort the logs accordigng to their onchain order
     parsedLogs.sort((l1, l2) => l1.logIndex - l2.logIndex);
 
-    const messages: AttestationMessage[] = [];
+    const messages: ProtocolMessage[] = [];
     for (let i = 0; i < parsedLogs.length; i++) {
       const currentLog = parsedLogs[i];
       const nextLog = i + 1 < parsedLogs.length ? parsedLogs[i + 1] : undefined;
 
       if (currentLog?.eventName === "EscrowNativeDeposit") {
-        // If the id is not the zero hash, use it
-        let id: string | undefined;
-        if (currentLog.args.id.toLowerCase() !== zeroHash) {
-          id = currentLog.args.id.toLowerCase();
-        }
+        const depositId = currentLog.args.id.toLowerCase();
 
         messages.push({
-          kind: "escrow-deposit",
-          messageId: getMessageId(
-            chainId,
-            transactionId,
-            currentLog.logIndex.toString()
-          ),
-          data: {
-            chainId,
-            transactionId,
-          },
-          result: {
-            id,
-            escrow: chain.escrow.toLowerCase(),
-            depositor: currentLog.args.from.toLowerCase(),
-            currency: zeroAddress,
-            amount: currentLog.args.amount.toString(),
+          type: "escrow-deposit",
+          message: {
+            onchainId: getOnchainId(
+              chainId,
+              transactionId,
+              currentLog.logIndex.toString()
+            ),
+            data: {
+              chainId,
+              transactionId,
+            },
+            result: {
+              depositId,
+              escrow: chain.escrow.toLowerCase(),
+              depositor: currentLog.args.from.toLowerCase(),
+              currency: zeroAddress,
+              amount: currentLog.args.amount.toString(),
+            },
           },
         });
       }
 
       if (currentLog?.eventName === "Transfer") {
         // If the next event in the transaction is a matching `Erc20Deposit` event, take the id from there
-        let id: string | undefined;
+        let depositId: string | undefined;
         if (
           nextLog &&
           nextLog.logIndex === currentLog.logIndex + 1 &&
@@ -137,12 +134,12 @@ export class EvmAttestationService extends AttestationService {
           nextLog.args.amount === currentLog.args.amount &&
           nextLog.args.id !== zeroHash
         ) {
-          id = nextLog.args.id;
+          depositId = nextLog.args.id;
         }
 
         // If the transaction involves a single `Transfer` event and the calldata matches a standard ERC20 transfer,
         // take the deposit id from the end of calldata (if the end of calldata has at least 32 bytes)
-        if (!id && parsedLogs.length === 1) {
+        if (!depositId && parsedLogs.length === 1) {
           const transactionCalldata = (
             await rpc.getTransaction({ hash: transactionId as Hex })
           ).input;
@@ -165,38 +162,16 @@ export class EvmAttestationService extends AttestationService {
               // We take the first 32 bytes from the end of calldata
               const parsedId = "0x" + endOfCalldata.slice(0, 64);
               if (parsedId !== zeroHash) {
-                id = parsedId;
+                depositId = parsedId;
               }
             }
           }
         }
 
         messages.push({
-          kind: "escrow-deposit",
-          messageId: getMessageId(
-            chainId,
-            transactionId,
-            currentLog.logIndex.toString()
-          ),
-          data: {
-            chainId,
-            transactionId,
-          },
-          result: {
-            id,
-            escrow: chain.escrow.toLowerCase(),
-            depositor: currentLog.args.from.toLowerCase(),
-            currency: currentLog.address.toLowerCase(),
-            amount: currentLog.args.amount.toString(),
-          },
-        });
-      }
-
-      if (currentLog?.eventName === "EscrowCallExecuted") {
-        if (currentLog.args.call.value > 0n) {
-          messages.push({
-            kind: "escrow-withdrawal",
-            messageId: getMessageId(
+          type: "escrow-deposit",
+          message: {
+            onchainId: getOnchainId(
               chainId,
               transactionId,
               currentLog.logIndex.toString()
@@ -206,10 +181,36 @@ export class EvmAttestationService extends AttestationService {
               transactionId,
             },
             result: {
+              depositId: depositId ?? zeroHash,
               escrow: chain.escrow.toLowerCase(),
-              currency: zeroAddress,
-              amount: currentLog.args.call.value.toString(),
-              id: currentLog.args.id,
+              depositor: currentLog.args.from.toLowerCase(),
+              currency: currentLog.address.toLowerCase(),
+              amount: currentLog.args.amount.toString(),
+            },
+          },
+        });
+      }
+
+      if (currentLog?.eventName === "EscrowCallExecuted") {
+        if (currentLog.args.call.value > 0n) {
+          messages.push({
+            type: "escrow-withdrawal",
+            message: {
+              onchainId: getOnchainId(
+                chainId,
+                transactionId,
+                currentLog.logIndex.toString()
+              ),
+              data: {
+                chainId,
+                transactionId,
+              },
+              result: {
+                withdrawalId: currentLog.args.id.toLowerCase(),
+                escrow: chain.escrow.toLowerCase(),
+                currency: zeroAddress,
+                amount: currentLog.args.call.value.toString(),
+              },
             },
           });
         } else {
@@ -224,24 +225,26 @@ export class EvmAttestationService extends AttestationService {
           }
 
           messages.push({
-            kind: "escrow-withdrawal",
-            messageId: getMessageId(
-              chainId,
-              transactionId,
-              currentLog.logIndex.toString()
-            ),
-            data: {
-              chainId,
-              transactionId,
-            },
-            result: {
-              escrow: chain.escrow.toLowerCase(),
-              currency: currentLog.args.call.to.toLowerCase(),
-              amount:
-                decodedFunctionData.functionName === "transfer"
-                  ? decodedFunctionData.args[1].toString()
-                  : decodedFunctionData.args[2].toString(),
-              id: currentLog.args.id,
+            type: "escrow-withdrawal",
+            message: {
+              onchainId: getOnchainId(
+                chainId,
+                transactionId,
+                currentLog.logIndex.toString()
+              ),
+              data: {
+                chainId,
+                transactionId,
+              },
+              result: {
+                withdrawalId: currentLog.args.id.toLowerCase(),
+                escrow: chain.escrow.toLowerCase(),
+                currency: currentLog.args.call.to.toLowerCase(),
+                amount:
+                  decodedFunctionData.functionName === "transfer"
+                    ? decodedFunctionData.args[1].toString()
+                    : decodedFunctionData.args[2].toString(),
+              },
             },
           });
         }
@@ -306,8 +309,10 @@ export class EvmAttestationService extends AttestationService {
       }
 
       // Otherwise, check for any native transfer events emitted via the fill contract specified by the order
-      const fillContract = decodeExtraData(payment.extraData, "ethereum-vm")
-        .extraData.fillContract;
+      const fillContract = decodeOrderExtraData(
+        payment.extraData,
+        "ethereum-vm"
+      ).extraData.fillContract;
       return parseEventLogs({
         abi: ABI,
         logs: receipt.logs,

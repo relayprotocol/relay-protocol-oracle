@@ -1,12 +1,7 @@
 import { SuiEvent } from "@mysten/sui/client";
 
-import {
-  AttestationMessage,
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
-} from "../messages";
 import { AttestationService } from "../service";
-import { getMessageId } from "../utils";
+import { getOnchainId, ProtocolMessage } from "../utils";
 import { getChain } from "../../../common/chains";
 import { httpRpc } from "../../../common/vm/sui-vm/rpc";
 
@@ -32,7 +27,7 @@ export class SuiAttestationService extends AttestationService {
   protected async getEscrowMessages(
     chainId: number,
     transactionId: string
-  ): Promise<AttestationMessage[]> {
+  ): Promise<ProtocolMessage[]> {
     const chain = await getChain(chainId);
     const connection = await httpRpc(chainId);
     const transaction = await connection.getTransactionBlock({
@@ -73,10 +68,10 @@ export class SuiAttestationService extends AttestationService {
     transactionId: string,
     events: SuiEvent[],
     escrowAddress: string
-  ): AttestationMessage[] {
-    const messages: AttestationMessage[] = [];
-    let messageIndex = 0;
+  ): ProtocolMessage[] {
+    const messages: ProtocolMessage[] = [];
 
+    let messageIndex = 0;
     for (const event of events) {
       const message = this.createMessageFromEvent(
         event,
@@ -85,7 +80,6 @@ export class SuiAttestationService extends AttestationService {
         escrowAddress,
         messageIndex++
       );
-
       if (message) {
         messages.push(message);
       }
@@ -100,8 +94,8 @@ export class SuiAttestationService extends AttestationService {
     transactionId: string,
     escrowAddress: string,
     messageIndex: number
-  ): AttestationMessage | null {
-    const messageId = getMessageId(
+  ): ProtocolMessage | undefined {
+    const onchainId = getOnchainId(
       chainId,
       transactionId,
       messageIndex.toString()
@@ -115,57 +109,61 @@ export class SuiAttestationService extends AttestationService {
     if (event.type.includes("DepositEvent")) {
       return this.createDepositMessage(
         event.parsedJson as DepositEventData,
-        messageId,
+        onchainId,
         input,
         escrowAddress
       );
     } else if (event.type.includes("TransferExecutedEvent")) {
       return this.createWithdrawalMessage(
         event.parsedJson as TransferExecutedEventData,
-        messageId,
+        onchainId,
         input,
         escrowAddress
       );
     } else {
-      return null;
+      return undefined;
     }
   }
 
   private createDepositMessage(
-    data: DepositEventData,
-    messageId: string,
-    input: { chainId: number; transactionId: string },
+    event: DepositEventData,
+    onchainId: string,
+    data: { chainId: number; transactionId: string },
     escrowAddress: string
-  ): EscrowDepositMessage {
+  ): ProtocolMessage {
     return {
-      kind: "escrow-deposit",
-      messageId,
-      data: input,
-      result: {
-        escrow: escrowAddress,
-        depositor: data.from,
-        currency: data.coin_type.name,
-        amount: data.amount.toString(),
-        id: Buffer.from(data.deposit_id).toString("hex"),
+      type: "escrow-deposit",
+      message: {
+        onchainId,
+        data,
+        result: {
+          depositId: Buffer.from(event.deposit_id).toString("hex"),
+          escrow: escrowAddress,
+          depositor: event.from,
+          currency: event.coin_type.name,
+          amount: event.amount.toString(),
+        },
       },
     };
   }
 
   private createWithdrawalMessage(
-    data: TransferExecutedEventData,
-    messageId: string,
-    input: { chainId: number; transactionId: string },
+    event: TransferExecutedEventData,
+    onchainId: string,
+    data: { chainId: number; transactionId: string },
     escrowAddress: string
-  ): EscrowWithdrawalMessage {
+  ): ProtocolMessage {
     return {
-      kind: "escrow-withdrawal",
-      messageId,
-      data: input,
-      result: {
-        escrow: escrowAddress,
-        currency: data.coin_type.name,
-        amount: data.amount.toString(),
-        id: Buffer.from(data.request_hash).toString("hex"),
+      type: "escrow-withdrawal",
+      message: {
+        onchainId,
+        data,
+        result: {
+          withdrawalId: Buffer.from(event.request_hash).toString("hex"),
+          escrow: escrowAddress,
+          currency: event.coin_type.name,
+          amount: event.amount.toString(),
+        },
       },
     };
   }

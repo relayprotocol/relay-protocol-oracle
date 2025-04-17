@@ -1,14 +1,9 @@
 import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
 
 import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
-import {
-  AttestationMessage,
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
-} from "../messages";
 import { AttestationService } from "../service";
-import { getMessageId } from "../utils";
+import { getOnchainId, ProtocolMessage } from "../utils";
 import { getChain } from "../../../common/chains";
 import { httpRpc } from "../../../common/vm/solana-vm/rpc";
 
@@ -43,7 +38,7 @@ export class SolanaAttestationService extends AttestationService {
   protected async getEscrowMessages(
     chainId: number,
     transactionId: string
-  ): Promise<AttestationMessage[]> {
+  ): Promise<ProtocolMessage[]> {
     const chain = await getChain(chainId);
     const connection = await httpRpc(chainId);
     const transaction = await connection.getParsedTransaction(transactionId, {
@@ -81,10 +76,10 @@ export class SolanaAttestationService extends AttestationService {
     transactionId: string,
     logs: string[],
     escrowAddress: string
-  ): AttestationMessage[] {
-    const messages: AttestationMessage[] = [];
-    let messageIndex = 0;
+  ): ProtocolMessage[] {
+    const messages: ProtocolMessage[] = [];
 
+    let messageIndex = 0;
     for (const log of logs) {
       if (!log.startsWith("Program data: ")) {
         continue;
@@ -94,7 +89,9 @@ export class SolanaAttestationService extends AttestationService {
         const event = this.eventCoder.decode(
           log.slice("Program data: ".length)
         );
-        if (!event) continue;
+        if (!event) {
+          continue;
+        }
 
         const message = this.createMessageFromEvent(
           event,
@@ -103,16 +100,11 @@ export class SolanaAttestationService extends AttestationService {
           escrowAddress,
           messageIndex++
         );
-
         if (message) {
           messages.push(message);
         }
-      } catch (e) {
-        console.error("Failed to decode event:", {
-          error: e,
-          log,
-          transactionId,
-        });
+      } catch {
+        // Skip errors
       }
     }
 
@@ -125,8 +117,8 @@ export class SolanaAttestationService extends AttestationService {
     transactionId: string,
     escrowAddress: string,
     messageIndex: number
-  ): AttestationMessage | null {
-    const messageId = getMessageId(
+  ): ProtocolMessage | undefined {
+    const onchainId = getOnchainId(
       chainId,
       transactionId,
       messageIndex.toString()
@@ -138,64 +130,73 @@ export class SolanaAttestationService extends AttestationService {
     };
 
     switch (event.name) {
-      case "DepositEvent":
+      case "DepositEvent": {
         return this.createDepositMessage(
           event.data as DepositEventData,
-          messageId,
+          onchainId,
           input,
           escrowAddress
         );
-      case "TransferExecutedEvent":
+      }
+
+      case "TransferExecutedEvent": {
         return this.createWithdrawalMessage(
           event.data as TransferExecutedEventData,
-          messageId,
+          onchainId,
           input,
           escrowAddress
         );
-      default:
-        return null;
+      }
+
+      default: {
+        return undefined;
+      }
     }
   }
 
   private createDepositMessage(
-    data: DepositEventData,
-    messageId: string,
-    input: { chainId: number; transactionId: string },
+    event: DepositEventData,
+    onchainId: string,
+    data: { chainId: number; transactionId: string },
     escrowAddress: string
-  ): EscrowDepositMessage {
+  ): ProtocolMessage {
     return {
-      kind: "escrow-deposit",
-      messageId,
-      data: input,
-      result: {
-        escrow: escrowAddress,
-        depositor: data.depositor.toBase58(),
-        currency: data.token
-          ? data.token.toBase58()
-          : "11111111111111111111111111111111",
-        amount: data.amount.toString(),
-        id: Buffer.from(data.id).toString("hex"),
+      type: "escrow-deposit",
+      message: {
+        onchainId,
+        data,
+        result: {
+          depositId: Buffer.from(event.id).toString("hex"),
+          escrow: escrowAddress,
+          depositor: event.depositor.toBase58(),
+          currency: event.token
+            ? event.token.toBase58()
+            : SystemProgram.programId.toBase58(),
+          amount: event.amount.toString(),
+        },
       },
     };
   }
 
   private createWithdrawalMessage(
-    data: TransferExecutedEventData,
-    messageId: string,
-    input: { chainId: number; transactionId: string },
+    event: TransferExecutedEventData,
+    onchainId: string,
+    data: { chainId: number; transactionId: string },
     escrowAddress: string
-  ): EscrowWithdrawalMessage {
+  ): ProtocolMessage {
     return {
-      kind: "escrow-withdrawal",
-      messageId,
-      data: input,
-      result: {
-        escrow: escrowAddress,
-        currency: data.request.token
-          ? data.request.token.toBase58()
-          : "11111111111111111111111111111111",
-        amount: data.request.amount.toString(),
-        id: data.id.toBase58(),
+      type: "escrow-withdrawal",
+      message: {
+        onchainId,
+        data,
+        result: {
+          withdrawalId: event.id.toBase58(),
+          escrow: escrowAddress,
+          currency: event.request.token
+            ? event.request.token.toBase58()
+            : SystemProgram.programId.toBase58(),
+          amount: event.request.amount.toString(),
+        },
       },
     };
   }
