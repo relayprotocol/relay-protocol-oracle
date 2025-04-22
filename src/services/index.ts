@@ -1,6 +1,6 @@
 import { AttestationService } from "./attestation/service";
-import { ChainVmType, getChain } from "../common/chains";
-import { safeError } from "../common/error";
+import { getChain } from "../common/chains";
+import { externalError } from "../common/error";
 
 import { EvmAttestationService } from "./attestation/ethereum-vm";
 
@@ -9,10 +9,10 @@ export const getAttestationService = async (
 ): Promise<AttestationService> => {
   const chain = await getChain(chainId);
   switch (chain.vmType) {
-    case ChainVmType.EthereumVM:
+    case "ethereum-vm":
       return new EvmAttestationService();
 
     default:
-      throw safeError("Vm type not implemented");
+      throw externalError("Vm type not implemented");
   }
 };

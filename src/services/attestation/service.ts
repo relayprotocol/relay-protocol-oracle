@@ -10,7 +10,7 @@ import { Address, Hex, verifyMessage } from "viem";
 
 import { ProtocolMessage } from "./utils";
 import { getSdkChainsConfig } from "../../common/chains";
-import { safeError } from "../../common/error";
+import { externalError } from "../../common/error";
 
 export abstract class AttestationService {
   // Public methods
@@ -68,7 +68,7 @@ export abstract class AttestationService {
         payment.minimumAmount -
           (payment.minimumAmount * underpaymentBps) / 10n ** 18n
       ) {
-        throw safeError(
+        throw externalError(
           `Insufficient amount for output payment ${paymentIndex}`
         );
       }
@@ -95,13 +95,13 @@ export abstract class AttestationService {
         ({ inputIndex }) => inputIndex === orderInputIndex
       );
       if (!dataInput) {
-        throw safeError(`Missing input ${orderInputIndex}`);
+        throw externalError(`Missing input ${orderInputIndex}`);
       }
 
       const refund =
         data.order.inputs[orderInputIndex].refunds[dataInput.refundIndex];
       if (!refund) {
-        throw safeError(`Missing refund for input ${orderInputIndex}`);
+        throw externalError(`Missing refund for input ${orderInputIndex}`);
       }
 
       const paidAmount = await this.getSolverPaidAmount(
@@ -122,7 +122,7 @@ export abstract class AttestationService {
         refund.minimumAmount -
           (refund.minimumAmount * underpaymentBps) / 10n ** 18n
       ) {
-        throw safeError(
+        throw externalError(
           `Insufficient amount for input refund payment ${orderInputIndex}`
         );
       }
@@ -165,7 +165,7 @@ export abstract class AttestationService {
         const key =
           `${input.payment.chainId}:${input.payment.currency}`.toLowerCase();
         if (chainIdAndCurrencySet.has(key)) {
-          throw safeError(
+          throw externalError(
             "Order has multiple inputs for the same chain id and currency"
           );
         }
@@ -180,7 +180,9 @@ export abstract class AttestationService {
       for (const payment of data.order.output.payments) {
         const key = `${payment.currency}`.toLowerCase();
         if (currencySet.has(key)) {
-          throw safeError("Order has multiple outputs for the same currency");
+          throw externalError(
+            "Order has multiple outputs for the same currency"
+          );
         }
 
         currencySet.add(key);
@@ -199,7 +201,7 @@ export abstract class AttestationService {
       signature: data.orderSignature as Hex,
     });
     if (!isSignatureValid) {
-      throw safeError("Invalid order signature");
+      throw externalError("Invalid order signature");
     }
 
     // Verify the inputs
@@ -218,7 +220,7 @@ export abstract class AttestationService {
           ({ inputIndex }) => inputIndex === orderInputIndex
         );
         if (!dataInput) {
-          throw safeError(`Missing input ${orderInputIndex}`);
+          throw externalError(`Missing input ${orderInputIndex}`);
         }
 
         // Get the escrow deposit corresponding to the current order input
@@ -235,7 +237,7 @@ export abstract class AttestationService {
           )
         );
         if (!escrowDeposit) {
-          throw safeError("Missing input payment");
+          throw externalError("Missing input payment");
         }
 
         // Mark the escrow deposit as used

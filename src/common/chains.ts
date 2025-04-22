@@ -1,6 +1,6 @@
 import { VmType } from "@reservoir0x/relay-protocol-sdk";
 
-import { safeError } from "./error";
+import { externalError } from "./error";
 import { readConfigValue } from "./utils";
 import { config } from "../config";
 
@@ -37,7 +37,7 @@ export const getChains = async () => {
 export const getChain = async (chainId: number) => {
   const chains = await getChains();
   if (!chains[chainId]) {
-    throw safeError(`Chain ${chainId} is not available`);
+    throw externalError(`Chain ${chainId} is not available`);
   }
 
   return chains[chainId];

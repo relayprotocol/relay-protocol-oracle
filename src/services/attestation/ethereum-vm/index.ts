@@ -12,7 +12,7 @@ import {
 import { AttestationService } from "../service";
 import { getOnchainId, ProtocolMessage } from "../utils";
 import { getChain } from "../../../common/chains";
-import { safeError } from "../../../common/error";
+import { externalError } from "../../../common/error";
 import { undefinedOnThrow } from "../../../common/utils";
 import { httpRpc } from "../../../common/vm/ethereum-vm/rpc";
 
@@ -272,7 +272,7 @@ export class EvmAttestationService extends AttestationService {
       hash: transactionId as Hex,
     });
     if (!receipt || receipt.status !== "success") {
-      throw safeError(
+      throw externalError(
         `Missing or reverted transaction receipt: ${transactionId}`
       );
     }
@@ -281,7 +281,7 @@ export class EvmAttestationService extends AttestationService {
       .getBlock({ blockNumber: receipt.blockNumber })
       .then((block) => block.timestamp);
     if (transactionTimestamp > payment.deadline) {
-      throw safeError(
+      throw externalError(
         `Transaction executed after deadline: ${payment.deadline}`
       );
     }
@@ -290,11 +290,11 @@ export class EvmAttestationService extends AttestationService {
       hash: transactionId as Hex,
     });
     if (!transaction) {
-      throw safeError(`Missing transaction: ${transactionId}`);
+      throw externalError(`Missing transaction: ${transactionId}`);
     }
 
     if (!transaction.input.endsWith(payment.orderHash.slice(2))) {
-      throw safeError(
+      throw externalError(
         `Missing order has at the end of calldata: ${transactionId}`
       );
     }

@@ -11,8 +11,8 @@ import type {
 import type { RouteGenericInterface } from "fastify/types/route";
 import type { FastifySchema } from "fastify/types/schema";
 
+import { isExternalError } from "../common/error";
 import { logger } from "../common/logger";
-import { isSafeError } from "../common/error";
 
 export type FastifyRequestTypeBox<TSchema extends FastifySchema> =
   FastifyRequest<
@@ -55,8 +55,8 @@ export const errorWrapper = (
     try {
       await handler(req, reply);
     } catch (error) {
-      // Safe errors can be passed-through externally
-      if (isSafeError(error)) {
+      // External errors can be passed-through externally
+      if (isExternalError(error)) {
         return reply.status(400).send({ message: error.message });
       }
 
