@@ -1,8 +1,8 @@
 import {
   EscrowDepositMessage,
   EscrowWithdrawalMessage,
-  SolverRefundFillMessage,
-  SolverSuccessFillMessage,
+  SolverFillMessage,
+  SolverRefundMessage,
 } from "@reservoir0x/relay-protocol-sdk";
 import crypto from "crypto";
 
@@ -16,12 +16,12 @@ export type ProtocolMessage =
       message: EscrowWithdrawalMessage;
     }
   | {
-      type: "solver-success-fill";
-      message: SolverSuccessFillMessage;
+      type: "solver-fill";
+      message: SolverFillMessage;
     }
   | {
-      type: "solver-refund-fill";
-      message: SolverRefundFillMessage;
+      type: "solver-refund";
+      message: SolverRefundMessage;
     };
 
 export const getOnchainId = (

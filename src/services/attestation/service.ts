@@ -3,8 +3,8 @@ import {
   EscrowWithdrawalMessage,
   getOrderHash,
   Order,
-  SolverRefundFillMessage,
-  SolverSuccessFillMessage,
+  SolverFillMessage,
+  SolverRefundMessage,
 } from "@reservoir0x/relay-protocol-sdk";
 import { Address, Hex, verifyMessage } from "viem";
 
@@ -37,18 +37,21 @@ export abstract class AttestationService {
     );
   }
 
-  public async attestSolverSuccessFill(data: SolverSuccessFillMessage["data"]) {
-    const underpaymentBps = await this.getUnderpaymentBps(data);
+  public async attestSolverFill(
+    data: SolverFillMessage["data"]
+  ): Promise<SolverFillMessage> {
+    const totalWeightedInputPaymentBpsDiff =
+      await this.getTotalWeightedInputPaymentBpsDiff(data);
 
     const orderHash = getOrderHash(data.order, await getSdkChainsConfig());
 
     // Verify the fill
     for (
-      let paymentIndex = 0;
-      paymentIndex < data.order.output.payments.length;
-      paymentIndex++
+      let outputPaymentIndex = 0;
+      outputPaymentIndex < data.order.output.payments.length;
+      outputPaymentIndex++
     ) {
-      const payment = data.order.output.payments[paymentIndex];
+      const payment = data.order.output.payments[outputPaymentIndex];
 
       const paidAmount = await this.getSolverPaidAmount(
         data.order.output.chainId,
@@ -62,14 +65,15 @@ export abstract class AttestationService {
         }
       );
 
-      // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any underpayment)
+      // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
       if (
         paidAmount <
-        payment.minimumAmount -
-          (payment.minimumAmount * underpaymentBps) / 10n ** 18n
+        BigInt(payment.minimumAmount) +
+          (BigInt(payment.minimumAmount) * totalWeightedInputPaymentBpsDiff) /
+            10n ** 18n
       ) {
         throw externalError(
-          `Insufficient amount for output payment ${paymentIndex}`
+          `Insufficient fill amount for order output payment ${outputPaymentIndex}`
         );
       }
     }
@@ -77,56 +81,85 @@ export abstract class AttestationService {
     if (data.order.output.calls.length) {
       // TODO: Ensure any output calls were executed
     }
+
+    return {
+      data,
+      result: {
+        validated: true,
+        totalWeightedInputPaymentBpsDiff:
+          totalWeightedInputPaymentBpsDiff.toString(),
+      },
+    };
   }
 
-  public async attestSolverRefundFill(data: SolverRefundFillMessage["data"]) {
-    const underpaymentBps = await this.getUnderpaymentBps(data);
+  public async attestSolverRefund(
+    data: SolverRefundMessage["data"]
+  ): Promise<SolverRefundMessage> {
+    const totalWeightedInputPaymentBpsDiff =
+      await this.getTotalWeightedInputPaymentBpsDiff(data);
 
     const orderHash = getOrderHash(data.order, await getSdkChainsConfig());
 
     // Verify the refunds
     for (
-      let orderInputIndex = 0;
-      orderInputIndex < data.order.inputs.length;
-      orderInputIndex++
+      let inputPaymentIndex = 0;
+      inputPaymentIndex < data.order.inputs.length;
+      inputPaymentIndex++
     ) {
-      // Find the refund input corresponding to the current order input
-      const dataInput = data.refunds.find(
-        ({ inputIndex }) => inputIndex === orderInputIndex
+      // Get the refund information corresponding to the current input payment
+      const refundInformation = data.refunds.find(
+        ({ inputIndex }) => inputIndex === inputPaymentIndex
       );
-      if (!dataInput) {
-        throw externalError(`Missing input ${orderInputIndex}`);
+      if (!refundInformation) {
+        throw externalError(
+          `Missing refund information for order input payment ${inputPaymentIndex}`
+        );
       }
 
-      const refund =
-        data.order.inputs[orderInputIndex].refunds[dataInput.refundIndex];
-      if (!refund) {
-        throw externalError(`Missing refund for input ${orderInputIndex}`);
+      const orderRefund =
+        data.order.inputs[inputPaymentIndex].refunds[
+          refundInformation.refundIndex
+        ];
+      if (!orderRefund) {
+        throw externalError(
+          `Invalid refund information for order input payment ${inputPaymentIndex}`
+        );
       }
 
       const paidAmount = await this.getSolverPaidAmount(
-        refund.chainId,
-        dataInput.transactionId,
+        orderRefund.chainId,
+        refundInformation.transactionId,
         {
-          currency: refund.currency,
-          recipient: refund.recipient,
+          currency: orderRefund.currency,
+          recipient: orderRefund.recipient,
           orderHash,
-          extraData: refund.extraData,
-          deadline: refund.deadline,
+          extraData: orderRefund.extraData,
+          deadline: orderRefund.deadline,
         }
       );
 
-      // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any underpayment)
+      // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
       if (
         paidAmount <
-        refund.minimumAmount -
-          (refund.minimumAmount * underpaymentBps) / 10n ** 18n
+        BigInt(orderRefund.minimumAmount) +
+          (BigInt(orderRefund.minimumAmount) *
+            totalWeightedInputPaymentBpsDiff) /
+            10n ** 18n
       ) {
         throw externalError(
-          `Insufficient amount for input refund payment ${orderInputIndex}`
+          `Insufficient refund amount for order input payment ${inputPaymentIndex}`
         );
       }
     }
+
+    return {
+      data,
+      result: {
+        validated: true,
+        totalWeightedInputPaymentBpsDiff:
+          totalWeightedInputPaymentBpsDiff.toString(),
+      },
+    };
   }
 
   // Abstract methods (to be implemented by downstream classes)
@@ -150,43 +183,21 @@ export abstract class AttestationService {
 
   // Private methods
 
-  private async getUnderpaymentBps(data: {
+  private async getTotalWeightedInputPaymentBpsDiff(data: {
     order: Order;
     orderSignature: string;
     inputs: {
       transactionId: string;
+      onchainId: string;
       inputIndex: number;
     }[];
   }) {
-    // Ensure there's at most one input per chain id and currency
-    {
-      const chainIdAndCurrencySet = new Set<string>();
-      for (const input of data.order.inputs) {
-        const key =
-          `${input.payment.chainId}:${input.payment.currency}`.toLowerCase();
-        if (chainIdAndCurrencySet.has(key)) {
-          throw externalError(
-            "Order has multiple inputs for the same chain id and currency"
-          );
-        }
-
-        chainIdAndCurrencySet.add(key);
-      }
-    }
-
-    // Ensure there's a unique output payment per currency
-    {
-      const currencySet = new Set<string>();
-      for (const payment of data.order.output.payments) {
-        const key = `${payment.currency}`.toLowerCase();
-        if (currencySet.has(key)) {
-          throw externalError(
-            "Order has multiple outputs for the same currency"
-          );
-        }
-
-        currencySet.add(key);
-      }
+    // Ensure every input specifies a unique onchain id
+    if (
+      new Set(data.inputs.map((input) => input.onchainId)).size !==
+      data.inputs.length
+    ) {
+      throw externalError("Input information contains non-unique onchain ids");
     }
 
     // Get the order hash
@@ -194,7 +205,7 @@ export abstract class AttestationService {
 
     // Verify the order signature
     const isSignatureValid = await verifyMessage({
-      address: data.order.solver as Address,
+      address: data.order.solver.address as Address,
       message: {
         raw: orderHash,
       },
@@ -207,41 +218,35 @@ export abstract class AttestationService {
     // Verify the inputs
     let totalWeightedPaidAmount = 0n;
     {
-      const usedEscrowDepositOnchainIds = new Set<string>();
       for (
-        let orderInputIndex = 0;
-        orderInputIndex < data.order.inputs.length;
-        orderInputIndex++
+        let inputPaymentIndex = 0;
+        inputPaymentIndex < data.order.inputs.length;
+        inputPaymentIndex++
       ) {
-        const orderInput = data.order.inputs[orderInputIndex];
+        const orderInput = data.order.inputs[inputPaymentIndex];
 
-        // Find the data input corresponding to the current order input
-        const dataInput = data.inputs.find(
-          ({ inputIndex }) => inputIndex === orderInputIndex
+        // Get the input information corresponding to the current input payment
+        const inputInformation = data.inputs.find(
+          ({ inputIndex }) => inputIndex === inputPaymentIndex
         );
-        if (!dataInput) {
-          throw externalError(`Missing input ${orderInputIndex}`);
+        if (!inputInformation) {
+          throw externalError(
+            `Missing input information for order input payment ${inputPaymentIndex}`
+          );
         }
 
-        // Get the escrow deposit corresponding to the current order input
+        // Get the escrow deposit corresponding to the current order input payment
         const escrowDeposit = await this.attestEscrowDeposits({
           chainId: orderInput.payment.chainId,
-          transactionId: dataInput.transactionId,
+          transactionId: inputInformation.transactionId,
         }).then((escrowDeposits) =>
-          escrowDeposits.find(
-            (d) =>
-              d.result.depositId === orderHash &&
-              d.result.currency.toLowerCase() ===
-                orderInput.payment.currency.toLowerCase() &&
-              !usedEscrowDepositOnchainIds.has(d.onchainId)
-          )
+          escrowDeposits.find((d) => d.onchainId === inputInformation.onchainId)
         );
         if (!escrowDeposit) {
-          throw externalError("Missing input payment");
+          throw externalError(
+            `Invalid input information for order input payment ${inputPaymentIndex}`
+          );
         }
-
-        // Mark the escrow deposit as used
-        usedEscrowDepositOnchainIds.add(escrowDeposit.onchainId);
 
         // Keep track of the total weighted paid amount
         totalWeightedPaidAmount +=
@@ -250,17 +255,16 @@ export abstract class AttestationService {
       }
     }
 
-    // Compare the total weighted requested amount to the total weighted paid amount in order to determine any underpayment
+    // Compare the total weighted requested amount to the total weighted paid amount in order to determine any under/over-payment
     const totalWeightedRequestedAmount = data.order.inputs
-      .map((input) => input.payment.amount * input.payment.weight)
+      .map(
+        (input) => BigInt(input.payment.amount) * BigInt(input.payment.weight)
+      )
       .reduce((a, b) => a + b, 0n);
-    const underpaymentAmount =
-      totalWeightedRequestedAmount - totalWeightedPaidAmount;
-    const underpaymentBps =
-      underpaymentAmount > 0n
-        ? (underpaymentAmount * 10n ** 18n) / totalWeightedRequestedAmount
-        : 0n;
+    const totalWeightedInputPaymentBpsDiff =
+      ((totalWeightedPaidAmount - totalWeightedRequestedAmount) * 10n ** 18n) /
+      totalWeightedRequestedAmount;
 
-    return underpaymentBps;
+    return totalWeightedInputPaymentBpsDiff;
   }
 }

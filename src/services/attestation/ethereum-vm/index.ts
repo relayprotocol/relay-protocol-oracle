@@ -39,7 +39,7 @@ export class EvmAttestationService extends AttestationService {
       hash: transactionId as Hex,
     });
     if (!receipt || receipt.status !== "success") {
-      return [];
+      throw externalError(`Missing or reverted transaction ${transactionId}`);
     }
 
     const chain = await getChain(chainId);
@@ -272,9 +272,7 @@ export class EvmAttestationService extends AttestationService {
       hash: transactionId as Hex,
     });
     if (!receipt || receipt.status !== "success") {
-      throw externalError(
-        `Missing or reverted transaction receipt: ${transactionId}`
-      );
+      throw externalError(`Missing or reverted transaction ${transactionId}`);
     }
 
     const transactionTimestamp = await rpc
@@ -282,7 +280,7 @@ export class EvmAttestationService extends AttestationService {
       .then((block) => block.timestamp);
     if (transactionTimestamp > payment.deadline) {
       throw externalError(
-        `Transaction executed after deadline: ${payment.deadline}`
+        `Transaction ${transactionId} executed after deadline`
       );
     }
 
@@ -290,12 +288,12 @@ export class EvmAttestationService extends AttestationService {
       hash: transactionId as Hex,
     });
     if (!transaction) {
-      throw externalError(`Missing transaction: ${transactionId}`);
+      throw externalError(`Missing transaction ${transactionId}`);
     }
 
     if (!transaction.input.endsWith(payment.orderHash.slice(2))) {
       throw externalError(
-        `Missing order has at the end of calldata: ${transactionId}`
+        `Missing order hash at the end of calldata for transaction ${transactionId}`
       );
     }
 
