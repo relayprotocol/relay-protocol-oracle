@@ -4,11 +4,11 @@ import { PublicKey, SystemProgram } from "@solana/web3.js";
 import bs58 from "bs58";
 
 import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
-import { AttestationService } from "../service";
-import { getOnchainId, ProtocolMessage } from "../utils";
-import { getChain } from "../../../common/chains";
-import { externalError } from "../../../common/error";
-import { httpRpc } from "../../../common/vm/solana-vm/rpc";
+import { getOnchainId, ProtocolMessage } from "../../utils";
+import { getChain } from "../../../../common/chains";
+import { externalError } from "../../../../common/error";
+import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
+import { VmAttestor } from "../../vm/types";
 
 interface DepositEventData {
   depositor: PublicKey;
@@ -29,7 +29,7 @@ interface TransferExecutedEventData {
   id: PublicKey;
 }
 
-export class SolanaAttestationService extends AttestationService {
+export class SolanaVmAttestor extends VmAttestor {
   private readonly eventCoder: BorshEventCoder;
 
   constructor() {
@@ -38,7 +38,7 @@ export class SolanaAttestationService extends AttestationService {
     this.eventCoder = new BorshEventCoder(RelayEscrowIdl as Idl);
   }
 
-  protected async getEscrowMessages(
+  public async getEscrowMessages(
     chainId: number,
     transactionId: string
   ): Promise<ProtocolMessage[]> {
@@ -60,7 +60,7 @@ export class SolanaAttestationService extends AttestationService {
     );
   }
 
-  protected async getSolverPaidAmount(
+  public async getSolverPaidAmount(
     chainId: number,
     transactionId: string,
     payment: {

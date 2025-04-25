@@ -9,12 +9,12 @@ import {
   zeroHash,
 } from "viem";
 
-import { AttestationService } from "../service";
-import { getOnchainId, ProtocolMessage } from "../utils";
-import { getChain } from "../../../common/chains";
-import { externalError } from "../../../common/error";
-import { undefinedOnThrow } from "../../../common/utils";
-import { httpRpc } from "../../../common/vm/ethereum-vm/rpc";
+import { getOnchainId, ProtocolMessage } from "../../utils";
+import { getChain } from "../../../../common/chains";
+import { externalError } from "../../../../common/error";
+import { undefinedOnThrow } from "../../../../common/utils";
+import { httpRpc } from "../../../../common/vm/ethereum-vm/rpc";
+import { VmAttestor } from "../../vm/types";
 
 export const ABI = parseAbi([
   "event EscrowNativeDeposit(address from, uint256 amount, bytes32 id)",
@@ -27,8 +27,8 @@ export const ABI = parseAbi([
   "function transferFrom(address from, address to, uint256 amount)",
 ]);
 
-export class EvmAttestationService extends AttestationService {
-  protected async getEscrowMessages(
+export class EthereumVmAttestor extends VmAttestor {
+  public async getEscrowMessages(
     chainId: number,
     transactionId: string
   ): Promise<ProtocolMessage[]> {
@@ -254,7 +254,7 @@ export class EvmAttestationService extends AttestationService {
     return messages;
   }
 
-  protected async getSolverPaidAmount(
+  public async getSolverPaidAmount(
     chainId: number,
     transactionId: string,
     payment: {

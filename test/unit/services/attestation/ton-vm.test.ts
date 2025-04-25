@@ -3,7 +3,7 @@ import { loadTransaction, Cell, Address } from "@ton/core";
 
 import { getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/ton-vm/rpc";
-import { TonAttestationService } from "../../../../src/services/attestation/ton-vm";
+import { AttestationService } from "../../../../src/services/attestation";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<number, any> = {
@@ -52,7 +52,7 @@ describe("TonAttestationService", () => {
       },
     }));
 
-    const service = new TonAttestationService();
+    const service = new AttestationService();
     const messages = await service.attestEscrowWithdrawals({
       chainId: Object.values(await getChains())[0].id,
       transactionId: [
@@ -98,7 +98,7 @@ describe("TonAttestationService", () => {
       },
     }));
 
-    const service = new TonAttestationService();
+    const service = new AttestationService();
     const messages = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: [
@@ -144,7 +144,7 @@ describe("TonAttestationService", () => {
       },
     }));
 
-    const service = new TonAttestationService();
+    const service = new AttestationService();
     const messages = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: [

@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from "@jest/globals";
+import { getOrderHash, Order } from "@reservoir0x/relay-protocol-sdk";
 import {
   Hex,
   Log,
@@ -9,19 +10,17 @@ import {
   zeroAddress,
   zeroHash,
 } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
 import { randomHex, randomNumber } from "../../../common/utils";
 
 import { getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/ethereum-vm/rpc";
-import {
-  ABI,
-  EvmAttestationService,
-} from "../../../../src/services/attestation/ethereum-vm";
-import { getOrderHash, Order } from "@reservoir0x/relay-protocol-sdk";
-import { privateKeyToAccount } from 'viem/accounts';
+import { AttestationService } from "../../../../src/services/attestation";
+import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
 
-const testSolverPrivateKey = "0x1234567890123456789012345678901234567890123456789012345678901234";
+const testSolverPrivateKey =
+  "0x1234567890123456789012345678901234567890123456789012345678901234";
 const solverWallet = privateKeyToAccount(testSolverPrivateKey);
 
 jest.mock("../../../../src/common/chains", () => {
@@ -267,7 +266,7 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestEscrowDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -319,7 +318,7 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestEscrowDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -367,7 +366,7 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestEscrowDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -415,7 +414,7 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestEscrowDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -451,7 +450,11 @@ describe("EvmAttestationService", () => {
     };
 
     const transferLog = generateTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateErc20DepositLog({ ...params, id: zeroHash, logIndex: 1 });
+    const depositLog = generateErc20DepositLog({
+      ...params,
+      id: zeroHash,
+      logIndex: 1,
+    });
     const transactionReceipt = generateTransactionReceipt(transactionHash, [
       transferLog,
       depositLog,
@@ -462,7 +465,7 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestEscrowDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -506,7 +509,7 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestEscrowDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -549,7 +552,7 @@ describe("EvmAttestationService", () => {
       getTransactionReceipt: () => transactionReceipt,
     }));
 
-    const messages = await new EvmAttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestEscrowDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -567,7 +570,6 @@ describe("EvmAttestationService", () => {
   });
 
   it("attestSolverFill - validates solver fill correctly", async () => {
-
     const chains = Object.values(await getChains());
     const currentTimestamp = Math.floor(Date.now() / 1000);
 
@@ -602,15 +604,15 @@ describe("EvmAttestationService", () => {
     });
 
     const fillTxReceipt = generateTransactionReceipt(fillTxHash, [
-      fillNativeTransferLog
+      fillNativeTransferLog,
     ]);
 
     const vmType = "ethereum-vm";
     const testOrder: Order = {
-      salt: '0x1',
+      salt: "0x1",
       solver: {
         chainId: 1000,
-        address: solverWallet.address
+        address: solverWallet.address,
       },
       inputs: [
         {
@@ -627,10 +629,13 @@ describe("EvmAttestationService", () => {
               currency: zeroAddress,
               minimumAmount: paymentAmount,
               deadline: Math.floor(Date.now() / 1000) + 3600,
-              extraData: encodeAbiParameters([{ type: "address" }], [solverContractAddress as Hex]),
-            }
+              extraData: encodeAbiParameters(
+                [{ type: "address" }],
+                [solverContractAddress as Hex]
+              ),
+            },
           ],
-        }
+        },
       ],
       output: {
         chainId: 1000,
@@ -643,10 +648,13 @@ describe("EvmAttestationService", () => {
           },
         ],
         calls: [],
-        extraData: encodeAbiParameters([{ type: "address" }], [solverContractAddress as Hex]),
+        extraData: encodeAbiParameters(
+          [{ type: "address" }],
+          [solverContractAddress as Hex]
+        ),
         deadline: Math.floor(Date.now() / 1000) + 3600,
       },
-      fees: []
+      fees: [],
     };
 
     const orderHash = getOrderHash(testOrder, {
@@ -657,18 +665,18 @@ describe("EvmAttestationService", () => {
       transactions: {
         [depositTxHash]: {
           input: "0x",
-          receipt: depositTxReceipt
+          receipt: depositTxReceipt,
         },
         [fillTxHash]: {
           input: orderHash,
-          receipt: fillTxReceipt
-        }
+          receipt: fillTxReceipt,
+        },
       },
       block: {
         timestamp: BigInt(currentTimestamp),
         hash: randomHex(32),
-        parentHash: randomHex(32)
-      }
+        parentHash: randomHex(32),
+      },
     };
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
@@ -689,7 +697,7 @@ describe("EvmAttestationService", () => {
       getBlock: ({ blockNumber }: { blockNumber: bigint }) => {
         return Promise.resolve({
           ...mockRpcData.block,
-          number: blockNumber
+          number: blockNumber,
         });
       },
     }));
@@ -698,32 +706,31 @@ describe("EvmAttestationService", () => {
       message: { raw: orderHash },
     });
 
-    const escrowDeposits = await new EvmAttestationService().attestEscrowDeposits({
+    const escrowDeposits = await new AttestationService().attestEscrowDeposits({
       chainId: chain.id,
       transactionId: depositTxHash,
     });
 
-    const solverFillResult = await new EvmAttestationService().attestSolverFill(
-      {
-        order: testOrder,
-        orderSignature: orderSignature,
-        inputs: [{
+    const solverFillResult = await new AttestationService().attestSolverFill({
+      order: testOrder,
+      orderSignature: orderSignature,
+      inputs: [
+        {
           transactionId: depositTxHash,
           onchainId: escrowDeposits[0].onchainId,
-          inputIndex: 0
-        }],
-        fill: {
-          transactionId: fillTxHash,
-        }
-      }
-    );
+          inputIndex: 0,
+        },
+      ],
+      fill: {
+        transactionId: fillTxHash,
+      },
+    });
 
     expect(solverFillResult.result.validated).toBe(true);
     expect(solverFillResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
   });
 
   it("attestSolverRefund - validates solver refund correctly", async () => {
-
     const chains = Object.values(await getChains());
     const currentTimestamp = Math.floor(Date.now() / 1000);
 
@@ -749,7 +756,6 @@ describe("EvmAttestationService", () => {
       depositTransferLog,
     ]);
 
-
     const refundTxHash = randomHex(32);
     const refundNativeTransferLog = generateSolverNativeTransferLog({
       transactionHash: refundTxHash,
@@ -760,15 +766,15 @@ describe("EvmAttestationService", () => {
     });
 
     const refundTxReceipt = generateTransactionReceipt(refundTxHash, [
-      refundNativeTransferLog
+      refundNativeTransferLog,
     ]);
 
     const vmType = "ethereum-vm";
     const testOrder: Order = {
-      salt: '0x1',
+      salt: "0x1",
       solver: {
         chainId: 1000,
-        address: solverWallet.address
+        address: solverWallet.address,
       },
       inputs: [
         {
@@ -785,10 +791,13 @@ describe("EvmAttestationService", () => {
               currency: zeroAddress,
               minimumAmount: paymentAmount,
               deadline: Math.floor(Date.now() / 1000) + 36000,
-              extraData: encodeAbiParameters([{ type: "address" }], [solverContractAddress as Hex]),
-            }
+              extraData: encodeAbiParameters(
+                [{ type: "address" }],
+                [solverContractAddress as Hex]
+              ),
+            },
           ],
-        }
+        },
       ],
       output: {
         chainId: 1000,
@@ -801,10 +810,13 @@ describe("EvmAttestationService", () => {
           },
         ],
         calls: [],
-        extraData: encodeAbiParameters([{ type: "address" }], [solverContractAddress as Hex]),
+        extraData: encodeAbiParameters(
+          [{ type: "address" }],
+          [solverContractAddress as Hex]
+        ),
         deadline: Math.floor(Date.now() / 1000) + 36000,
       },
-      fees: []
+      fees: [],
     };
 
     const orderHash = getOrderHash(testOrder, {
@@ -815,18 +827,18 @@ describe("EvmAttestationService", () => {
       transactions: {
         [depositTxHash]: {
           input: "0x",
-          receipt: depositTxReceipt
+          receipt: depositTxReceipt,
         },
         [refundTxHash]: {
           input: orderHash,
-          receipt: refundTxReceipt
-        }
+          receipt: refundTxReceipt,
+        },
       },
       block: {
         timestamp: BigInt(currentTimestamp),
         hash: randomHex(32),
-        parentHash: randomHex(32)
-      }
+        parentHash: randomHex(32),
+      },
     };
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
@@ -847,7 +859,7 @@ describe("EvmAttestationService", () => {
       getBlock: ({ blockNumber }: { blockNumber: bigint }) => {
         return Promise.resolve({
           ...mockRpcData.block,
-          number: blockNumber
+          number: blockNumber,
         });
       },
     }));
@@ -856,31 +868,34 @@ describe("EvmAttestationService", () => {
       message: { raw: orderHash },
     });
 
-    const escrowDeposits = await new EvmAttestationService().attestEscrowDeposits({
+    const escrowDeposits = await new AttestationService().attestEscrowDeposits({
       chainId: chain.id,
       transactionId: depositTxHash,
     });
 
-    const solverRefundResult = await new EvmAttestationService().attestSolverRefund(
-      {
+    const solverRefundResult =
+      await new AttestationService().attestSolverRefund({
         order: testOrder,
         orderSignature: orderSignature,
-        inputs: [{
-          transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].onchainId,
-          inputIndex: 0
-        }],
+        inputs: [
+          {
+            transactionId: depositTxHash,
+            onchainId: escrowDeposits[0].onchainId,
+            inputIndex: 0,
+          },
+        ],
         refunds: [
           {
             transactionId: refundTxHash,
             inputIndex: 0,
-            refundIndex: 0
-          }
+            refundIndex: 0,
+          },
         ],
-      }
-    );
+      });
 
     expect(solverRefundResult.result.validated).toBe(true);
-    expect(solverRefundResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
+    expect(solverRefundResult.result.totalWeightedInputPaymentBpsDiff).toBe(
+      "0"
+    );
   });
 });

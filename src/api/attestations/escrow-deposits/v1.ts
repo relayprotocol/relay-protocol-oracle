@@ -6,17 +6,19 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
-import { getAttestationService } from "../../../services";
+import { AttestationService } from "../../../services/attestation";
+
+const MessageData = Type.Object({
+  chainId: Type.Number({
+    description: "The chain id of the transaction to attest",
+  }),
+  transactionId: Type.String({
+    description: "The transaction id to attest",
+  }),
+});
 
 const Schema = {
-  body: Type.Object({
-    chainId: Type.Number({
-      description: "The chain id of the transaction to attest",
-    }),
-    transactionId: Type.String({
-      description: "The transaction id to attest",
-    }),
-  }),
+  body: MessageData,
   response: {
     ...ErrorResponses,
     200: Type.Object({
@@ -25,14 +27,7 @@ const Schema = {
           onchainId: Type.String({
             description: "The onchain id of the deposit",
           }),
-          data: Type.Object({
-            chainId: Type.Number({
-              description: "The chain id of the attested transaction",
-            }),
-            transactionId: Type.String({
-              description: "The id of the attested transaction",
-            }),
-          }),
+          data: MessageData,
           result: Type.Object({
             depositId: Type.Optional(
               Type.String({ description: "The id associated to the deposit" })
@@ -66,11 +61,8 @@ export default {
     req: FastifyRequestTypeBox<typeof Schema>,
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
-    const attestationService = await getAttestationService(req.body.chainId);
-    const messages = await attestationService.attestEscrowDeposits({
-      chainId: req.body.chainId,
-      transactionId: req.body.transactionId,
-    });
+    const attestationService = new AttestationService();
+    const messages = await attestationService.attestEscrowDeposits(req.body);
 
     return reply.send({ messages });
   },
