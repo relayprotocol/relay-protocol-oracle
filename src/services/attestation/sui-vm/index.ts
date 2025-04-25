@@ -3,8 +3,8 @@ import { SuiEvent } from "@mysten/sui/client";
 import { AttestationService } from "../service";
 import { getOnchainId, ProtocolMessage } from "../utils";
 import { getChain } from "../../../common/chains";
+import { externalError } from "../../../common/error";
 import { httpRpc } from "../../../common/vm/sui-vm/rpc";
-import { safeError } from "../../../common/error";
 
 interface DepositEventData {
   from: string;
@@ -73,13 +73,17 @@ export class SuiAttestationService extends AttestationService {
     });
 
     if (!transaction || transaction.effects?.status.status !== "success") {
-      throw safeError(`Transaction failed or not found: ${transactionId}`);
+      throw externalError(`Transaction failed or not found: ${transactionId}`);
     }
 
     // Check deadline
-    const transactionTimestamp = Math.floor(Number(transaction.timestampMs) / 1000);
+    const transactionTimestamp = Math.floor(
+      Number(transaction.timestampMs) / 1000
+    );
     if (transactionTimestamp > payment.deadline) {
-      throw safeError(`Transaction executed after deadline: ${payment.deadline}`);
+      throw externalError(
+        `Transaction executed after deadline: ${payment.deadline}`
+      );
     }
 
     // Verify order hash is included in the transaction
@@ -99,29 +103,33 @@ export class SuiAttestationService extends AttestationService {
     }
 
     if (!orderHashFound) {
-      throw safeError(`Order hash not found in transaction: ${transactionId}`);
+      throw externalError(
+        `Order hash not found in transaction: ${transactionId}`
+      );
     }
 
     // Parse balance changes to find the amount paid to the recipient
     let paidAmount = 0n;
-    
+
     for (const change of transaction.balanceChanges || []) {
-      const ownerAddress = 
-        (change.owner as any)["AddressOwner"] || 
+      const ownerAddress =
+        (change.owner as any)["AddressOwner"] ||
         (change.owner as any)["ObjectOwner"];
-      
+
       if (
-        ownerAddress && 
+        ownerAddress &&
         ownerAddress.toLowerCase() === payment.recipient.toLowerCase() &&
-        change.coinType === payment.currency && 
+        change.coinType === payment.currency &&
         BigInt(change.amount) > 0n
       ) {
         paidAmount += BigInt(change.amount);
       }
     }
-    
+
     if (paidAmount === 0n) {
-      throw safeError(`No payment found to recipient: ${payment.recipient}`);
+      throw externalError(
+        `No payment found to recipient: ${payment.recipient}`
+      );
     }
 
     return paidAmount;
