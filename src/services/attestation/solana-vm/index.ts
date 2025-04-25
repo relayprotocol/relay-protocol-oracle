@@ -1,14 +1,14 @@
 import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
+import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
+import bs58 from "bs58";
 
 import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
 import { AttestationService } from "../service";
 import { getOnchainId, ProtocolMessage } from "../utils";
 import { getChain } from "../../../common/chains";
+import { externalError } from "../../../common/error";
 import { httpRpc } from "../../../common/vm/solana-vm/rpc";
-import { safeError } from "../../../common/error";
-import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
-import bs58 from "bs58";
 
 interface DepositEventData {
   depositor: PublicKey;
@@ -77,16 +77,18 @@ export class SolanaAttestationService extends AttestationService {
       maxSupportedTransactionVersion: 0,
     });
     if (!transaction) {
-      throw safeError(`Missing transaction: ${transactionId}`);
+      throw externalError(`Missing transaction: ${transactionId}`);
     }
 
     if (transaction.meta?.err) {
-      throw safeError(`Transaction failed: ${transactionId}`);
+      throw externalError(`Transaction failed: ${transactionId}`);
     }
 
     // Check deadline
     if (transaction.blockTime && transaction.blockTime > payment.deadline) {
-      throw safeError(`Transaction executed after deadline: ${payment.deadline}`);
+      throw externalError(
+        `Transaction executed after deadline: ${payment.deadline}`
+      );
     }
 
     // Check that transaction contains the order hash in the memo
@@ -109,7 +111,9 @@ export class SolanaAttestationService extends AttestationService {
         addressLookupTableAccounts: await Promise.all(
           (transaction.transaction.message.addressTableLookups ?? []).map(
             async ({ accountKey }) =>
-              await connection.getAddressLookupTable(accountKey).then((res) => res.value!)
+              await connection
+                .getAddressLookupTable(accountKey)
+                .then((res) => res.value!)
           )
         ),
       }).staticAccountKeys,
@@ -131,13 +135,17 @@ export class SolanaAttestationService extends AttestationService {
     }
 
     if (!hasOrderHash) {
-      throw safeError(`Transaction does not reference order hash: ${payment.transactionId}`);
+      throw externalError(
+        `Transaction does not reference order hash: ${transactionId}`
+      );
     }
 
     // For native SOL transfers
     if (payment.currency === "11111111111111111111111111111111") {
       const recipientPubkey = new PublicKey(payment.recipient);
-      const recipientIndex = accountKeys.findIndex(key => key.equals(recipientPubkey));
+      const recipientIndex = accountKeys.findIndex((key) =>
+        key.equals(recipientPubkey)
+      );
       if (recipientIndex === -1) {
         return 0n;
       }
@@ -152,19 +160,27 @@ export class SolanaAttestationService extends AttestationService {
 
       // Find pre and post token balances for the recipient and token
       const preTokenBalance = transaction.meta?.preTokenBalances?.find(
-        b => b.owner === recipientPubkey.toBase58() && b.mint === tokenMintPubkey.toBase58()
+        (b) =>
+          b.owner === recipientPubkey.toBase58() &&
+          b.mint === tokenMintPubkey.toBase58()
       );
 
       const postTokenBalance = transaction.meta?.postTokenBalances?.find(
-        b => b.owner === recipientPubkey.toBase58() && b.mint === tokenMintPubkey.toBase58()
+        (b) =>
+          b.owner === recipientPubkey.toBase58() &&
+          b.mint === tokenMintPubkey.toBase58()
       );
 
       if (!preTokenBalance && !postTokenBalance) {
         return 0n;
       }
 
-      const preAmount = preTokenBalance ? BigInt(preTokenBalance.uiTokenAmount.amount) : 0n;
-      const postAmount = postTokenBalance ? BigInt(postTokenBalance.uiTokenAmount.amount) : 0n;
+      const preAmount = preTokenBalance
+        ? BigInt(preTokenBalance.uiTokenAmount.amount)
+        : 0n;
+      const postAmount = postTokenBalance
+        ? BigInt(postTokenBalance.uiTokenAmount.amount)
+        : 0n;
 
       return postAmount - preAmount;
     }
