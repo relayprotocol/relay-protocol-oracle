@@ -31,7 +31,7 @@ jest.mock("../../../../src/common/chains", () => {
       name: "Test",
       vmType: "ethereum-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
-      escrow: "0x2e988A386a799F506693793c6A5AF6B54dfAaBfB",
+      escrow: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
     },
   };
   return {
