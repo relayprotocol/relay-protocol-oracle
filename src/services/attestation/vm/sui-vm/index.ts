@@ -1,10 +1,10 @@
 import { SuiEvent } from "@mysten/sui/client";
 
-import { AttestationService } from "../service";
-import { getOnchainId, ProtocolMessage } from "../utils";
-import { getChain } from "../../../common/chains";
-import { externalError } from "../../../common/error";
-import { httpRpc } from "../../../common/vm/sui-vm/rpc";
+import { getOnchainId, ProtocolMessage } from "../../utils";
+import { getChain } from "../../../../common/chains";
+import { externalError } from "../../../../common/error";
+import { httpRpc } from "../../../../common/vm/sui-vm/rpc";
+import { VmAttestor } from "../../vm/types";
 
 interface DepositEventData {
   from: string;
@@ -24,8 +24,8 @@ interface TransferExecutedEventData {
   amount: bigint;
 }
 
-export class SuiAttestationService extends AttestationService {
-  protected async getEscrowMessages(
+export class SuiVmAttestor extends VmAttestor {
+  public async getEscrowMessages(
     chainId: number,
     transactionId: string
   ): Promise<ProtocolMessage[]> {
@@ -50,7 +50,7 @@ export class SuiAttestationService extends AttestationService {
     );
   }
 
-  protected async getSolverPaidAmount(
+  public async getSolverPaidAmount(
     chainId: number,
     transactionId: string,
     payment: {

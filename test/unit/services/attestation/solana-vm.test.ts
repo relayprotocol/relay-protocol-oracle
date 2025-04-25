@@ -3,7 +3,7 @@ import { describe, expect, it, jest } from "@jest/globals";
 import { randomBase58 } from "../../../common/utils";
 import { getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/solana-vm/rpc";
-import { SolanaAttestationService } from "../../../../src/services/attestation/solana-vm";
+import { AttestationService } from "../../../../src/services/attestation";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<number, any> = {
@@ -42,7 +42,7 @@ describe("SolanaAttestationService", () => {
       }),
     }));
 
-    const service = new SolanaAttestationService();
+    const service = new AttestationService();
     const messages = await service.attestEscrowWithdrawals({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
@@ -100,7 +100,7 @@ describe("SolanaAttestationService", () => {
       }),
     }));
 
-    const service = new SolanaAttestationService();
+    const service = new AttestationService();
     const messages = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
@@ -139,7 +139,7 @@ describe("SolanaAttestationService", () => {
       }),
     }));
 
-    const service = new SolanaAttestationService();
+    const service = new AttestationService();
     const messages = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
@@ -166,7 +166,7 @@ describe("SolanaAttestationService", () => {
       }),
     }));
 
-    const service = new SolanaAttestationService();
+    const service = new AttestationService();
     const deposits = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
@@ -183,7 +183,7 @@ describe("SolanaAttestationService", () => {
       }),
     }));
 
-    const service = new SolanaAttestationService();
+    const service = new AttestationService();
     const deposits = await service.attestEscrowWithdrawals({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
@@ -196,7 +196,7 @@ describe("SolanaAttestationService", () => {
       getParsedTransaction: () => null,
     }));
 
-    const service = new SolanaAttestationService();
+    const service = new AttestationService();
     const deposits = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),

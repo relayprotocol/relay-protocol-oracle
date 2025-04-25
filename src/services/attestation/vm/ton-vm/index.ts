@@ -11,14 +11,14 @@ import {
   WithdrawEvent,
   ADDRESS_NONE,
 } from "./wrappers/RelayEscrow";
-import { AttestationService } from "../service";
-import { getOnchainId, ProtocolMessage } from "../utils";
-import { getChain } from "../../../common/chains";
-import { externalError } from "../../../common/error";
-import { httpRpc } from "../../../common/vm/ton-vm/rpc";
+import { getOnchainId, ProtocolMessage } from "../../utils";
+import { getChain } from "../../../../common/chains";
+import { externalError } from "../../../../common/error";
+import { httpRpc } from "../../../../common/vm/ton-vm/rpc";
+import { VmAttestor } from "../../vm/types";
 
-export class TonAttestationService extends AttestationService {
-  protected async getEscrowMessages(
+export class TonVmAttestor extends VmAttestor {
+  public async getEscrowMessages(
     chainId: number,
     transactionId: string
   ): Promise<ProtocolMessage[]> {
@@ -44,7 +44,7 @@ export class TonAttestationService extends AttestationService {
     );
   }
 
-  protected async getSolverPaidAmount(
+  public async getSolverPaidAmount(
     chainId: number,
     transactionId: string,
     payment: {

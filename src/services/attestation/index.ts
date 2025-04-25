@@ -8,40 +8,44 @@ import {
 } from "@reservoir0x/relay-protocol-sdk";
 import { Address, Hex, verifyMessage } from "viem";
 
-import { ProtocolMessage } from "./utils";
+import { getVmAttestor } from "./vm";
 import { getSdkChainsConfig } from "../../common/chains";
 import { externalError } from "../../common/error";
 
-export abstract class AttestationService {
-  // Public methods
-
+export class AttestationService {
   public async attestEscrowDeposits(
     data: EscrowDepositMessage["data"]
   ): Promise<EscrowDepositMessage[]> {
-    return this.getEscrowMessages(data.chainId, data.transactionId).then(
-      (messages) =>
+    return getVmAttestor(data.chainId)
+      .then((attestor) =>
+        attestor.getEscrowMessages(data.chainId, data.transactionId)
+      )
+      .then((messages) =>
         messages
           .filter((m) => m.type === "escrow-deposit")
           .map((m) => m.message)
-    );
+      );
   }
 
   public async attestEscrowWithdrawals(
     data: EscrowWithdrawalMessage["data"]
   ): Promise<EscrowWithdrawalMessage[]> {
-    return this.getEscrowMessages(data.chainId, data.transactionId).then(
-      (messages) =>
+    return getVmAttestor(data.chainId)
+      .then((attestor) =>
+        attestor.getEscrowMessages(data.chainId, data.transactionId)
+      )
+      .then((messages) =>
         messages
           .filter((m) => m.type === "escrow-withdrawal")
           .map((m) => m.message)
-    );
+      );
   }
 
   public async attestSolverFill(
     data: SolverFillMessage["data"]
   ): Promise<SolverFillMessage> {
     const totalWeightedInputPaymentBpsDiff =
-      await this.getTotalWeightedInputPaymentBpsDiff(data);
+      await this._getTotalWeightedInputPaymentBpsDiff(data);
 
     const orderHash = getOrderHash(data.order, await getSdkChainsConfig());
 
@@ -53,16 +57,19 @@ export abstract class AttestationService {
     ) {
       const payment = data.order.output.payments[outputPaymentIndex];
 
-      const paidAmount = await this.getSolverPaidAmount(
-        data.order.output.chainId,
-        data.fill.transactionId,
-        {
-          currency: payment.currency,
-          recipient: payment.recipient,
-          orderHash,
-          extraData: data.order.output.extraData,
-          deadline: data.order.output.deadline,
-        }
+      const paidAmount = await getVmAttestor(data.order.output.chainId).then(
+        (attestor) =>
+          attestor.getSolverPaidAmount(
+            data.order.output.chainId,
+            data.fill.transactionId,
+            {
+              currency: payment.currency,
+              recipient: payment.recipient,
+              orderHash,
+              extraData: data.order.output.extraData,
+              deadline: data.order.output.deadline,
+            }
+          )
       );
 
       // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
@@ -96,7 +103,7 @@ export abstract class AttestationService {
     data: SolverRefundMessage["data"]
   ): Promise<SolverRefundMessage> {
     const totalWeightedInputPaymentBpsDiff =
-      await this.getTotalWeightedInputPaymentBpsDiff(data);
+      await this._getTotalWeightedInputPaymentBpsDiff(data);
 
     const orderHash = getOrderHash(data.order, await getSdkChainsConfig());
 
@@ -126,16 +133,19 @@ export abstract class AttestationService {
         );
       }
 
-      const paidAmount = await this.getSolverPaidAmount(
-        orderRefund.chainId,
-        refundInformation.transactionId,
-        {
-          currency: orderRefund.currency,
-          recipient: orderRefund.recipient,
-          orderHash,
-          extraData: orderRefund.extraData,
-          deadline: orderRefund.deadline,
-        }
+      const paidAmount = await getVmAttestor(orderRefund.chainId).then(
+        (attestor) =>
+          attestor.getSolverPaidAmount(
+            orderRefund.chainId,
+            refundInformation.transactionId,
+            {
+              currency: orderRefund.currency,
+              recipient: orderRefund.recipient,
+              orderHash,
+              extraData: orderRefund.extraData,
+              deadline: orderRefund.deadline,
+            }
+          )
       );
 
       // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
@@ -162,28 +172,7 @@ export abstract class AttestationService {
     };
   }
 
-  // Abstract methods (to be implemented by downstream classes)
-
-  protected abstract getEscrowMessages(
-    chainId: number,
-    transactionId: string
-  ): Promise<ProtocolMessage[]>;
-
-  protected abstract getSolverPaidAmount(
-    chainId: number,
-    transactionId: string,
-    payment: {
-      currency: string;
-      recipient: string;
-      orderHash: string;
-      extraData: string;
-      deadline: number;
-    }
-  ): Promise<bigint>;
-
-  // Private methods
-
-  private async getTotalWeightedInputPaymentBpsDiff(data: {
+  private async _getTotalWeightedInputPaymentBpsDiff(data: {
     order: Order;
     orderSignature: string;
     inputs: {

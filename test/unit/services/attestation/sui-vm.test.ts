@@ -3,7 +3,7 @@ import { describe, expect, it, jest } from "@jest/globals";
 import { randomBase58 } from "../../../common/utils";
 import { getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/sui-vm/rpc";
-import { SuiAttestationService } from "../../../../src/services/attestation/sui-vm";
+import { AttestationService } from "../../../../src/services/attestation";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<number, any> = {
@@ -63,7 +63,7 @@ describe("SuiAttestationService", () => {
       }),
     }));
 
-    const service = new SuiAttestationService();
+    const service = new AttestationService();
     const messages = await service.attestEscrowWithdrawals({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
@@ -115,7 +115,7 @@ describe("SuiAttestationService", () => {
       }),
     }));
 
-    const service = new SuiAttestationService();
+    const service = new AttestationService();
     const messages = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
@@ -142,7 +142,7 @@ describe("SuiAttestationService", () => {
       }),
     }));
 
-    const service = new SuiAttestationService();
+    const service = new AttestationService();
     const deposits = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
@@ -155,7 +155,7 @@ describe("SuiAttestationService", () => {
       getTransactionBlock: () => null,
     }));
 
-    const service = new SuiAttestationService();
+    const service = new AttestationService();
     const deposits = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
