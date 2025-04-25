@@ -4,6 +4,7 @@ import { AttestationService } from "../service";
 import { getOnchainId, ProtocolMessage } from "../utils";
 import { getChain } from "../../../common/chains";
 import { httpRpc } from "../../../common/vm/sui-vm/rpc";
+import { safeError } from "../../../common/error";
 
 interface DepositEventData {
   from: string;
@@ -50,9 +51,9 @@ export class SuiAttestationService extends AttestationService {
   }
 
   protected async getSolverPaidAmount(
-    _chainId: number,
-    _transactionId: string,
-    _payment: {
+    chainId: number,
+    transactionId: string,
+    payment: {
       currency: string;
       recipient: string;
       orderHash: string;
@@ -60,7 +61,70 @@ export class SuiAttestationService extends AttestationService {
       deadline: number;
     }
   ): Promise<bigint> {
-    throw new Error("Not implemented");
+    const connection = await httpRpc(chainId);
+    // Get the transaction with all details
+    const transaction = await connection.getTransactionBlock({
+      digest: transactionId,
+      options: {
+        showBalanceChanges: true,
+        showEffects: true,
+        showEvents: true,
+      },
+    });
+
+    if (!transaction || transaction.effects?.status.status !== "success") {
+      throw safeError(`Transaction failed or not found: ${transactionId}`);
+    }
+
+    // Check deadline
+    const transactionTimestamp = Math.floor(Number(transaction.timestampMs) / 1000);
+    if (transactionTimestamp > payment.deadline) {
+      throw safeError(`Transaction executed after deadline: ${payment.deadline}`);
+    }
+
+    // Verify order hash is included in the transaction
+    // This could be in a memo event or somewhere in the transaction data
+    let orderHashFound = false;
+    if (transaction.events) {
+      for (const event of transaction.events) {
+        // TODO: validate package Id
+        if (event.type.includes("::memo::MemoEvent")) {
+          const memo = (event.parsedJson as any).message;
+          if (memo === payment.orderHash) {
+            orderHashFound = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!orderHashFound) {
+      throw safeError(`Order hash not found in transaction: ${transactionId}`);
+    }
+
+    // Parse balance changes to find the amount paid to the recipient
+    let paidAmount = 0n;
+    
+    for (const change of transaction.balanceChanges || []) {
+      const ownerAddress = 
+        (change.owner as any)["AddressOwner"] || 
+        (change.owner as any)["ObjectOwner"];
+      
+      if (
+        ownerAddress && 
+        ownerAddress.toLowerCase() === payment.recipient.toLowerCase() &&
+        change.coinType === payment.currency && 
+        BigInt(change.amount) > 0n
+      ) {
+        paidAmount += BigInt(change.amount);
+      }
+    }
+    
+    if (paidAmount === 0n) {
+      throw safeError(`No payment found to recipient: ${payment.recipient}`);
+    }
+
+    return paidAmount;
   }
 
   private parseTransactionLogs(

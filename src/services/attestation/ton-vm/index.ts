@@ -1,5 +1,5 @@
-import { Address, Message } from "@ton/core";
-import { TonClient } from "@ton/ton";
+import { Address, Cell, Message, CommonMessageInfoInternal } from "@ton/core";
+import { TonClient, Transaction } from "@ton/ton";
 
 import {
   RelayEscrow,
@@ -11,6 +11,8 @@ import { AttestationService } from "../service";
 import { getChain } from "../../../common/chains";
 import { httpRpc } from "../../../common/vm/ton-vm/rpc";
 import { getOnchainId, ProtocolMessage } from "../utils";
+import { safeError } from "../../../common/error";
+import { parseJettonWalletTransaction, JettonWallet } from "@ton-community/assets-sdk";
 
 export class TonAttestationService extends AttestationService {
   protected async getEscrowMessages(
@@ -40,9 +42,9 @@ export class TonAttestationService extends AttestationService {
   }
 
   protected async getSolverPaidAmount(
-    _chainId: number,
-    _transactionId: string,
-    _payment: {
+    chainId: number,
+    transactionId: string,
+    payment: {
       currency: string;
       recipient: string;
       orderHash: string;
@@ -50,7 +52,95 @@ export class TonAttestationService extends AttestationService {
       deadline: number;
     }
   ): Promise<bigint> {
-    throw new Error("Not implemented");
+    const connection = await httpRpc(chainId);
+    const [address, lt, hash] = transactionId.split("::");
+    // Get the transaction
+    const transaction = await connection.getTransaction(
+      Address.parse(address),
+      lt,
+      hash
+    );
+
+    if (!transaction) {
+      throw safeError(`Missing transaction: ${transactionId}`);
+    }
+
+    // Check deadline
+    if (transaction.now > payment.deadline) {
+      throw safeError(`Transaction executed after deadline: ${payment.deadline}`);
+    }
+
+    // Process both incoming and outgoing transactions to get a complete picture
+    const incomingTxs = await traverseIncomingTransactions(connection, transaction);
+    const allTransactions = incomingTxs ? [...incomingTxs.transactions] : [transaction];
+    
+    // Also check outgoing messages from the wallet contract
+    const outgoingTxs = await traverseOutgoingTransactions(connection, transaction, []);
+    allTransactions.push(...outgoingTxs);
+
+    let totalPaidAmount = 0n;
+    let orderHashFound = false;
+
+    for (const tx of allTransactions) {
+      try {
+        const action = parseJettonWalletTransaction(tx);
+        const calledContract = action.transaction.inMessage?.info.dest?.toString();
+        if (action.kind === "jetton_transfer") {
+          try {
+            if (action.forwardPayload) {
+              const comment = decodeComment(action.forwardPayload);
+              if (comment === payment.orderHash) {
+                orderHashFound = true;
+              }
+            }
+          } catch {
+            // Decode comment failed
+          }
+
+          const jettonWallet = connection.open(
+            JettonWallet.createFromAddress(Address.parse(calledContract!))
+          );
+
+          // Requires jetton wallet to exist
+          const walletData = await jettonWallet.getData();
+          const currency = walletData.jettonMaster.toString();
+
+          if (currency.toLowerCase() === payment.currency.toLowerCase() && action.to.toString() === payment.recipient) {
+            totalPaidAmount += BigInt(action.amount.toString());
+          }
+        } else if (action.kind === "text_message") {
+          if (action.text === payment.orderHash) {
+            orderHashFound = true;
+          }
+
+          const jettonWallet = connection.open(
+            JettonWallet.createFromAddress(Address.parse(calledContract!))
+          );
+
+          // Requires jetton wallet to exist
+          const walletData = await jettonWallet.getData();
+          const currency = walletData.jettonMaster.toString();
+
+          if (currency.toLowerCase() === payment.currency.toLowerCase() && action.to.toString() === payment.recipient) {
+            totalPaidAmount += BigInt(action.amount.toString());
+          }
+        } else if (action.kind === "simple_transfer") {
+          // Native transfer with no comment
+          if (ADDRESS_NONE.toString() === payment.currency && action.to.toString() === payment.recipient) {
+            totalPaidAmount += BigInt(action.amount.toString());
+          }
+        }
+      } catch {
+        // Skip errors
+      }
+    }
+
+    // Check if we found the orderHash in any of the transactions
+    if (!orderHashFound) {
+      throw safeError(`Order hash ${payment.orderHash} not found in transaction chain`);
+    }
+
+    return totalPaidAmount;
   }
 
   private async parseTransactionLogs(
@@ -169,3 +259,76 @@ export class TonAttestationService extends AttestationService {
     };
   }
 }
+
+const findIncomingTransaction = async (
+  client: TonClient,
+  transaction: Transaction
+): Promise<Transaction | undefined> => {
+  const inMessage = transaction.inMessage?.info;
+  if (inMessage?.type !== "internal") {
+    return undefined;
+  }
+
+  return client.tryLocateSourceTx(inMessage.src, inMessage.dest, inMessage.createdLt.toString());
+};
+
+export const traverseIncomingTransactions = async (
+  client: TonClient,
+  transaction: Transaction,
+  txs: Transaction[] = []
+): Promise<{ transactions: Transaction[] }> => {
+  txs.push(transaction);
+
+  const inTx = await findIncomingTransaction(client, transaction);
+  if (!inTx) {
+    return {
+      transactions: txs,
+    };
+  }
+
+  return traverseIncomingTransactions(client, inTx, txs);
+};
+
+const findOutgoingTransactions = async (
+  client: TonClient,
+  transaction: Transaction
+): Promise<Transaction[]> => {
+  const outMessagesInfos = transaction.outMessages
+    .values()
+    .map((message) => message.info)
+    .filter((info): info is CommonMessageInfoInternal => info.type === "internal");
+
+  const transactions = await Promise.all(
+    outMessagesInfos.map((info) =>
+      client.tryLocateResultTx(info.src, info.dest, info.createdLt.toString()).catch(() => null)
+    )
+  );
+
+  // Filter out null transactions
+  return transactions.filter((tx): tx is Transaction => tx !== null);
+};
+
+export const traverseOutgoingTransactions = async (
+  client: TonClient,
+  transaction: Transaction,
+  txs: Transaction[] = []
+): Promise<Transaction[]> => {
+  txs.push(transaction);
+
+  const outTxs = await findOutgoingTransactions(client, transaction);
+  if (!outTxs.length) {
+    return txs;
+  }
+
+  for (const out of outTxs) {
+    await traverseOutgoingTransactions(client, out, txs);
+  }
+
+  return txs;
+};
+
+export const decodeComment = (cell: Cell) => {
+  const slice = cell.beginParse();
+  slice.loadUint(32);
+  return slice.loadStringTail();
+};

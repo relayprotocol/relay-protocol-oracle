@@ -6,6 +6,9 @@ import { AttestationService } from "../service";
 import { getOnchainId, ProtocolMessage } from "../utils";
 import { getChain } from "../../../common/chains";
 import { httpRpc } from "../../../common/vm/solana-vm/rpc";
+import { safeError } from "../../../common/error";
+import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
+import bs58 from "bs58";
 
 interface DepositEventData {
   depositor: PublicKey;
@@ -58,9 +61,9 @@ export class SolanaAttestationService extends AttestationService {
   }
 
   protected async getSolverPaidAmount(
-    _chainId: number,
-    _transactionId: string,
-    _payment: {
+    chainId: number,
+    transactionId: string,
+    payment: {
       currency: string;
       recipient: string;
       orderHash: string;
@@ -68,7 +71,103 @@ export class SolanaAttestationService extends AttestationService {
       deadline: number;
     }
   ): Promise<bigint> {
-    throw new Error("Not implemented");
+    const connection = await httpRpc(chainId);
+    // Get the transaction details
+    const transaction = await connection.getTransaction(transactionId, {
+      maxSupportedTransactionVersion: 0,
+    });
+    if (!transaction) {
+      throw safeError(`Missing transaction: ${transactionId}`);
+    }
+
+    if (transaction.meta?.err) {
+      throw safeError(`Transaction failed: ${transactionId}`);
+    }
+
+    // Check deadline
+    if (transaction.blockTime && transaction.blockTime > payment.deadline) {
+      throw safeError(`Transaction executed after deadline: ${payment.deadline}`);
+    }
+
+    // Check that transaction contains the order hash in the memo
+    const message = transaction.transaction.message;
+    const instructions = [
+      ...message.compiledInstructions,
+      // Include any inner instructions
+      ...(transaction.meta?.innerInstructions ?? [])
+        .map((i) => i.instructions)
+        .flat()
+        .map((i) => ({
+          accountKeyIndexes: i.accounts,
+          programIdIndex: i.programIdIndex,
+          data: bs58.decode(i.data),
+        })),
+    ];
+
+    const accountKeys = [
+      ...message.getAccountKeys({
+        addressLookupTableAccounts: await Promise.all(
+          (transaction.transaction.message.addressTableLookups ?? []).map(
+            async ({ accountKey }) =>
+              await connection.getAddressLookupTable(accountKey).then((res) => res.value!)
+          )
+        ),
+      }).staticAccountKeys,
+      // First we have `writable` and then `readonly`
+      ...(transaction.meta?.loadedAddresses?.writable ?? []),
+      ...(transaction.meta?.loadedAddresses?.readonly ?? []),
+    ];
+
+    let hasOrderHash = false;
+    for (const instruction of instructions) {
+      const programId = accountKeys[instruction.programIdIndex];
+      if (programId.toBase58() === MEMO_PROGRAM_ID.toBase58()) {
+        const ixData = Buffer.from(instruction.data).toString();
+        if (ixData.includes(payment.orderHash)) {
+          hasOrderHash = true;
+          break;
+        }
+      }
+    }
+
+    if (!hasOrderHash) {
+      throw safeError(`Transaction does not reference order hash: ${payment.transactionId}`);
+    }
+
+    // For native SOL transfers
+    if (payment.currency === "11111111111111111111111111111111") {
+      const recipientPubkey = new PublicKey(payment.recipient);
+      const recipientIndex = accountKeys.findIndex(key => key.equals(recipientPubkey));
+      if (recipientIndex === -1) {
+        return 0n;
+      }
+
+      const preBalance = transaction.meta?.preBalances?.[recipientIndex] || 0;
+      const postBalance = transaction.meta?.postBalances?.[recipientIndex] || 0;
+      return BigInt(postBalance) - BigInt(preBalance);
+    } else {
+      // For SPL token transfers
+      const recipientPubkey = new PublicKey(payment.recipient);
+      const tokenMintPubkey = new PublicKey(payment.currency);
+
+      // Find pre and post token balances for the recipient and token
+      const preTokenBalance = transaction.meta?.preTokenBalances?.find(
+        b => b.owner === recipientPubkey.toBase58() && b.mint === tokenMintPubkey.toBase58()
+      );
+
+      const postTokenBalance = transaction.meta?.postTokenBalances?.find(
+        b => b.owner === recipientPubkey.toBase58() && b.mint === tokenMintPubkey.toBase58()
+      );
+
+      if (!preTokenBalance && !postTokenBalance) {
+        return 0n;
+      }
+
+      const preAmount = preTokenBalance ? BigInt(preTokenBalance.uiTokenAmount.amount) : 0n;
+      const postAmount = postTokenBalance ? BigInt(postTokenBalance.uiTokenAmount.amount) : 0n;
+
+      return postAmount - preAmount;
+    }
   }
 
   private parseTransactionLogs(
