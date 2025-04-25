@@ -18,6 +18,11 @@ import {
   ABI,
   EvmAttestationService,
 } from "../../../../src/services/attestation/ethereum-vm";
+import { getOrderHash, Order } from "@reservoir0x/relay-protocol-sdk";
+import { privateKeyToAccount } from 'viem/accounts';
+
+const testSolverPrivateKey = "0x1234567890123456789012345678901234567890123456789012345678901234";
+const solverWallet = privateKeyToAccount(testSolverPrivateKey);
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<number, any> = {
@@ -26,12 +31,13 @@ jest.mock("../../../../src/common/chains", () => {
       name: "Test",
       vmType: "ethereum-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
-      escrow: "0x0000000000000000000000000000000000001000",
+      escrow: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
     },
   };
   return {
     getChains: () => chains,
     getChain: (chainId: number) => chains[chainId],
+    getSdkChainsConfig: () => ({ 1000: "ethereum-vm" }),
   };
 });
 jest.mock("../../../../src/common/vm/ethereum-vm/rpc", () => {
@@ -194,6 +200,40 @@ const generateErc20DepositLog = ({
     transactionHash,
     logIndex,
     address: to,
+    data,
+    topics: topics as string[],
+  });
+};
+
+const generateSolverNativeTransferLog = ({
+  transactionHash,
+  logIndex,
+  from,
+  to: solverContract,
+  amount,
+}: {
+  transactionHash: string;
+  logIndex: number;
+  from: string;
+  to: string;
+  amount: string;
+}) => {
+  const topics = encodeEventTopics({
+    abi: ABI,
+    eventName: "SolverNativeTransfer",
+  });
+  const data = encodeAbiParameters(
+    [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    [from as Hex, BigInt(amount)]
+  );
+
+  return generateTransactionLog({
+    transactionHash,
+    logIndex,
+    address: solverContract,
     data,
     topics: topics as string[],
   });
@@ -411,11 +451,7 @@ describe("EvmAttestationService", () => {
     };
 
     const transferLog = generateTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateErc20DepositLog({
-      ...params,
-      id: zeroHash,
-      logIndex: 1,
-    });
+    const depositLog = generateErc20DepositLog({ ...params, id: zeroHash, logIndex: 1 });
     const transactionReceipt = generateTransactionReceipt(transactionHash, [
       transferLog,
       depositLog,
@@ -528,5 +564,323 @@ describe("EvmAttestationService", () => {
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
+  });
+
+  it("attestSolverFill - validates solver fill correctly", async () => {
+
+    const chains = Object.values(await getChains());
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+
+    const chain = chains[randomNumber(chains.length)];
+    const depositTxHash = randomHex(32);
+    const fillTxHash = randomHex(32);
+
+    const depositorAddress = randomHex(20);
+    const tokenAddress = randomHex(20);
+    const paymentAmount = randomNumber(1e10).toString();
+    const outputRecipient = randomHex(20);
+    const solverContractAddress = randomHex(20);
+
+    const depositTransferLog = generateTransferLog({
+      transactionHash: depositTxHash,
+      logIndex: 0,
+      from: depositorAddress,
+      to: chain.escrow,
+      token: tokenAddress,
+      amount: paymentAmount,
+    });
+    const depositTxReceipt = generateTransactionReceipt(depositTxHash, [
+      depositTransferLog,
+    ]);
+
+    const fillNativeTransferLog = generateSolverNativeTransferLog({
+      transactionHash: fillTxHash,
+      logIndex: 0,
+      from: outputRecipient,
+      to: solverContractAddress,
+      amount: paymentAmount,
+    });
+
+    const fillTxReceipt = generateTransactionReceipt(fillTxHash, [
+      fillNativeTransferLog
+    ]);
+
+    const vmType = "ethereum-vm";
+    const testOrder: Order = {
+      salt: '0x1',
+      solver: {
+        chainId: 1000,
+        address: solverWallet.address
+      },
+      inputs: [
+        {
+          payment: {
+            chainId: 1000,
+            currency: zeroAddress,
+            amount: paymentAmount,
+            weight: "1",
+          },
+          refunds: [
+            {
+              chainId: 1000,
+              recipient: randomHex(20),
+              currency: zeroAddress,
+              minimumAmount: paymentAmount,
+              deadline: Math.floor(Date.now() / 1000) + 3600,
+              extraData: encodeAbiParameters([{ type: "address" }], [solverContractAddress as Hex]),
+            }
+          ],
+        }
+      ],
+      output: {
+        chainId: 1000,
+        payments: [
+          {
+            recipient: outputRecipient,
+            currency: zeroAddress,
+            minimumAmount: paymentAmount,
+            expectedAmount: paymentAmount,
+          },
+        ],
+        calls: [],
+        extraData: encodeAbiParameters([{ type: "address" }], [solverContractAddress as Hex]),
+        deadline: Math.floor(Date.now() / 1000) + 3600,
+      },
+      fees: []
+    };
+
+    const orderHash = getOrderHash(testOrder, {
+      1000: vmType,
+    });
+
+    const mockRpcData = {
+      transactions: {
+        [depositTxHash]: {
+          input: "0x",
+          receipt: depositTxReceipt
+        },
+        [fillTxHash]: {
+          input: orderHash,
+          receipt: fillTxReceipt
+        }
+      },
+      block: {
+        timestamp: BigInt(currentTimestamp),
+        hash: randomHex(32),
+        parentHash: randomHex(32)
+      }
+    };
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: ({ hash }: { hash: string }) => {
+        const txData = mockRpcData.transactions[hash];
+        if (!txData) {
+          throw new Error(`Invalid transaction ID: ${hash}`);
+        }
+        return { input: txData.input };
+      },
+      getTransactionReceipt: ({ hash }: { hash: string }) => {
+        const txData = mockRpcData.transactions[hash];
+        if (!txData) {
+          throw new Error(`Invalid transaction ID: ${hash}`);
+        }
+        return txData.receipt;
+      },
+      getBlock: ({ blockNumber }: { blockNumber: bigint }) => {
+        return Promise.resolve({
+          ...mockRpcData.block,
+          number: blockNumber
+        });
+      },
+    }));
+
+    const orderSignature = await solverWallet.signMessage({
+      message: { raw: orderHash },
+    });
+
+    const escrowDeposits = await new EvmAttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: depositTxHash,
+    });
+
+    const solverFillResult = await new EvmAttestationService().attestSolverFill(
+      {
+        order: testOrder,
+        orderSignature: orderSignature,
+        inputs: [{
+          transactionId: depositTxHash,
+          onchainId: escrowDeposits[0].onchainId,
+          inputIndex: 0
+        }],
+        fill: {
+          transactionId: fillTxHash,
+        }
+      }
+    );
+
+    expect(solverFillResult.result.validated).toBe(true);
+    expect(solverFillResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
+  });
+
+  it("attestSolverRefund - validates solver refund correctly", async () => {
+
+    const chains = Object.values(await getChains());
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+
+    const chain = chains[randomNumber(chains.length)];
+    const depositTxHash = randomHex(32);
+
+    const depositorAddress = randomHex(20);
+    const tokenAddress = randomHex(20);
+    const paymentAmount = randomNumber(1e10).toString();
+    const outputRecipient = randomHex(20);
+    const refundRecipient = randomHex(20);
+    const solverContractAddress = randomHex(20);
+
+    const depositTransferLog = generateTransferLog({
+      transactionHash: depositTxHash,
+      logIndex: 0,
+      from: depositorAddress,
+      to: chain.escrow,
+      token: tokenAddress,
+      amount: paymentAmount,
+    });
+    const depositTxReceipt = generateTransactionReceipt(depositTxHash, [
+      depositTransferLog,
+    ]);
+
+
+    const refundTxHash = randomHex(32);
+    const refundNativeTransferLog = generateSolverNativeTransferLog({
+      transactionHash: refundTxHash,
+      logIndex: 0,
+      from: refundRecipient,
+      to: solverContractAddress,
+      amount: paymentAmount,
+    });
+
+    const refundTxReceipt = generateTransactionReceipt(refundTxHash, [
+      refundNativeTransferLog
+    ]);
+
+    const vmType = "ethereum-vm";
+    const testOrder: Order = {
+      salt: '0x1',
+      solver: {
+        chainId: 1000,
+        address: solverWallet.address
+      },
+      inputs: [
+        {
+          payment: {
+            chainId: 1000,
+            currency: zeroAddress,
+            amount: paymentAmount,
+            weight: "1",
+          },
+          refunds: [
+            {
+              chainId: 1000,
+              recipient: refundRecipient,
+              currency: zeroAddress,
+              minimumAmount: paymentAmount,
+              deadline: Math.floor(Date.now() / 1000) + 36000,
+              extraData: encodeAbiParameters([{ type: "address" }], [solverContractAddress as Hex]),
+            }
+          ],
+        }
+      ],
+      output: {
+        chainId: 1000,
+        payments: [
+          {
+            recipient: outputRecipient,
+            currency: zeroAddress,
+            minimumAmount: paymentAmount,
+            expectedAmount: paymentAmount,
+          },
+        ],
+        calls: [],
+        extraData: encodeAbiParameters([{ type: "address" }], [solverContractAddress as Hex]),
+        deadline: Math.floor(Date.now() / 1000) + 36000,
+      },
+      fees: []
+    };
+
+    const orderHash = getOrderHash(testOrder, {
+      1000: vmType,
+    });
+
+    const mockRpcData = {
+      transactions: {
+        [depositTxHash]: {
+          input: "0x",
+          receipt: depositTxReceipt
+        },
+        [refundTxHash]: {
+          input: orderHash,
+          receipt: refundTxReceipt
+        }
+      },
+      block: {
+        timestamp: BigInt(currentTimestamp),
+        hash: randomHex(32),
+        parentHash: randomHex(32)
+      }
+    };
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: ({ hash }: { hash: string }) => {
+        const txData = mockRpcData.transactions[hash];
+        if (!txData) {
+          throw new Error(`Invalid transaction ID: ${hash}`);
+        }
+        return { input: txData.input };
+      },
+      getTransactionReceipt: ({ hash }: { hash: string }) => {
+        const txData = mockRpcData.transactions[hash];
+        if (!txData) {
+          throw new Error(`Invalid transaction ID: ${hash}`);
+        }
+        return txData.receipt;
+      },
+      getBlock: ({ blockNumber }: { blockNumber: bigint }) => {
+        return Promise.resolve({
+          ...mockRpcData.block,
+          number: blockNumber
+        });
+      },
+    }));
+
+    const orderSignature = await solverWallet.signMessage({
+      message: { raw: orderHash },
+    });
+
+    const escrowDeposits = await new EvmAttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: depositTxHash,
+    });
+
+    const solverRefundResult = await new EvmAttestationService().attestSolverRefund(
+      {
+        order: testOrder,
+        orderSignature: orderSignature,
+        inputs: [{
+          transactionId: depositTxHash,
+          onchainId: escrowDeposits[0].onchainId,
+          inputIndex: 0
+        }],
+        refunds: [
+          {
+            transactionId: refundTxHash,
+            inputIndex: 0,
+            refundIndex: 0
+          }
+        ],
+      }
+    );
+
+    expect(solverRefundResult.result.validated).toBe(true);
+    expect(solverRefundResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
   });
 });
