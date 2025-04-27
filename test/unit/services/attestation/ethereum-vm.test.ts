@@ -817,9 +817,6 @@ describe("EvmAttestationService", () => {
     await testAttestSolverRefund({});
   });
   
-  // Additional test cases can be easily added here
-  // For example:
-  
   it("attestSolverRefund - fails with invalid order signature", async () => {
     await testAttestSolverRefund({ 
       invalidSignature: true, 
