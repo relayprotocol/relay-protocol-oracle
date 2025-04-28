@@ -347,8 +347,14 @@ function createDepositTransaction(params: {
   tokenAddress: string;
   paymentAmount: string;
 }) {
-  const { depositTxHash, depositorAddress, escrowAddress, tokenAddress, paymentAmount } = params;
-  
+  const {
+    depositTxHash,
+    depositorAddress,
+    escrowAddress,
+    tokenAddress,
+    paymentAmount,
+  } = params;
+
   const depositTransferLog = generateTransferLog({
     transactionHash: depositTxHash,
     logIndex: 0,
@@ -357,7 +363,7 @@ function createDepositTransaction(params: {
     token: tokenAddress,
     amount: paymentAmount,
   });
-  
+
   return generateTransactionReceipt(depositTxHash, [depositTransferLog]);
 }
 
@@ -368,8 +374,9 @@ function createFillTransaction(params: {
   solverContractAddress: string;
   paymentAmount: string;
 }) {
-  const { fillTxHash, outputRecipient, solverContractAddress, paymentAmount } = params;
-  
+  const { fillTxHash, outputRecipient, solverContractAddress, paymentAmount } =
+    params;
+
   const fillNativeTransferLog = generateSolverNativeTransferLog({
     transactionHash: fillTxHash,
     logIndex: 0,
@@ -377,7 +384,7 @@ function createFillTransaction(params: {
     to: solverContractAddress,
     amount: paymentAmount,
   });
-  
+
   return generateTransactionReceipt(fillTxHash, [fillNativeTransferLog]);
 }
 
@@ -388,8 +395,13 @@ function createRefundTransaction(params: {
   solverContractAddress: string;
   paymentAmount: string;
 }) {
-  const { refundTxHash, refundRecipient, solverContractAddress, paymentAmount } = params;
-  
+  const {
+    refundTxHash,
+    refundRecipient,
+    solverContractAddress,
+    paymentAmount,
+  } = params;
+
   const refundNativeTransferLog = generateSolverNativeTransferLog({
     transactionHash: refundTxHash,
     logIndex: 0,
@@ -397,7 +409,7 @@ function createRefundTransaction(params: {
     to: solverContractAddress,
     amount: paymentAmount,
   });
-  
+
   return generateTransactionReceipt(refundTxHash, [refundNativeTransferLog]);
 }
 
@@ -407,7 +419,7 @@ function createMockRpcData(params: {
   currentTimestamp: number;
 }) {
   const { transactions, currentTimestamp } = params;
-  
+
   return {
     transactions,
     block: {
@@ -780,53 +792,53 @@ describe("EvmAttestationService", () => {
   });
 
   it("attestSolverFill - fails with invalid order signature", async () => {
-    await testAttestSolverFill({ 
-      invalidSignature: true, 
-      expectError: "Invalid order signature" 
+    await testAttestSolverFill({
+      invalidSignature: true,
+      expectError: "Invalid order signature",
     });
   });
 
   it("attestSolverFill - fails with non-unique onchain ids", async () => {
-    await testAttestSolverFill({ 
-      duplicateOnchainIds: true, 
-      expectError: "Input information contains non-unique onchain ids" 
+    await testAttestSolverFill({
+      duplicateOnchainIds: true,
+      expectError: "Input information contains non-unique onchain ids",
     });
   });
 
   it("attestSolverFill - fails with insufficient fill amount", async () => {
-    await testAttestSolverFill({ 
-      insufficientPayment: true, 
-      expectError: "Insufficient fill amount for order output payment" 
+    await testAttestSolverFill({
+      insufficientPayment: true,
+      expectError: "Insufficient fill amount for order output payment",
     });
   });
 
   it("attestSolverFill - fails with expired output deadline", async () => {
-    await testAttestSolverFill({ 
-      expiredDeadline: true, 
-      expectError: "deadline" 
+    await testAttestSolverFill({
+      expiredDeadline: true,
+      expectError: "deadline",
     });
   });
 
   it("attestSolverFill - validates with ERC20 token payments", async () => {
-    await testAttestSolverFill({ 
-      useErc20Token: true 
+    await testAttestSolverFill({
+      useErc20Token: true,
     });
   });
 
   it("attestSolverRefund - validates solver refund correctly", async () => {
     await testAttestSolverRefund({});
   });
-  
+
   it("attestSolverRefund - fails with invalid order signature", async () => {
-    await testAttestSolverRefund({ 
-      invalidSignature: true, 
-      expectError: "Invalid order signature" 
+    await testAttestSolverRefund({
+      invalidSignature: true,
+      expectError: "Invalid order signature",
     });
   });
-  
+
   it("attestSolverRefund - validates with ERC20 token payments", async () => {
-    await testAttestSolverRefund({ 
-      useErc20Token: true 
+    await testAttestSolverRefund({
+      useErc20Token: true,
     });
   });
 });
@@ -857,7 +869,7 @@ const createErc20TransferTransaction = ({
     token: tokenAddress,
     amount,
   });
-  
+
   return generateTransactionReceipt(transactionHash, [transferLog]);
 };
 
@@ -866,28 +878,30 @@ const createErc20TransferTransaction = ({
  * @param options Configuration options for the test environment
  * @returns Test environment with all necessary data for testing
  */
-const setupTestEnvironment = async (options: {
-  useErc20Token?: boolean;
-  invalidSignature?: boolean;
-  expiredDeadline?: boolean;
-  insufficientPayment?: boolean;
-  duplicateOnchainIds?: boolean;
-  customPaymentAmount?: string;
-  actionType?: 'fill' | 'refund';
-} = {}) => {
+const setupTestEnvironment = async (
+  options: {
+    useErc20Token?: boolean;
+    invalidSignature?: boolean;
+    expiredDeadline?: boolean;
+    insufficientPayment?: boolean;
+    duplicateOnchainIds?: boolean;
+    customPaymentAmount?: string;
+    actionType?: "fill" | "refund";
+  } = {}
+) => {
   const chains = Object.values(await getChains());
   const testData = setupTestData();
   testData.chain = chains[randomNumber(chains.length)];
-  
+
   const depositTxHash = randomHex(32);
   const actionTxHash = randomHex(32); // Can be either fill or refund transaction hash
-  
+
   // Adjust payment amount if specified
   const paymentAmount = options.customPaymentAmount || testData.paymentAmount;
-  const fillAmount = options.insufficientPayment 
-    ? (BigInt(paymentAmount) * 50n / 100n).toString() // 50% of required amount
+  const fillAmount = options.insufficientPayment
+    ? ((BigInt(paymentAmount) * 50n) / 100n).toString() // 50% of required amount
     : paymentAmount;
-  
+
   // Create deposit transaction
   let depositTxReceipt: TransactionReceipt;
   if (options.useErc20Token) {
@@ -907,7 +921,7 @@ const setupTestEnvironment = async (options: {
       paymentAmount,
     });
   }
-  
+
   // Create test order
   const vmType = "ethereum-vm";
   const testOrder = createTestOrder({
@@ -919,20 +933,20 @@ const setupTestEnvironment = async (options: {
     inputCurrency: options.useErc20Token ? testData.tokenAddress : zeroAddress,
     outputCurrency: options.useErc20Token ? testData.tokenAddress : zeroAddress,
   });
-  
+
   // Set expired deadline if specified
   if (options.expiredDeadline) {
     testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600; // 1 hour in the past
   }
-  
+
   const orderHash = getOrderHash(testOrder, {
     1000: vmType,
   });
-  
+
   // Create action transaction receipt (fill or refund)
   let actionTxReceipt: TransactionReceipt;
-  const isRefund = options.actionType === 'refund';
-  
+  const isRefund = options.actionType === "refund";
+
   if (options.useErc20Token) {
     actionTxReceipt = createErc20TransferTransaction({
       transactionHash: actionTxHash,
@@ -956,7 +970,7 @@ const setupTestEnvironment = async (options: {
       paymentAmount: fillAmount,
     });
   }
-  
+
   // Create mock RPC data
   const mockRpcData = createMockRpcData({
     transactions: {
@@ -969,27 +983,29 @@ const setupTestEnvironment = async (options: {
         receipt: actionTxReceipt,
       },
     },
-    currentTimestamp: options.expiredDeadline ? Math.floor(Date.now() / 1000) : testData.currentTimestamp,
+    currentTimestamp: options.expiredDeadline
+      ? Math.floor(Date.now() / 1000)
+      : testData.currentTimestamp,
   });
-  
+
   // Setup RPC mock
   setupRpcMock(mockRpcData);
-  
+
   // Create order signature
-  const signerWallet = options.invalidSignature 
+  const signerWallet = options.invalidSignature
     ? privateKeyToAccount(randomHex(32) as Hex) // Random wallet for invalid signature
     : solverWallet;
-  
+
   const orderSignature = await signerWallet.signMessage({
     message: { raw: orderHash },
   });
-  
+
   // Get escrow deposits
   const escrowDeposits = await new AttestationService().attestEscrowDeposits({
     chainId: testData.chain.id,
     transactionId: depositTxHash,
   });
-  
+
   // Create inputs array
   const inputs = options.duplicateOnchainIds
     ? [
@@ -1011,7 +1027,7 @@ const setupTestEnvironment = async (options: {
           inputIndex: 0,
         },
       ];
-  
+
   return {
     testData,
     depositTxHash,
@@ -1041,8 +1057,8 @@ const testAttestSolverFill = async (options: {
   expectError?: string;
 }) => {
   // Setup test environment with fill action type
-  const env = await setupTestEnvironment({...options, actionType: 'fill'});
-  
+  const env = await setupTestEnvironment({ ...options, actionType: "fill" });
+
   // Execute or expect error
   if (options.expectError) {
     await expect(
@@ -1065,7 +1081,7 @@ const testAttestSolverFill = async (options: {
         transactionId: env.actionTxHash,
       },
     });
-    
+
     expect(solverFillResult.result.validated).toBe(true);
     expect(solverFillResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
     return solverFillResult;
@@ -1087,8 +1103,8 @@ const testAttestSolverRefund = async (options: {
   expectError?: string;
 }) => {
   // Setup test environment with refund action type
-  const env = await setupTestEnvironment({...options, actionType: 'refund'});
-  
+  const env = await setupTestEnvironment({ ...options, actionType: "refund" });
+
   // Execute or expect error
   if (options.expectError) {
     await expect(
@@ -1107,21 +1123,24 @@ const testAttestSolverRefund = async (options: {
     ).rejects.toThrow(options.expectError);
     return null;
   } else {
-    const solverRefundResult = await new AttestationService().attestSolverRefund({
-      order: env.testOrder,
-      orderSignature: env.orderSignature,
-      inputs: env.inputs,
-      refunds: [
-        {
-          transactionId: env.actionTxHash,
-          inputIndex: 0,
-          refundIndex: 0,
-        },
-      ],
-    });
-    
+    const solverRefundResult =
+      await new AttestationService().attestSolverRefund({
+        order: env.testOrder,
+        orderSignature: env.orderSignature,
+        inputs: env.inputs,
+        refunds: [
+          {
+            transactionId: env.actionTxHash,
+            inputIndex: 0,
+            refundIndex: 0,
+          },
+        ],
+      });
+
     expect(solverRefundResult.result.validated).toBe(true);
-    expect(solverRefundResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
+    expect(solverRefundResult.result.totalWeightedInputPaymentBpsDiff).toBe(
+      "0"
+    );
     return solverRefundResult;
   }
 };
