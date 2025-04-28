@@ -1,5 +1,8 @@
 import { describe, expect, it, jest } from "@jest/globals";
 import {
+  decodeWithdrawal,
+  encodeWithdrawal,
+  EscrowWithdrawalStatus,
   getOrderId,
   Order,
   SolverFillStatus,
@@ -12,6 +15,7 @@ import {
   encodeAbiParameters,
   encodeEventTopics,
   encodeFunctionData,
+  getContract,
   zeroAddress,
   zeroHash,
 } from "viem";
@@ -22,7 +26,7 @@ import { httpRpc } from "../../../../src/common/vm/ethereum-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
 
-import { randomHex, randomNumber } from "../../../common/utils";
+import { ONE_BILLION, randomHex, randomNumber } from "../../../common/utils";
 
 const testSolverPrivateKey =
   "0x1234567890123456789012345678901234567890123456789012345678901234";
@@ -47,6 +51,12 @@ jest.mock("../../../../src/common/chains", () => {
 jest.mock("../../../../src/common/vm/ethereum-vm/rpc", () => {
   return {
     httpRpc: jest.fn(),
+  };
+});
+jest.mock("viem", () => {
+  return {
+    ...(jest.requireActual("viem") as typeof import("viem")),
+    getContract: jest.fn(),
   };
 });
 
@@ -783,6 +793,118 @@ describe("EvmAttestationService", () => {
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
+  });
+
+  it("attestEscrowWithdrawal - successful attestation", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+
+    const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
+      vmType: "ethereum-vm",
+      withdrawal: {
+        calls: [
+          {
+            to: randomHex(20),
+            data: randomHex(64),
+            value: randomNumber(ONE_BILLION).toString(),
+            allowFailure: false,
+          },
+        ],
+        nonce: randomNumber(ONE_BILLION).toString(),
+        expiration: randomNumber(ONE_BILLION),
+      },
+    };
+
+    (getContract as jest.Mock).mockImplementation(() => ({
+      read: {
+        callRequests: () => true,
+      },
+    }));
+
+    const message = await new AttestationService().attestEscrowWithdrawal({
+      chainId: chain.id,
+      withdrawal: encodeWithdrawal(decodedWithdrawal),
+    });
+    expect(message.result.status).toEqual(EscrowWithdrawalStatus.EXECUTED);
+  });
+
+  it("attestEscrowWithdrawal - expired attestation", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+
+    const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
+      vmType: "ethereum-vm",
+      withdrawal: {
+        calls: [
+          {
+            to: randomHex(20),
+            data: randomHex(64),
+            value: randomNumber(ONE_BILLION).toString(),
+            allowFailure: false,
+          },
+        ],
+        nonce: randomNumber(ONE_BILLION).toString(),
+        expiration: randomNumber(ONE_BILLION),
+      },
+    };
+
+    (getContract as jest.Mock).mockImplementation(() => ({
+      read: {
+        callRequests: () => false,
+      },
+    }));
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getBlock: async () => ({
+        timestamp: decodedWithdrawal.withdrawal.expiration + 1,
+      }),
+    }));
+
+    const message = await new AttestationService().attestEscrowWithdrawal({
+      chainId: chain.id,
+      withdrawal: encodeWithdrawal(decodedWithdrawal),
+    });
+    expect(message.result.status).toEqual(EscrowWithdrawalStatus.EXPIRED);
+  });
+
+  it("attestEscrowWithdrawal - pending attestation", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+
+    const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
+      vmType: "ethereum-vm",
+      withdrawal: {
+        calls: [
+          {
+            to: randomHex(20),
+            data: randomHex(64),
+            value: randomNumber(ONE_BILLION).toString(),
+            allowFailure: false,
+          },
+        ],
+        nonce: randomNumber(ONE_BILLION).toString(),
+        expiration: randomNumber(ONE_BILLION),
+      },
+    };
+
+    (getContract as jest.Mock).mockImplementation(() => ({
+      read: {
+        callRequests: () => false,
+      },
+    }));
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getBlock: async () => ({
+        timestamp: decodedWithdrawal.withdrawal.expiration - 1,
+      }),
+    }));
+
+    const message = await new AttestationService().attestEscrowWithdrawal({
+      chainId: chain.id,
+      withdrawal: encodeWithdrawal(decodedWithdrawal),
+    });
+    expect(message.result.status).toEqual(EscrowWithdrawalStatus.PENDING);
   });
 
   it("attestSolverFill - validates solver fill correctly", async () => {

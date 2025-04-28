@@ -1,5 +1,7 @@
 import { randomBytes } from "crypto";
 
+export const ONE_BILLION = 1_000_000_000;
+
 export const randomHex = (size: number) =>
   "0x" + randomBytes(size).toString("hex");
 

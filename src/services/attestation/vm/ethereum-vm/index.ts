@@ -1,11 +1,16 @@
 import {
   decodeOrderExtraData,
+  decodeWithdrawal,
   EscrowDepositMessage,
   EscrowWithdrawalMessage,
+  EscrowWithdrawalStatus,
+  getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 
 import {
+  Address,
   decodeFunctionData,
+  getContract,
   Hex,
   parseAbi,
   parseEventLogs,
@@ -15,7 +20,7 @@ import {
 
 import { getOnchainId } from "../../utils";
 import { getChain } from "../../../../common/chains";
-import { externalError, internalError } from "../../../../common/error";
+import { externalError } from "../../../../common/error";
 import { undefinedOnThrow } from "../../../../common/utils";
 import { httpRpc } from "../../../../common/vm/ethereum-vm/rpc";
 import { VmAttestor } from "../../vm/types";
@@ -28,6 +33,7 @@ export const ABI = parseAbi([
   "event Transfer(address indexed from, address indexed to, uint256 amount)",
   "function transfer(address to, uint256 amount)",
   "function transferFrom(address from, address to, uint256 amount)",
+  "function callRequests(bytes32 withdrawalId) view returns (bool)",
 ]);
 
 export class EthereumVmAttestor extends VmAttestor {
@@ -179,10 +185,46 @@ export class EthereumVmAttestor extends VmAttestor {
   }
 
   public async getEscrowWithdrawalStatus(
-    _chainId: number,
-    _withdrawal: string
+    chainId: number,
+    withdrawal: string
   ): Promise<EscrowWithdrawalMessage> {
-    throw internalError("Not implemented");
+    const rpc = await httpRpc(chainId);
+    const chain = await getChain(chainId);
+
+    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
+    const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
+
+    const escrow = getContract({
+      address: chain.escrow as Address,
+      abi: ABI,
+      client: rpc,
+    });
+    const isExecuted = await escrow.read.callRequests([withdrawalId as Hex]);
+
+    let status: EscrowWithdrawalStatus;
+    if (isExecuted) {
+      status = EscrowWithdrawalStatus.EXECUTED;
+    } else {
+      const chainTimestamp = await rpc
+        .getBlock()
+        .then((block) => block.timestamp);
+      if (chainTimestamp > BigInt(decodedWithdrawal.withdrawal.expiration)) {
+        status = EscrowWithdrawalStatus.EXPIRED;
+      } else {
+        status = EscrowWithdrawalStatus.PENDING;
+      }
+    }
+
+    return {
+      data: {
+        chainId,
+        withdrawal,
+      },
+      result: {
+        withdrawalId,
+        status,
+      },
+    };
   }
 
   public async getSolverPaidAmount(
