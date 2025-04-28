@@ -1,5 +1,10 @@
 import { describe, expect, it, jest } from "@jest/globals";
-import { getOrderHash, Order } from "@reservoir0x/relay-protocol-sdk";
+import {
+  getOrderId,
+  Order,
+  SolverFillStatus,
+  SolverRefundStatus,
+} from "@reservoir0x/relay-protocol-sdk";
 import {
   Hex,
   Log,
@@ -932,7 +937,7 @@ const setupTestEnvironment = async (
     testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600; // 1 hour in the past
   }
 
-  const orderHash = getOrderHash(testOrder, {
+  const orderHash = getOrderId(testOrder, {
     1000: vmType,
   });
 
@@ -1075,7 +1080,7 @@ const testAttestSolverFill = async (options: {
       },
     });
 
-    expect(solverFillResult.result.validated).toBe(true);
+    expect(solverFillResult.result.status).toBe(SolverFillStatus.SUCCESSFUL);
     expect(solverFillResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
     return solverFillResult;
   }
@@ -1130,7 +1135,9 @@ const testAttestSolverRefund = async (options: {
         ],
       });
 
-    expect(solverRefundResult.result.validated).toBe(true);
+    expect(solverRefundResult.result.status).toBe(
+      SolverRefundStatus.SUCCESSFUL
+    );
     expect(solverRefundResult.result.totalWeightedInputPaymentBpsDiff).toBe(
       "0"
     );

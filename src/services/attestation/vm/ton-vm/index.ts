@@ -1,4 +1,7 @@
-import { EscrowDepositMessage } from "@reservoir0x/relay-protocol-sdk";
+import {
+  EscrowDepositMessage,
+  EscrowWithdrawalMessage,
+} from "@reservoir0x/relay-protocol-sdk";
 import { Address, Cell, Message, CommonMessageInfoInternal } from "@ton/core";
 import { TonClient, Transaction } from "@ton/ton";
 import {
@@ -13,7 +16,7 @@ import {
 } from "./wrappers/RelayEscrow";
 import { getOnchainId } from "../../utils";
 import { getChain } from "../../../../common/chains";
-import { externalError } from "../../../../common/error";
+import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/ton-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
@@ -40,6 +43,13 @@ export class TonVmAttestor extends VmAttestor {
       transaction.outMessages.values(),
       connection
     );
+  }
+
+  public async getEscrowWithdrawalStatus(
+    _chainId: number,
+    _withdrawal: string
+  ): Promise<EscrowWithdrawalMessage> {
+    throw internalError("Not implemented");
   }
 
   public async getSolverPaidAmount(

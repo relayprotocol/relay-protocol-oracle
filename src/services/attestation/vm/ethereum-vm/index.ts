@@ -1,6 +1,7 @@
 import {
   decodeOrderExtraData,
   EscrowDepositMessage,
+  EscrowWithdrawalMessage,
 } from "@reservoir0x/relay-protocol-sdk";
 
 import {
@@ -14,7 +15,7 @@ import {
 
 import { getOnchainId } from "../../utils";
 import { getChain } from "../../../../common/chains";
-import { externalError } from "../../../../common/error";
+import { externalError, internalError } from "../../../../common/error";
 import { undefinedOnThrow } from "../../../../common/utils";
 import { httpRpc } from "../../../../common/vm/ethereum-vm/rpc";
 import { VmAttestor } from "../../vm/types";
@@ -175,6 +176,13 @@ export class EthereumVmAttestor extends VmAttestor {
     }
 
     return messages;
+  }
+
+  public async getEscrowWithdrawalStatus(
+    _chainId: number,
+    _withdrawal: string
+  ): Promise<EscrowWithdrawalMessage> {
+    throw internalError("Not implemented");
   }
 
   public async getSolverPaidAmount(

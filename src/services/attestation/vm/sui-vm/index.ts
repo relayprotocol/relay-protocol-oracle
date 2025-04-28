@@ -1,8 +1,11 @@
 import { SuiEvent } from "@mysten/sui/client";
-import { EscrowDepositMessage } from "@reservoir0x/relay-protocol-sdk";
+import {
+  EscrowDepositMessage,
+  EscrowWithdrawalMessage,
+} from "@reservoir0x/relay-protocol-sdk";
 
 import { getOnchainId } from "../../utils";
-import { externalError } from "../../../../common/error";
+import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/sui-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
@@ -37,6 +40,13 @@ export class SuiVmAttestor extends VmAttestor {
       transactionId,
       transaction.events
     );
+  }
+
+  public async getEscrowWithdrawalStatus(
+    _chainId: number,
+    _withdrawal: string
+  ): Promise<EscrowWithdrawalMessage> {
+    throw internalError("Not implemented");
   }
 
   public async getSolverPaidAmount(

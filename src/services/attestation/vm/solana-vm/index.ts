@@ -1,12 +1,15 @@
 import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import { EscrowDepositMessage } from "@reservoir0x/relay-protocol-sdk";
+import {
+  EscrowDepositMessage,
+  EscrowWithdrawalMessage,
+} from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import bs58 from "bs58";
 
 import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
 import { getOnchainId } from "../../utils";
-import { externalError } from "../../../../common/error";
+import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
@@ -44,6 +47,13 @@ export class SolanaVmAttestor extends VmAttestor {
       transactionId,
       transaction.meta.logMessages
     );
+  }
+
+  public async getEscrowWithdrawalStatus(
+    _chainId: number,
+    _withdrawal: string
+  ): Promise<EscrowWithdrawalMessage> {
+    throw internalError("Not implemented");
   }
 
   public async getSolverPaidAmount(

@@ -1,9 +1,12 @@
 import {
   EscrowDepositMessage,
-  getOrderHash,
+  EscrowWithdrawalMessage,
+  getOrderId,
   Order,
   SolverFillMessage,
+  SolverFillStatus,
   SolverRefundMessage,
+  SolverRefundStatus,
 } from "@reservoir0x/relay-protocol-sdk";
 import { Address, Hex, verifyMessage } from "viem";
 
@@ -20,13 +23,21 @@ export class AttestationService {
     );
   }
 
+  public async attestEscrowWithdrawal(
+    data: EscrowWithdrawalMessage["data"]
+  ): Promise<EscrowWithdrawalMessage> {
+    return getVmAttestor(data.chainId).then((attestor) =>
+      attestor.getEscrowWithdrawalStatus(data.chainId, data.withdrawal)
+    );
+  }
+
   public async attestSolverFill(
     data: SolverFillMessage["data"]
   ): Promise<SolverFillMessage> {
     const totalWeightedInputPaymentBpsDiff =
       await this._getTotalWeightedInputPaymentBpsDiff(data);
 
-    const orderHash = getOrderHash(data.order, await getSdkChainsConfig());
+    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the fill
     for (
@@ -71,7 +82,8 @@ export class AttestationService {
     return {
       data,
       result: {
-        validated: true,
+        orderId: getOrderId(data.order, await getSdkChainsConfig()),
+        status: SolverFillStatus.SUCCESSFUL,
         totalWeightedInputPaymentBpsDiff:
           totalWeightedInputPaymentBpsDiff.toString(),
       },
@@ -84,7 +96,7 @@ export class AttestationService {
     const totalWeightedInputPaymentBpsDiff =
       await this._getTotalWeightedInputPaymentBpsDiff(data);
 
-    const orderHash = getOrderHash(data.order, await getSdkChainsConfig());
+    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the refunds
     for (
@@ -144,7 +156,8 @@ export class AttestationService {
     return {
       data,
       result: {
-        validated: true,
+        orderId: getOrderId(data.order, await getSdkChainsConfig()),
+        status: SolverRefundStatus.SUCCESSFUL,
         totalWeightedInputPaymentBpsDiff:
           totalWeightedInputPaymentBpsDiff.toString(),
       },
@@ -169,7 +182,7 @@ export class AttestationService {
     }
 
     // Get the order hash
-    const orderHash = getOrderHash(data.order, await getSdkChainsConfig());
+    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the order signature
     const isSignatureValid = await verifyMessage({
