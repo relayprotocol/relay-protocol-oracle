@@ -24,17 +24,14 @@ const Schema = {
     200: Type.Object({
       messages: Type.Array(
         Type.Object({
-          onchainId: Type.String({
-            description: "The onchain id of the deposit",
-          }),
           data: MessageData,
           result: Type.Object({
+            onchainId: Type.String({
+              description: "The onchain id of the deposit",
+            }),
             depositId: Type.Optional(
               Type.String({ description: "The id associated to the deposit" })
             ),
-            escrow: Type.String({
-              description: "The escrow address the deposit occured on",
-            }),
             depositor: Type.String({
               description: "The address of the depositor",
             }),

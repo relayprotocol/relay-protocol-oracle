@@ -1,6 +1,5 @@
 import {
   EscrowDepositMessage,
-  EscrowWithdrawalMessage,
   getOrderHash,
   Order,
   SolverFillMessage,
@@ -16,29 +15,9 @@ export class AttestationService {
   public async attestEscrowDeposits(
     data: EscrowDepositMessage["data"]
   ): Promise<EscrowDepositMessage[]> {
-    return getVmAttestor(data.chainId)
-      .then((attestor) =>
-        attestor.getEscrowMessages(data.chainId, data.transactionId)
-      )
-      .then((messages) =>
-        messages
-          .filter((m) => m.type === "escrow-deposit")
-          .map((m) => m.message)
-      );
-  }
-
-  public async attestEscrowWithdrawals(
-    data: EscrowWithdrawalMessage["data"]
-  ): Promise<EscrowWithdrawalMessage[]> {
-    return getVmAttestor(data.chainId)
-      .then((attestor) =>
-        attestor.getEscrowMessages(data.chainId, data.transactionId)
-      )
-      .then((messages) =>
-        messages
-          .filter((m) => m.type === "escrow-withdrawal")
-          .map((m) => m.message)
-      );
+    return getVmAttestor(data.chainId).then((attestor) =>
+      attestor.getEscrowDepositMessages(data.chainId, data.transactionId)
+    );
   }
 
   public async attestSolverFill(
@@ -229,7 +208,9 @@ export class AttestationService {
           chainId: orderInput.payment.chainId,
           transactionId: inputInformation.transactionId,
         }).then((escrowDeposits) =>
-          escrowDeposits.find((d) => d.onchainId === inputInformation.onchainId)
+          escrowDeposits.find(
+            (d) => d.result.onchainId === inputInformation.onchainId
+          )
         );
         if (!escrowDeposit) {
           throw externalError(

@@ -57,7 +57,6 @@ const MessageData = Type.Object({
           currencyChainId: Type.Number(),
           currencyAddress: Type.String(),
           amount: Type.String(),
-          weight: Type.String(),
         })
       ),
     },

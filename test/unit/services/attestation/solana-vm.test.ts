@@ -16,8 +16,8 @@ jest.mock("../../../../src/common/chains", () => {
     },
   };
   return {
-    getChains: () => chains,
-    getChain: (chainId: number) => chains[chainId],
+    getChains: async () => chains,
+    getChain: async (chainId: number) => chains[chainId],
   };
 });
 jest.mock("../../../../src/common/vm/solana-vm/rpc", () => {
@@ -27,37 +27,6 @@ jest.mock("../../../../src/common/vm/solana-vm/rpc", () => {
 });
 
 describe("SolanaAttestationService", () => {
-  it("attestEscrowDeposits - should attest transfer executed event", async () => {
-    const logs = [
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u invoke [1]",
-      "Program log: Instruction: ExecuteTransfer",
-      "Program data: XAqyuBIseHyD6q3CsL4+q/8vpriI7Znwv82QTXEgc/7YdToVNNU48AAA4fUFAAAAAOR/ngmWAQAAQxXyZwAAAAC6wUYM1quIijgngodEMdwvpDcpi1C1upEEr7d/coYFjYmNNdNGyIwr7uBGBuJEKw0NK1Ht/OvBhp4dbV4JCJaV",
-    ];
-
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
-        meta: {
-          logMessages: logs,
-        },
-      }),
-    }));
-
-    const service = new AttestationService();
-    const messages = await service.attestEscrowWithdrawals({
-      chainId: Object.values(await getChains())[0].id,
-      transactionId: randomBase58(32),
-    });
-
-    expect(messages.length).toBe(1);
-    expect(messages[0].result.currency).toBe(
-      "11111111111111111111111111111111"
-    );
-    expect(messages[0].result.amount).toBe("100000000");
-    expect(messages[0].result.withdrawalId).toBe(
-      "AFwk1wX1efTqiV37seaAzJAKHjjUDZxeKnfBU5p6wmbJ"
-    );
-  });
-
   it("attestEscrowDeposits - should attest spl-token deposit event", async () => {
     const logs = [
       "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u invoke [1]",
@@ -168,23 +137,6 @@ describe("SolanaAttestationService", () => {
 
     const service = new AttestationService();
     const deposits = await service.attestEscrowDeposits({
-      chainId: Object.values(await getChains())[0].id,
-      transactionId: randomBase58(32),
-    });
-    expect(deposits).toEqual([]);
-  });
-
-  it("attestEscrowWithdrawals - should return empty array when no events found", async () => {
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
-        meta: {
-          logMessages: [],
-        },
-      }),
-    }));
-
-    const service = new AttestationService();
-    const deposits = await service.attestEscrowWithdrawals({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });

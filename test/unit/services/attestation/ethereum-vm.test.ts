@@ -12,12 +12,12 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { randomHex, randomNumber } from "../../../common/utils";
-
 import { getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/ethereum-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
+
+import { randomHex, randomNumber } from "../../../common/utils";
 
 const testSolverPrivateKey =
   "0x1234567890123456789012345678901234567890123456789012345678901234";
@@ -34,8 +34,8 @@ jest.mock("../../../../src/common/chains", () => {
     },
   };
   return {
-    getChains: () => chains,
-    getChain: (chainId: number) => chains[chainId],
+    getChains: async () => chains,
+    getChain: async (chainId: number) => chains[chainId],
     getSdkChainsConfig: () => ({ 1000: "ethereum-vm" }),
   };
 });
@@ -494,7 +494,6 @@ describe("EvmAttestationService", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
@@ -546,7 +545,6 @@ describe("EvmAttestationService", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
@@ -594,7 +592,6 @@ describe("EvmAttestationService", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
@@ -642,7 +639,6 @@ describe("EvmAttestationService", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
@@ -693,7 +689,6 @@ describe("EvmAttestationService", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
@@ -737,7 +732,6 @@ describe("EvmAttestationService", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
@@ -780,7 +774,6 @@ describe("EvmAttestationService", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
@@ -1011,19 +1004,19 @@ const setupTestEnvironment = async (
     ? [
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].onchainId,
+          onchainId: escrowDeposits[0].result.onchainId,
           inputIndex: 0,
         },
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].onchainId, // Duplicate onchainId
+          onchainId: escrowDeposits[0].result.onchainId, // Duplicate onchainId
           inputIndex: 0,
         },
       ]
     : [
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].onchainId,
+          onchainId: escrowDeposits[0].result.onchainId,
           inputIndex: 0,
         },
       ];
