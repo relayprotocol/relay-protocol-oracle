@@ -10,6 +10,11 @@ import { externalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
+export const eventCoder = new BorshEventCoder(RelayEscrowIdl as Idl);
+export {
+  RelayEscrowIdl
+};
+
 interface DepositEventData {
   depositor: PublicKey;
   token: PublicKey | null;
@@ -30,12 +35,8 @@ interface TransferExecutedEventData {
 }
 
 export class SolanaVmAttestor extends VmAttestor {
-  private readonly eventCoder: BorshEventCoder;
-
   constructor() {
     super();
-
-    this.eventCoder = new BorshEventCoder(RelayEscrowIdl as Idl);
   }
 
   public async getEscrowMessages(
@@ -201,7 +202,7 @@ export class SolanaVmAttestor extends VmAttestor {
       }
 
       try {
-        const event = this.eventCoder.decode(
+        const event = eventCoder.decode(
           log.slice("Program data: ".length)
         );
         if (!event) {

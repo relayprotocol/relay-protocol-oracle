@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import bs58 from 'bs58';
 
 export const randomHex = (size: number) =>
   "0x" + randomBytes(size).toString("hex");
@@ -9,3 +10,6 @@ export const randomBase58 = (size: number) =>
 
 export const randomNumber = (max: number) =>
   Number(BigInt(randomHex(5)).toString()) % max;
+
+export const randomBs58 = (size: number = 32) => 
+  bs58.encode(randomBytes(size));
