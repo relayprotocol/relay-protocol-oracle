@@ -14,7 +14,7 @@ import {
   DepositEvent,
   ADDRESS_NONE,
 } from "./wrappers/RelayEscrow";
-import { getOnchainId } from "../../utils";
+import { getOnchainId } from "../utils";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/ton-vm/rpc";
@@ -45,7 +45,7 @@ export class TonVmAttestor extends VmAttestor {
     );
   }
 
-  public async getEscrowWithdrawalStatus(
+  public async getEscrowWithdrawalMessage(
     _chainId: number,
     _withdrawal: string
   ): Promise<EscrowWithdrawalMessage> {
@@ -175,6 +175,14 @@ export class TonVmAttestor extends VmAttestor {
     }
 
     return totalPaidAmount;
+  }
+
+  public verifySolverCalls(
+    _chainId: number,
+    _transactionId: string,
+    _calls: string[]
+  ): Promise<boolean> {
+    throw internalError("Not implemented");
   }
 
   private async parseTransactionLogs(

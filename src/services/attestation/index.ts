@@ -27,7 +27,7 @@ export class AttestationService {
     data: EscrowWithdrawalMessage["data"]
   ): Promise<EscrowWithdrawalMessage> {
     return getVmAttestor(data.chainId).then((attestor) =>
-      attestor.getEscrowWithdrawalStatus(data.chainId, data.withdrawal)
+      attestor.getEscrowWithdrawalMessage(data.chainId, data.withdrawal)
     );
   }
 
@@ -47,19 +47,17 @@ export class AttestationService {
     ) {
       const payment = data.order.output.payments[outputPaymentIndex];
 
-      const paidAmount = await getVmAttestor(data.order.output.chainId).then(
-        (attestor) =>
-          attestor.getSolverPaidAmount(
-            data.order.output.chainId,
-            data.fill.transactionId,
-            {
-              currency: payment.currency,
-              recipient: payment.recipient,
-              orderHash,
-              extraData: data.order.output.extraData,
-              deadline: data.order.output.deadline,
-            }
-          )
+      const attestor = await getVmAttestor(data.order.output.chainId);
+      const paidAmount = await attestor.getSolverPaidAmount(
+        data.order.output.chainId,
+        data.fill.transactionId,
+        {
+          currency: payment.currency,
+          recipient: payment.recipient,
+          orderHash,
+          extraData: data.order.output.extraData,
+          deadline: data.order.output.deadline,
+        }
       );
 
       // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
@@ -75,8 +73,18 @@ export class AttestationService {
       }
     }
 
+    // Verify any calls to be executed
     if (data.order.output.calls.length) {
-      // TODO: Ensure any output calls were executed
+      const attestor = await getVmAttestor(data.order.output.chainId);
+      if (
+        !(await attestor.verifySolverCalls(
+          data.order.output.chainId,
+          data.fill.transactionId,
+          data.order.output.calls
+        ))
+      ) {
+        throw externalError(`Missing call executions`);
+      }
     }
 
     return {

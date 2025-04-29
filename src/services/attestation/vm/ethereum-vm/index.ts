@@ -1,4 +1,5 @@
 import {
+  decodeOrderCall,
   decodeOrderExtraData,
   decodeWithdrawal,
   EscrowDepositMessage,
@@ -18,7 +19,7 @@ import {
   zeroHash,
 } from "viem";
 
-import { getOnchainId } from "../../utils";
+import { getOnchainId } from "../utils";
 import { getChain } from "../../../../common/chains";
 import { externalError } from "../../../../common/error";
 import { undefinedOnThrow } from "../../../../common/utils";
@@ -29,7 +30,7 @@ export const ABI = parseAbi([
   "event EscrowNativeDeposit(address from, uint256 amount, bytes32 id)",
   "event EscrowErc20Deposit(address from, address token, uint256 amount, bytes32 id)",
   "event SolverNativeTransfer(address to, uint256 amount)",
-  "event SolverCallExecuted((address to, bytes data, uint256 value) call)",
+  "event SolverCallExecuted(address to, bytes data, uint256 amount)",
   "event Transfer(address indexed from, address indexed to, uint256 amount)",
   "function transfer(address to, uint256 amount)",
   "function transferFrom(address from, address to, uint256 amount)",
@@ -184,7 +185,7 @@ export class EthereumVmAttestor extends VmAttestor {
     return messages;
   }
 
-  public async getEscrowWithdrawalStatus(
+  public async getEscrowWithdrawalMessage(
     chainId: number,
     withdrawal: string
   ): Promise<EscrowWithdrawalMessage> {
@@ -297,7 +298,7 @@ export class EthereumVmAttestor extends VmAttestor {
         .map((log) => log.args.amount)
         .reduce((a, b) => a + b, 0n);
     } else {
-      // If the payment involves ERC20 currencies, work off standard tansfer events
+      // If the payment involves ERC20 currencies, work off standard transfer events
       return parseEventLogs({
         abi: ABI,
         logs: receipt.logs,
@@ -311,5 +312,58 @@ export class EthereumVmAttestor extends VmAttestor {
         .map((log) => log.args.amount)
         .reduce((a, b) => a + b, 0n);
     }
+  }
+
+  public async verifySolverCalls(
+    chainId: number,
+    transactionId: string,
+    calls: string[]
+  ): Promise<boolean> {
+    const rpc = await httpRpc(chainId);
+    const chain = await getChain(chainId);
+
+    // Ensure the transaction was successfully included
+    const receipt = await rpc.getTransactionReceipt({
+      hash: transactionId as Hex,
+    });
+    if (!receipt || receipt.status !== "success") {
+      throw externalError(`Missing or reverted transaction ${transactionId}`);
+    }
+
+    // Parse and filter the logs we're interested in
+    const parsedLogs = parseEventLogs({
+      abi: ABI,
+      logs: receipt.logs,
+      eventName: ["SolverCallExecuted"],
+    }).filter((log) => {
+      if (
+        log.eventName === "SolverCallExecuted" &&
+        log.address.toLowerCase() === chain.escrow.toLowerCase()
+      ) {
+        return true;
+      }
+
+      return false;
+    });
+
+    const usedParsedLogIndexes = new Set<number>();
+    for (const call of calls) {
+      const decodedCall = decodeOrderCall(call, chain.vmType);
+
+      const relevantLogIndex = parsedLogs.findIndex(
+        (log, i) =>
+          log.args.to.toLowerCase() === decodedCall.call.to.toLowerCase() &&
+          log.args.data.toLowerCase() === decodedCall.call.data.toLowerCase() &&
+          log.args.amount === BigInt(decodedCall.call.value) &&
+          !usedParsedLogIndexes.has(i)
+      );
+      if (relevantLogIndex === -1) {
+        return false;
+      } else {
+        usedParsedLogIndexes.add(relevantLogIndex);
+      }
+    }
+
+    return true;
   }
 }

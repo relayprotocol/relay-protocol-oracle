@@ -4,7 +4,7 @@ import {
   EscrowWithdrawalMessage,
 } from "@reservoir0x/relay-protocol-sdk";
 
-import { getOnchainId } from "../../utils";
+import { getOnchainId } from "../utils";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/sui-vm/rpc";
 import { VmAttestor } from "../../vm/types";
@@ -42,7 +42,7 @@ export class SuiVmAttestor extends VmAttestor {
     );
   }
 
-  public async getEscrowWithdrawalStatus(
+  public async getEscrowWithdrawalMessage(
     _chainId: number,
     _withdrawal: string
   ): Promise<EscrowWithdrawalMessage> {
@@ -132,6 +132,14 @@ export class SuiVmAttestor extends VmAttestor {
     }
 
     return paidAmount;
+  }
+
+  public verifySolverCalls(
+    _chainId: number,
+    _transactionId: string,
+    _calls: string[]
+  ): Promise<boolean> {
+    throw internalError("Not implemented");
   }
 
   private parseTransactionLogs(
