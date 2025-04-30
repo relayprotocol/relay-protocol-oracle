@@ -9,7 +9,7 @@ export abstract class VmAttestor {
     transactionId: string
   ): Promise<EscrowDepositMessage[]>;
 
-  public abstract getEscrowWithdrawalStatus(
+  public abstract getEscrowWithdrawalMessage(
     chainId: number,
     withdrawal: string
   ): Promise<EscrowWithdrawalMessage>;
@@ -25,4 +25,10 @@ export abstract class VmAttestor {
       deadline: number;
     }
   ): Promise<bigint>;
+
+  public abstract verifySolverCalls(
+    chainId: number,
+    transactionId: string,
+    calls: string[]
+  ): Promise<boolean>;
 }

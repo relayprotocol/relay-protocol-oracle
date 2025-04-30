@@ -22,11 +22,9 @@ const Schema = {
               description: "The vm type of the chain",
             }
           ),
-          escrow: Type.Optional(
-            Type.String({
-              description: "The escrow address for the chain",
-            })
-          ),
+          escrow: Type.String({
+            description: "The escrow address for the chain",
+          }),
         }),
         { description: "A list of supported chains" }
       ),
