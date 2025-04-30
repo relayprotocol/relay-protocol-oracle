@@ -1,8 +1,11 @@
 import { SuiEvent } from "@mysten/sui/client";
+import {
+  EscrowDepositMessage,
+  EscrowWithdrawalMessage,
+} from "@reservoir0x/relay-protocol-sdk";
 
-import { getOnchainId, ProtocolMessage } from "../../utils";
-import { getChain } from "../../../../common/chains";
-import { externalError } from "../../../../common/error";
+import { getOnchainId } from "../../utils";
+import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/sui-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
@@ -15,21 +18,11 @@ interface DepositEventData {
   deposit_id: string;
 }
 
-interface TransferExecutedEventData {
-  request_hash: number[];
-  recipient: string;
-  coin_type: {
-    name: string;
-  };
-  amount: bigint;
-}
-
 export class SuiVmAttestor extends VmAttestor {
-  public async getEscrowMessages(
+  public async getEscrowDepositMessages(
     chainId: number,
     transactionId: string
-  ): Promise<ProtocolMessage[]> {
-    const chain = await getChain(chainId);
+  ): Promise<EscrowDepositMessage[]> {
     const connection = await httpRpc(chainId);
     const transaction = await connection.getTransactionBlock({
       digest: transactionId,
@@ -45,9 +38,15 @@ export class SuiVmAttestor extends VmAttestor {
     return this.parseTransactionLogs(
       chainId,
       transactionId,
-      transaction.events,
-      chain.escrow
+      transaction.events
     );
+  }
+
+  public async getEscrowWithdrawalStatus(
+    _chainId: number,
+    _withdrawal: string
+  ): Promise<EscrowWithdrawalMessage> {
+    throw internalError("Not implemented");
   }
 
   public async getSolverPaidAmount(
@@ -138,10 +137,9 @@ export class SuiVmAttestor extends VmAttestor {
   private parseTransactionLogs(
     chainId: number,
     transactionId: string,
-    events: SuiEvent[],
-    escrowAddress: string
-  ): ProtocolMessage[] {
-    const messages: ProtocolMessage[] = [];
+    events: SuiEvent[]
+  ): EscrowDepositMessage[] {
+    const messages: EscrowDepositMessage[] = [];
 
     let messageIndex = 0;
     for (const event of events) {
@@ -149,7 +147,6 @@ export class SuiVmAttestor extends VmAttestor {
         event,
         chainId,
         transactionId,
-        escrowAddress,
         messageIndex++
       );
       if (message) {
@@ -164,9 +161,8 @@ export class SuiVmAttestor extends VmAttestor {
     event: SuiEvent,
     chainId: number,
     transactionId: string,
-    escrowAddress: string,
     messageIndex: number
-  ): ProtocolMessage | undefined {
+  ): EscrowDepositMessage | undefined {
     const onchainId = getOnchainId(
       chainId,
       transactionId,
@@ -182,15 +178,7 @@ export class SuiVmAttestor extends VmAttestor {
       return this.createDepositMessage(
         event.parsedJson as DepositEventData,
         onchainId,
-        input,
-        escrowAddress
-      );
-    } else if (event.type.includes("TransferExecutedEvent")) {
-      return this.createWithdrawalMessage(
-        event.parsedJson as TransferExecutedEventData,
-        onchainId,
-        input,
-        escrowAddress
+        input
       );
     } else {
       return undefined;
@@ -200,42 +188,16 @@ export class SuiVmAttestor extends VmAttestor {
   private createDepositMessage(
     event: DepositEventData,
     onchainId: string,
-    data: { chainId: number; transactionId: string },
-    escrowAddress: string
-  ): ProtocolMessage {
+    data: { chainId: number; transactionId: string }
+  ): EscrowDepositMessage {
     return {
-      type: "escrow-deposit",
-      message: {
+      data,
+      result: {
         onchainId,
-        data,
-        result: {
-          depositId: Buffer.from(event.deposit_id).toString("hex"),
-          escrow: escrowAddress,
-          depositor: event.from,
-          currency: event.coin_type.name,
-          amount: event.amount.toString(),
-        },
-      },
-    };
-  }
-
-  private createWithdrawalMessage(
-    event: TransferExecutedEventData,
-    onchainId: string,
-    data: { chainId: number; transactionId: string },
-    escrowAddress: string
-  ): ProtocolMessage {
-    return {
-      type: "escrow-withdrawal",
-      message: {
-        onchainId,
-        data,
-        result: {
-          withdrawalId: Buffer.from(event.request_hash).toString("hex"),
-          escrow: escrowAddress,
-          currency: event.coin_type.name,
-          amount: event.amount.toString(),
-        },
+        depositId: Buffer.from(event.deposit_id).toString("hex"),
+        depositor: event.from,
+        currency: event.coin_type.name,
+        amount: event.amount.toString(),
       },
     };
   }

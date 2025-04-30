@@ -1,10 +1,12 @@
 import {
   EscrowDepositMessage,
   EscrowWithdrawalMessage,
-  getOrderHash,
+  getOrderId,
   Order,
   SolverFillMessage,
+  SolverFillStatus,
   SolverRefundMessage,
+  SolverRefundStatus,
 } from "@reservoir0x/relay-protocol-sdk";
 import { Address, Hex, verifyMessage } from "viem";
 
@@ -16,29 +18,17 @@ export class AttestationService {
   public async attestEscrowDeposits(
     data: EscrowDepositMessage["data"]
   ): Promise<EscrowDepositMessage[]> {
-    return getVmAttestor(data.chainId)
-      .then((attestor) =>
-        attestor.getEscrowMessages(data.chainId, data.transactionId)
-      )
-      .then((messages) =>
-        messages
-          .filter((m) => m.type === "escrow-deposit")
-          .map((m) => m.message)
-      );
+    return getVmAttestor(data.chainId).then((attestor) =>
+      attestor.getEscrowDepositMessages(data.chainId, data.transactionId)
+    );
   }
 
-  public async attestEscrowWithdrawals(
+  public async attestEscrowWithdrawal(
     data: EscrowWithdrawalMessage["data"]
-  ): Promise<EscrowWithdrawalMessage[]> {
-    return getVmAttestor(data.chainId)
-      .then((attestor) =>
-        attestor.getEscrowMessages(data.chainId, data.transactionId)
-      )
-      .then((messages) =>
-        messages
-          .filter((m) => m.type === "escrow-withdrawal")
-          .map((m) => m.message)
-      );
+  ): Promise<EscrowWithdrawalMessage> {
+    return getVmAttestor(data.chainId).then((attestor) =>
+      attestor.getEscrowWithdrawalStatus(data.chainId, data.withdrawal)
+    );
   }
 
   public async attestSolverFill(
@@ -47,7 +37,7 @@ export class AttestationService {
     const totalWeightedInputPaymentBpsDiff =
       await this._getTotalWeightedInputPaymentBpsDiff(data);
 
-    const orderHash = getOrderHash(data.order, await getSdkChainsConfig());
+    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the fill
     for (
@@ -92,7 +82,8 @@ export class AttestationService {
     return {
       data,
       result: {
-        validated: true,
+        orderId: getOrderId(data.order, await getSdkChainsConfig()),
+        status: SolverFillStatus.SUCCESSFUL,
         totalWeightedInputPaymentBpsDiff:
           totalWeightedInputPaymentBpsDiff.toString(),
       },
@@ -105,7 +96,7 @@ export class AttestationService {
     const totalWeightedInputPaymentBpsDiff =
       await this._getTotalWeightedInputPaymentBpsDiff(data);
 
-    const orderHash = getOrderHash(data.order, await getSdkChainsConfig());
+    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the refunds
     for (
@@ -165,7 +156,8 @@ export class AttestationService {
     return {
       data,
       result: {
-        validated: true,
+        orderId: getOrderId(data.order, await getSdkChainsConfig()),
+        status: SolverRefundStatus.SUCCESSFUL,
         totalWeightedInputPaymentBpsDiff:
           totalWeightedInputPaymentBpsDiff.toString(),
       },
@@ -190,7 +182,7 @@ export class AttestationService {
     }
 
     // Get the order hash
-    const orderHash = getOrderHash(data.order, await getSdkChainsConfig());
+    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the order signature
     const isSignatureValid = await verifyMessage({
@@ -229,7 +221,9 @@ export class AttestationService {
           chainId: orderInput.payment.chainId,
           transactionId: inputInformation.transactionId,
         }).then((escrowDeposits) =>
-          escrowDeposits.find((d) => d.onchainId === inputInformation.onchainId)
+          escrowDeposits.find(
+            (d) => d.result.onchainId === inputInformation.onchainId
+          )
         );
         if (!escrowDeposit) {
           throw externalError(

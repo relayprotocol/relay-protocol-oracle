@@ -16,8 +16,8 @@ jest.mock("../../../../src/common/chains", () => {
     },
   };
   return {
-    getChains: () => chains,
-    getChain: (chainId: number) => chains[chainId],
+    getChains: async () => chains,
+    getChain: async (chainId: number) => chains[chainId],
   };
 });
 jest.mock("../../../../src/common/vm/ton-vm/rpc", () => {
@@ -27,52 +27,6 @@ jest.mock("../../../../src/common/vm/ton-vm/rpc", () => {
 });
 
 describe("TonAttestationService", () => {
-  it("attestEscrowWithdrawals - should attest transfer executed event", async () => {
-    const mockTx = loadTransaction(
-      Cell.fromBase64(
-        "te6cckECDwEAA1UAA7VzEbHDDhubxfSsQra+0sO5x4RaTmbxhfyoz7i1N7+s7vAAAAAAEh6sATyHV2yityT5JvExIyt7Lbkkabfe8Iyd0lIigh2vCuPQAAAAAA9CQAZ/iZ/AAFRqKEJoAQsMAgHgAgYByWgA0Ysl743u6R45APS3dYe9Ynu3ViWfeVffFh+QDpbH/ScADEbHDDhubxfSsQra+0sO5x4RaTmbxhfyoz7i1N7+s7vQdzWUAAYXDiIAAAAAAiVRAs/xM/hoxXJhAAAAAAAAAABAAwECAQQB/QAAAAAAAAABZ/ioDACAFyMX5Xl7cgzYsZFHeKEQRQU1peDbO6gb4W0d2ydc+58wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIdzWUAIBfXhAIF9eEAQFAIArXXHy+lNilvNcdvUydtokfpNS1LTXz15RAMfQBSGlBAf4JTXcwotKOaCFoeVTnDamobZCieA7/r8Mq4uRu0EDAgHdBwkBASAIALFIAGI2OGHDc3i+lYhW19pYdzjwi0nM3jC/lRn3Fqb39Z3fAC5GL8ry9uQZsWMijvFCIIoKa0vBtndQN8LaO7ZOufc+UO5rKAAGCCNaAAAAAAJD1YLP8TP4QAEBIAoA8eABiNjhhw3N4vpWIVtfaWHc48ItJzN4wv5UZ9xam9/Wd3gAAAAAAkPVhM/xM/gAuQ9c/QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABDuaygBRcWYMDLhVri6mdJd0zXV897tFhvgdGx7GM/m0Eb94sIAgnI6GreB5iJs2EOo67elM8TjN/7vJSGMxnAHTlU2wbTMVK3x/qF7/KqawlrCgdzg3iSjG5f+Esh47IRlNgZd4ZvgAhUECQdzWUAYaSPYEQ0OAJ5F2Yw9CQAAAAAAAAAAAPgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG/JhhqATCCNTAAAAAAABAAAAAAABTgFrVcUnZ8m33P0yo1AV+dtfFxTZIZAcwCbLKE5LG1IQJA0PHpxAD4="
-      ).beginParse()
-    );
-
-    const mockCurrency = Address.parse(
-      "EQCPCNJo1kfIutVC_VDrov-3TfbwreJDMUtfRA7NxGlrZntT"
-    );
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => mockTx,
-      provider: () => {
-        return {
-          open: () => {
-            return {
-              getData: () => ({
-                jettonMaster: mockCurrency,
-              }),
-            };
-          },
-        };
-      },
-    }));
-
-    const service = new AttestationService();
-    const messages = await service.attestEscrowWithdrawals({
-      chainId: Object.values(await getChains())[0].id,
-      transactionId: [
-        "EQBoxZL3xvd0jxyAelu6w96xPdurEs-8q--LD8gHS2P-k3h3",
-        "1",
-        "1",
-      ].join("::"),
-    });
-    const msg = messages[0];
-
-    expect(messages.length).toBe(1);
-    expect(msg.result.currency).toBe(
-      "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c"
-    );
-    expect(msg.result.amount).toBe("1000000000");
-    expect(msg.result.withdrawalId).toBe(
-      "36837698756550845923548951145281232355085456059853636759437290613526864296112"
-    );
-  });
-
   it("attestEscrowDeposits - should attest native deposit event", async () => {
     const mockTx = loadTransaction(
       Cell.fromBase64(

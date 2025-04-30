@@ -1,4 +1,5 @@
 import { Type } from "@fastify/type-provider-typebox";
+import { SolverRefundStatus } from "@reservoir0x/relay-protocol-sdk";
 
 import {
   Endpoint,
@@ -57,7 +58,6 @@ const MessageData = Type.Object({
           currencyChainId: Type.Number(),
           currencyAddress: Type.String(),
           amount: Type.String(),
-          weight: Type.String(),
         })
       ),
     },
@@ -105,9 +105,15 @@ const Schema = {
         {
           data: MessageData,
           result: Type.Object({
-            validated: Type.Boolean({
-              description: "The result of the refund verification",
+            orderId: Type.String({
+              description: "The id of the attested order",
             }),
+            status: Type.Union(
+              [Type.Literal("failed"), Type.Literal("successful")],
+              {
+                description: "The status of the solver fill",
+              }
+            ),
             totalWeightedInputPaymentBpsDiff: Type.String({
               description:
                 "The bps difference between the quoted amount and the deposited amount",
@@ -133,6 +139,17 @@ export default {
     const attestationService = new AttestationService();
     const message = await attestationService.attestSolverRefund(req.body);
 
-    return reply.send({ message });
+    return reply.send({
+      message: {
+        ...message,
+        result: {
+          ...message.result,
+          status:
+            message.result.status === SolverRefundStatus.FAILED
+              ? "failed"
+              : "successful",
+        },
+      },
+    });
   },
 } as Endpoint;

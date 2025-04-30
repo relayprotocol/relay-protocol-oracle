@@ -17,8 +17,8 @@ jest.mock("../../../../src/common/chains", () => {
     },
   };
   return {
-    getChains: () => chains,
-    getChain: (chainId: number) => chains[chainId],
+    getChains: async () => chains,
+    getChain: async (chainId: number) => chains[chainId],
   };
 });
 jest.mock("../../../../src/common/vm/sui-vm/rpc", () => {
@@ -28,58 +28,6 @@ jest.mock("../../../../src/common/vm/sui-vm/rpc", () => {
 });
 
 describe("SuiAttestationService", () => {
-  it("attestEscrowWithdrawals - should attest transfer executed event", async () => {
-    const events = [
-      {
-        id: {
-          txDigest: "4M4GNixunQrkiDTRwVHnZupLEaKRE3RmiEGzMmFEa5to",
-          eventSeq: "0",
-        },
-        packageId:
-          "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e",
-        transactionModule: "escrow",
-        sender:
-          "0x70d8697b66fbc6c63130ec17a3a1c0e12030070851a9a3a717574a767a03c48c",
-        type: "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e::escrow::TransferExecutedEvent",
-        parsedJson: {
-          amount: "500",
-          coin_type: {
-            name: "0000000000000000000000000000000000000000000000000000000000000002::sui::SUI",
-          },
-          recipient:
-            "0xd63b34130788d21d3cbd39a6cb55c8b8d27fe37c055c321be490fd2146209c1c",
-          request_hash: [
-            55, 221, 125, 236, 188, 178, 203, 208, 73, 22, 229, 185, 136, 10,
-            233, 192, 106, 220, 175, 35, 146, 118, 180, 148, 188, 232, 235, 144,
-            94, 11, 175, 52,
-          ],
-        },
-      },
-    ];
-
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransactionBlock: () => ({
-        events,
-      }),
-    }));
-
-    const service = new AttestationService();
-    const messages = await service.attestEscrowWithdrawals({
-      chainId: Object.values(await getChains())[0].id,
-      transactionId: randomBase58(20),
-    });
-    const msg = messages[0];
-
-    expect(messages.length).toBe(1);
-    expect(msg.result.currency).toBe(
-      "0000000000000000000000000000000000000000000000000000000000000002::sui::SUI"
-    );
-    expect(msg.result.amount).toBe("500");
-    expect(msg.result.withdrawalId).toBe(
-      "37dd7decbcb2cbd04916e5b9880ae9c06adcaf239276b494bce8eb905e0baf34"
-    );
-  });
-
   it("attestEscrowDeposits - should attest deposit event", async () => {
     const events = [
       {

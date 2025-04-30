@@ -1,7 +1,16 @@
-import { decodeOrderExtraData } from "@reservoir0x/relay-protocol-sdk";
+import {
+  decodeOrderExtraData,
+  decodeWithdrawal,
+  EscrowDepositMessage,
+  EscrowWithdrawalMessage,
+  EscrowWithdrawalStatus,
+  getDecodedWithdrawalId,
+} from "@reservoir0x/relay-protocol-sdk";
 
 import {
+  Address,
   decodeFunctionData,
+  getContract,
   Hex,
   parseAbi,
   parseEventLogs,
@@ -9,7 +18,7 @@ import {
   zeroHash,
 } from "viem";
 
-import { getOnchainId, ProtocolMessage } from "../../utils";
+import { getOnchainId } from "../../utils";
 import { getChain } from "../../../../common/chains";
 import { externalError } from "../../../../common/error";
 import { undefinedOnThrow } from "../../../../common/utils";
@@ -19,19 +28,19 @@ import { VmAttestor } from "../../vm/types";
 export const ABI = parseAbi([
   "event EscrowNativeDeposit(address from, uint256 amount, bytes32 id)",
   "event EscrowErc20Deposit(address from, address token, uint256 amount, bytes32 id)",
-  "event EscrowCallExecuted(bytes32 id, (address to, bytes data, uint256 value, bool allowFailure) call)",
   "event SolverNativeTransfer(address to, uint256 amount)",
   "event SolverCallExecuted((address to, bytes data, uint256 value) call)",
   "event Transfer(address indexed from, address indexed to, uint256 amount)",
   "function transfer(address to, uint256 amount)",
   "function transferFrom(address from, address to, uint256 amount)",
+  "function callRequests(bytes32 withdrawalId) view returns (bool)",
 ]);
 
 export class EthereumVmAttestor extends VmAttestor {
-  public async getEscrowMessages(
+  public async getEscrowDepositMessages(
     chainId: number,
     transactionId: string
-  ): Promise<ProtocolMessage[]> {
+  ): Promise<EscrowDepositMessage[]> {
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
@@ -48,12 +57,7 @@ export class EthereumVmAttestor extends VmAttestor {
     const parsedLogs = parseEventLogs({
       abi: ABI,
       logs: receipt.logs,
-      eventName: [
-        "EscrowNativeDeposit",
-        "EscrowErc20Deposit",
-        "EscrowCallExecuted",
-        "Transfer",
-      ],
+      eventName: ["EscrowNativeDeposit", "EscrowErc20Deposit", "Transfer"],
     }).filter((log) => {
       if (
         log.eventName === "EscrowNativeDeposit" &&
@@ -64,13 +68,6 @@ export class EthereumVmAttestor extends VmAttestor {
 
       if (
         log.eventName === "EscrowErc20Deposit" &&
-        log.address.toLowerCase() === chain.escrow.toLowerCase()
-      ) {
-        return true;
-      }
-
-      if (
-        log.eventName === "EscrowCallExecuted" &&
         log.address.toLowerCase() === chain.escrow.toLowerCase()
       ) {
         return true;
@@ -89,7 +86,7 @@ export class EthereumVmAttestor extends VmAttestor {
     // Sort the logs accordigng to their onchain order
     parsedLogs.sort((l1, l2) => l1.logIndex - l2.logIndex);
 
-    const messages: ProtocolMessage[] = [];
+    const messages: EscrowDepositMessage[] = [];
     for (let i = 0; i < parsedLogs.length; i++) {
       const currentLog = parsedLogs[i];
       const nextLog = i + 1 < parsedLogs.length ? parsedLogs[i + 1] : undefined;
@@ -98,24 +95,20 @@ export class EthereumVmAttestor extends VmAttestor {
         const depositId = currentLog.args.id.toLowerCase();
 
         messages.push({
-          type: "escrow-deposit",
-          message: {
+          data: {
+            chainId,
+            transactionId,
+          },
+          result: {
             onchainId: getOnchainId(
               chainId,
               transactionId,
               currentLog.logIndex.toString()
             ),
-            data: {
-              chainId,
-              transactionId,
-            },
-            result: {
-              depositId,
-              escrow: chain.escrow.toLowerCase(),
-              depositor: currentLog.args.from.toLowerCase(),
-              currency: zeroAddress,
-              amount: currentLog.args.amount.toString(),
-            },
+            depositId,
+            depositor: currentLog.args.from.toLowerCase(),
+            currency: zeroAddress,
+            amount: currentLog.args.amount.toString(),
           },
         });
       }
@@ -169,89 +162,69 @@ export class EthereumVmAttestor extends VmAttestor {
         }
 
         messages.push({
-          type: "escrow-deposit",
-          message: {
+          data: {
+            chainId,
+            transactionId,
+          },
+          result: {
             onchainId: getOnchainId(
               chainId,
               transactionId,
               currentLog.logIndex.toString()
             ),
-            data: {
-              chainId,
-              transactionId,
-            },
-            result: {
-              depositId: depositId ?? zeroHash,
-              escrow: chain.escrow.toLowerCase(),
-              depositor: currentLog.args.from.toLowerCase(),
-              currency: currentLog.address.toLowerCase(),
-              amount: currentLog.args.amount.toString(),
-            },
+            depositId: depositId ?? zeroHash,
+            depositor: currentLog.args.from.toLowerCase(),
+            currency: currentLog.address.toLowerCase(),
+            amount: currentLog.args.amount.toString(),
           },
         });
-      }
-
-      if (currentLog?.eventName === "EscrowCallExecuted") {
-        if (currentLog.args.call.value > 0n) {
-          messages.push({
-            type: "escrow-withdrawal",
-            message: {
-              onchainId: getOnchainId(
-                chainId,
-                transactionId,
-                currentLog.logIndex.toString()
-              ),
-              data: {
-                chainId,
-                transactionId,
-              },
-              result: {
-                withdrawalId: currentLog.args.id.toLowerCase(),
-                escrow: chain.escrow.toLowerCase(),
-                currency: zeroAddress,
-                amount: currentLog.args.call.value.toString(),
-              },
-            },
-          });
-        } else {
-          const decodedFunctionData = await undefinedOnThrow(() =>
-            decodeFunctionData({
-              abi: ABI,
-              data: currentLog.args.call.data,
-            })
-          );
-          if (!decodedFunctionData) {
-            throw new Error("Unable to decode CallExecuted event");
-          }
-
-          messages.push({
-            type: "escrow-withdrawal",
-            message: {
-              onchainId: getOnchainId(
-                chainId,
-                transactionId,
-                currentLog.logIndex.toString()
-              ),
-              data: {
-                chainId,
-                transactionId,
-              },
-              result: {
-                withdrawalId: currentLog.args.id.toLowerCase(),
-                escrow: chain.escrow.toLowerCase(),
-                currency: currentLog.args.call.to.toLowerCase(),
-                amount:
-                  decodedFunctionData.functionName === "transfer"
-                    ? decodedFunctionData.args[1].toString()
-                    : decodedFunctionData.args[2].toString(),
-              },
-            },
-          });
-        }
       }
     }
 
     return messages;
+  }
+
+  public async getEscrowWithdrawalStatus(
+    chainId: number,
+    withdrawal: string
+  ): Promise<EscrowWithdrawalMessage> {
+    const rpc = await httpRpc(chainId);
+    const chain = await getChain(chainId);
+
+    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
+    const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
+
+    const escrow = getContract({
+      address: chain.escrow as Address,
+      abi: ABI,
+      client: rpc,
+    });
+    const isExecuted = await escrow.read.callRequests([withdrawalId as Hex]);
+
+    let status: EscrowWithdrawalStatus;
+    if (isExecuted) {
+      status = EscrowWithdrawalStatus.EXECUTED;
+    } else {
+      const chainTimestamp = await rpc
+        .getBlock()
+        .then((block) => block.timestamp);
+      if (chainTimestamp > BigInt(decodedWithdrawal.withdrawal.expiration)) {
+        status = EscrowWithdrawalStatus.EXPIRED;
+      } else {
+        status = EscrowWithdrawalStatus.PENDING;
+      }
+    }
+
+    return {
+      data: {
+        chainId,
+        withdrawal,
+      },
+      result: {
+        withdrawalId,
+        status,
+      },
+    };
   }
 
   public async getSolverPaidAmount(

@@ -1,12 +1,15 @@
 import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
+import {
+  EscrowDepositMessage,
+  EscrowWithdrawalMessage,
+} from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import bs58 from "bs58";
 
 import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
-import { getOnchainId, ProtocolMessage } from "../../utils";
-import { getChain } from "../../../../common/chains";
-import { externalError } from "../../../../common/error";
+import { getOnchainId } from "../../utils";
+import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
@@ -22,28 +25,15 @@ interface DepositEventData {
   id: number[];
 }
 
-interface TransferExecutedEventData {
-  request: {
-    recipient: PublicKey;
-    token: PublicKey | null;
-    amount: bigint;
-    nonce: bigint;
-    expiration: number;
-  };
-  executor: PublicKey;
-  id: PublicKey;
-}
-
 export class SolanaVmAttestor extends VmAttestor {
   constructor() {
     super();
   }
 
-  public async getEscrowMessages(
+  public async getEscrowDepositMessages(
     chainId: number,
     transactionId: string
-  ): Promise<ProtocolMessage[]> {
-    const chain = await getChain(chainId);
+  ): Promise<EscrowDepositMessage[]> {
     const connection = await httpRpc(chainId);
     const transaction = await connection.getParsedTransaction(transactionId, {
       maxSupportedTransactionVersion: 0,
@@ -56,9 +46,15 @@ export class SolanaVmAttestor extends VmAttestor {
     return this.parseTransactionLogs(
       chainId,
       transactionId,
-      transaction.meta.logMessages,
-      chain.escrow
+      transaction.meta.logMessages
     );
+  }
+
+  public async getEscrowWithdrawalStatus(
+    _chainId: number,
+    _withdrawal: string
+  ): Promise<EscrowWithdrawalMessage> {
+    throw internalError("Not implemented");
   }
 
   public async getSolverPaidAmount(
@@ -190,10 +186,9 @@ export class SolanaVmAttestor extends VmAttestor {
   private parseTransactionLogs(
     chainId: number,
     transactionId: string,
-    logs: string[],
-    escrowAddress: string
-  ): ProtocolMessage[] {
-    const messages: ProtocolMessage[] = [];
+    logs: string[]
+  ): EscrowDepositMessage[] {
+    const messages: EscrowDepositMessage[] = [];
 
     let messageIndex = 0;
     for (const log of logs) {
@@ -213,7 +208,6 @@ export class SolanaVmAttestor extends VmAttestor {
           event,
           chainId,
           transactionId,
-          escrowAddress,
           messageIndex++
         );
         if (message) {
@@ -231,9 +225,8 @@ export class SolanaVmAttestor extends VmAttestor {
     event: any,
     chainId: number,
     transactionId: string,
-    escrowAddress: string,
     messageIndex: number
-  ): ProtocolMessage | undefined {
+  ): EscrowDepositMessage | undefined {
     const onchainId = getOnchainId(
       chainId,
       transactionId,
@@ -250,17 +243,7 @@ export class SolanaVmAttestor extends VmAttestor {
         return this.createDepositMessage(
           event.data as DepositEventData,
           onchainId,
-          input,
-          escrowAddress
-        );
-      }
-
-      case "TransferExecutedEvent": {
-        return this.createWithdrawalMessage(
-          event.data as TransferExecutedEventData,
-          onchainId,
-          input,
-          escrowAddress
+          input
         );
       }
 
@@ -273,46 +256,18 @@ export class SolanaVmAttestor extends VmAttestor {
   private createDepositMessage(
     event: DepositEventData,
     onchainId: string,
-    data: { chainId: number; transactionId: string },
-    escrowAddress: string
-  ): ProtocolMessage {
+    data: { chainId: number; transactionId: string }
+  ): EscrowDepositMessage {
     return {
-      type: "escrow-deposit",
-      message: {
+      data,
+      result: {
         onchainId,
-        data,
-        result: {
-          depositId: Buffer.from(event.id).toString("hex"),
-          escrow: escrowAddress,
-          depositor: event.depositor.toBase58(),
-          currency: event.token
-            ? event.token.toBase58()
-            : SystemProgram.programId.toBase58(),
-          amount: event.amount.toString(),
-        },
-      },
-    };
-  }
-
-  private createWithdrawalMessage(
-    event: TransferExecutedEventData,
-    onchainId: string,
-    data: { chainId: number; transactionId: string },
-    escrowAddress: string
-  ): ProtocolMessage {
-    return {
-      type: "escrow-withdrawal",
-      message: {
-        onchainId,
-        data,
-        result: {
-          withdrawalId: event.id.toBase58(),
-          escrow: escrowAddress,
-          currency: event.request.token
-            ? event.request.token.toBase58()
-            : SystemProgram.programId.toBase58(),
-          amount: event.request.amount.toString(),
-        },
+        depositId: Buffer.from(event.id).toString("hex"),
+        depositor: event.depositor.toBase58(),
+        currency: event.token
+          ? event.token.toBase58()
+          : SystemProgram.programId.toBase58(),
+        amount: event.amount.toString(),
       },
     };
   }

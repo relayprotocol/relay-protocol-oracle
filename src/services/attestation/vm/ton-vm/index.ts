@@ -1,3 +1,7 @@
+import {
+  EscrowDepositMessage,
+  EscrowWithdrawalMessage,
+} from "@reservoir0x/relay-protocol-sdk";
 import { Address, Cell, Message, CommonMessageInfoInternal } from "@ton/core";
 import { TonClient, Transaction } from "@ton/ton";
 import {
@@ -8,21 +12,19 @@ import {
 import {
   RelayEscrow,
   DepositEvent,
-  WithdrawEvent,
   ADDRESS_NONE,
 } from "./wrappers/RelayEscrow";
-import { getOnchainId, ProtocolMessage } from "../../utils";
+import { getOnchainId } from "../../utils";
 import { getChain } from "../../../../common/chains";
-import { externalError } from "../../../../common/error";
+import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/ton-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
 export class TonVmAttestor extends VmAttestor {
-  public async getEscrowMessages(
+  public async getEscrowDepositMessages(
     chainId: number,
     transactionId: string
-  ): Promise<ProtocolMessage[]> {
-    const chain = await getChain(chainId);
+  ): Promise<EscrowDepositMessage[]> {
     const connection = await httpRpc(chainId);
     const [address, lt, hash] = transactionId.split("::");
     const transaction = await connection.getTransaction(
@@ -35,13 +37,19 @@ export class TonVmAttestor extends VmAttestor {
       return [];
     }
 
-    return await this.parseTransactionLogs(
+    return this.parseTransactionLogs(
       chainId,
       transactionId,
       transaction.outMessages.values(),
-      chain.escrow,
       connection
     );
+  }
+
+  public async getEscrowWithdrawalStatus(
+    _chainId: number,
+    _withdrawal: string
+  ): Promise<EscrowWithdrawalMessage> {
+    throw internalError("Not implemented");
   }
 
   public async getSolverPaidAmount(
@@ -173,10 +181,9 @@ export class TonVmAttestor extends VmAttestor {
     chainId: number,
     transactionId: string,
     events: Message[],
-    escrowAddress: string,
     connection: TonClient
-  ): Promise<ProtocolMessage[]> {
-    const messages: ProtocolMessage[] = [];
+  ): Promise<EscrowDepositMessage[]> {
+    const messages: EscrowDepositMessage[] = [];
 
     let messageIndex = 0;
     for (const event of events) {
@@ -184,7 +191,6 @@ export class TonVmAttestor extends VmAttestor {
         event,
         chainId,
         transactionId,
-        escrowAddress,
         messageIndex++,
         connection
       );
@@ -200,10 +206,9 @@ export class TonVmAttestor extends VmAttestor {
     event: Message,
     chainId: number,
     transactionId: string,
-    escrowAddress: string,
     messageIndex: number,
     connection: TonClient
-  ): Promise<ProtocolMessage | undefined> {
+  ): Promise<EscrowDepositMessage | undefined> {
     const onchainId = getOnchainId(
       chainId,
       transactionId,
@@ -215,25 +220,14 @@ export class TonVmAttestor extends VmAttestor {
       transactionId,
     };
 
+    const escrowAddress = await getChain(chainId).then((chain) => chain.escrow);
     const message = await RelayEscrow.parseOutMessage(
       event,
       connection.provider(Address.parse(escrowAddress))
     );
 
     if (message?.name === "Deposit") {
-      return this.createDepositMessage(
-        message,
-        onchainId,
-        input,
-        escrowAddress
-      );
-    } else if (message?.name === "Withdraw") {
-      return this.createWithdrawalMessage(
-        message,
-        onchainId,
-        input,
-        escrowAddress
-      );
+      return this.createDepositMessage(message, onchainId, input);
     } else {
       return undefined;
     }
@@ -242,45 +236,19 @@ export class TonVmAttestor extends VmAttestor {
   private createDepositMessage(
     event: DepositEvent,
     onchainId: string,
-    data: { chainId: number; transactionId: string },
-    escrowAddress: string
-  ): ProtocolMessage {
+    data: { chainId: number; transactionId: string }
+  ): EscrowDepositMessage {
     return {
-      type: "escrow-deposit",
-      message: {
+      data,
+      result: {
         onchainId,
-        data,
-        result: {
-          depositId: event.data.depositId.toString(),
-          escrow: escrowAddress,
-          depositor: event.data.depositor,
-          currency:
-            event.data.assetType === 0
-              ? ADDRESS_NONE.toString()
-              : event.data.currency,
-          amount: event.data.amount.toString(),
-        },
-      },
-    };
-  }
-
-  private createWithdrawalMessage(
-    event: WithdrawEvent,
-    onchainId: string,
-    data: { chainId: number; transactionId: string },
-    escrowAddress: string
-  ): ProtocolMessage {
-    return {
-      type: "escrow-withdrawal",
-      message: {
-        onchainId,
-        data,
-        result: {
-          withdrawalId: event.data.msgHash.toString(),
-          escrow: escrowAddress,
-          currency: event.data.currency,
-          amount: event.data.amount.toString(),
-        },
+        depositId: event.data.depositId.toString(),
+        depositor: event.data.depositor,
+        currency:
+          event.data.assetType === 0
+            ? ADDRESS_NONE.toString()
+            : event.data.currency,
+        amount: event.data.amount.toString(),
       },
     };
   }

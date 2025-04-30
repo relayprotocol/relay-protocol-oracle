@@ -1,15 +1,12 @@
 import { describe, expect, it, jest } from "@jest/globals";
 
-import { randomBs58 } from "../../../common/utils";
+import { randomBase58 } from "../../../common/utils";
 import { getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/solana-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { privateKeyToAccount } from "viem/accounts";
-import { getOrderHash, Order } from "@reservoir0x/relay-protocol-sdk";
-import {
-  Hex,
-  zeroAddress,
-} from "viem";
+import { getOrderId, Order, SolverRefundStatus } from "@reservoir0x/relay-protocol-sdk";
+import { Hex } from "viem";
 import { randomHex, randomNumber } from "../../../common/utils";
 import { PublicKey, TransactionResponse as SolanaTransactionResponse } from "@solana/web3.js";
 import { RelayEscrowIdl } from "../../../../src/services/attestation/vm/solana-vm";
@@ -18,10 +15,10 @@ import { IdlCoder } from '@coral-xyz/anchor/dist/cjs/coder/borsh/idl';
 
 type TransactionResponse = SolanaTransactionResponse;
 
+const zeroAddress = "11111111111111111111111111111111";
 const testSolverPrivateKey =
   "0x1234567890123456789012345678901234567890123456789012345678901234";
 const solverWallet = privateKeyToAccount(testSolverPrivateKey);
-
 
 function encodeEventData(eventName: string, args: any, idl: any = RelayEscrowIdl): string {
   const eventTypeDef = idl.events.find((e: any) => e.name === eventName);
@@ -89,20 +86,103 @@ function encodeEventData(eventName: string, args: any, idl: any = RelayEscrowIdl
 
 const generateTransactionResponse = (
   transactionHash: string,
-  logs: string[]
+  logs: string[],
+  instructions?: any[],
+  accountKeys?: any[],
+  options?: {
+    paymentRecipient?: string;
+    paymentAmount?: string;
+    tokenMint?: string;
+    preTokenBalances?: any[];
+    postTokenBalances?: any[];
+  }
 ): TransactionResponse => {
+  // Default transaction keys - include SystemProgram by default
+  const defaultKeys = [
+    new PublicKey(options?.paymentRecipient || randomBase58(32)),
+    new PublicKey(zeroAddress), // System program
+  ];
+  
+  const keys = accountKeys || defaultKeys;
+  
+  // Generate random blockTime in the past hour
+  const blockTime = Math.floor(Date.now() / 1000) - randomNumber(3600);
+  
+  // Initialize balance arrays with zeros for all accounts
+  const preBalances = Array(keys.length).fill(0);
+  const postBalances = Array(keys.length).fill(0);
+  
+  // If a payment is simulated, set appropriate balance changes
+  if (options?.paymentAmount && options?.paymentRecipient) {
+    // Find recipient index in account keys
+    const recipientIndex = keys.findIndex(
+      key => key.toBase58() === options.paymentRecipient
+    );
+    
+    if (recipientIndex !== -1) {
+      const paymentAmountLamports = BigInt(options.paymentAmount);
+      const initialBalance = BigInt(randomNumber(1e9));
+      
+      // Set pre and post balances for the recipient
+      preBalances[recipientIndex] = initialBalance; 
+      postBalances[recipientIndex] = initialBalance + paymentAmountLamports;
+    }
+  }
+  
+  // Build token balance arrays if needed
+  let preTokenBalances: any[] = [];
+  let postTokenBalances: any[] = [];
+  
+  if (options?.tokenMint && options?.paymentRecipient && options?.paymentAmount) {
+    const initialTokenAmount = randomNumber(1e9).toString();
+    const finalTokenAmount = (
+      BigInt(initialTokenAmount) + BigInt(options.paymentAmount)
+    ).toString();
+    
+    preTokenBalances = [
+      {
+        accountIndex: 0,
+        mint: options.tokenMint,
+        owner: options.paymentRecipient,
+        uiTokenAmount: {
+          amount: initialTokenAmount,
+          decimals: 9,
+          uiAmount: null,
+          uiAmountString: initialTokenAmount
+        }
+      }
+    ];
+    
+    postTokenBalances = [
+      {
+        accountIndex: 0,
+        mint: options.tokenMint,
+        owner: options.paymentRecipient,
+        uiTokenAmount: {
+          amount: finalTokenAmount,
+          decimals: 9,
+          uiAmount: null,
+          uiAmountString: finalTokenAmount
+        }
+      }
+    ];
+  } else if (options?.preTokenBalances && options?.postTokenBalances) {
+    preTokenBalances = options.preTokenBalances;
+    postTokenBalances = options.postTokenBalances;
+  }
+  
   return {
     slot: randomNumber(1e10),
-    blockTime: Math.floor(Date.now() / 1000), // Adding blockTime
+    blockTime,
     meta: {
       err: null,
       fee: randomNumber(1e6),
-      preBalances: [],
-      postBalances: [],
+      preBalances,
+      postBalances,
       innerInstructions: [],
       logMessages: logs,
-      preTokenBalances: [],
-      postTokenBalances: [],
+      preTokenBalances,
+      postTokenBalances,
       loadedAddresses: {
         readonly: [],
         writable: [],
@@ -111,43 +191,125 @@ const generateTransactionResponse = (
     transaction: {
       signatures: [transactionHash],
       message: {
-        accountKeys: [], // Ideally convert to PublicKey objects if needed
-        recentBlockhash: randomBs58(10),
+        compiledInstructions: instructions ?? [],
+        accountKeys: accountKeys ?? [],
+        recentBlockhash: randomBase58(10),
         instructions: [],
         header: {
           numRequiredSignatures: 1,
           numReadonlySignedAccounts: 0,
           numReadonlyUnsignedAccounts: 0,
         },
-      } as any, // Type assertion to satisfy Transaction.message type
+        getAccountKeys: () => ({
+          staticAccountKeys: keys
+        }),
+      } as any,
     },
   };
 };
 
 const createSPLTransferTransaction = ({
-  // transactionHash,
-  // from,
-  // to,
-  // tokenAddress,
-  // amount,
+  transactionHash,
+  from,
+  to,
+  tokenAddress,
+  amount,
+  orderHash,
 }: {
   transactionHash: string;
   from: string;
   to: string;
   tokenAddress: string;
   amount: string;
+  orderHash: string;
 }): TransactionResponse => {
-  throw new Error("Not implemented");
-  // const transferLog = generateTransferLog({
-  //   transactionHash,
-  //   logIndex: 0,
-  //   from,
-  //   to,
-  //   token: tokenAddress,
-  //   amount,
-  // });
-  
-  // return generateTransactionReceipt(transactionHash, [transferLog]);
+
+  const logData = encodeEventData('DepositEvent', {
+    depositor: new PublicKey(from),
+    token: new PublicKey(tokenAddress),
+    amount: new BN(amount),
+    id: Buffer.from(Array(32).fill(1))
+  });
+
+  // Create memo instruction containing order hash
+  const memoInstruction = {
+    programIdIndex: 0, // Index of the memo program in the accountKeys array
+    accountKeyIndexes: [],
+    data: Buffer.from(orderHash, 'utf-8'),
+  };
+
+  // Create account keys including memo program and token accounts
+  const accountKeys = [
+    new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'), // Memo program
+    new PublicKey(to), // Recipient
+    new PublicKey(from), // Sender
+    new PublicKey(tokenAddress), // Token mint
+    new PublicKey(zeroAddress), // Token program
+  ];
+
+  // Create token balances to simulate SPL token transfer
+  const preTokenBalances = [
+    {
+      accountIndex: 1, // Recipient
+      mint: tokenAddress,
+      owner: to,
+      uiTokenAmount: {
+        amount: "0",
+        decimals: 9,
+        uiAmount: 0,
+        uiAmountString: "0",
+      }
+    },
+    {
+      accountIndex: 2, // Sender
+      mint: tokenAddress,
+      owner: from,
+      uiTokenAmount: {
+        amount: amount,
+        decimals: 9,
+        uiAmount: parseFloat(amount) / 1e9,
+        uiAmountString: (parseFloat(amount) / 1e9).toString(),
+      }
+    }
+  ];
+
+  const postTokenBalances = [
+    {
+      accountIndex: 1, // Recipient
+      owner: to,
+      mint: tokenAddress,
+      uiTokenAmount: {
+        amount: amount,
+        decimals: 9,
+        uiAmount: parseFloat(amount) / 1e9,
+        uiAmountString: (parseFloat(amount) / 1e9).toString(),
+      }
+    },
+    {
+      accountIndex: 2, // Sender
+      mint: tokenAddress,
+      owner: from,
+      uiTokenAmount: {
+        amount: "0",
+        decimals: 9,
+        uiAmount: 0,
+        uiAmountString: "0",
+      }
+    }
+  ];
+
+  // Generate transaction with SPL token balance changes
+  return generateTransactionResponse(
+    transactionHash,
+    [`Program log: SPL Transfer executed for order: ${orderHash}`, `Program data: ${logData}`], 
+    [memoInstruction],
+    accountKeys,
+    {
+      tokenMint: tokenAddress,
+      preTokenBalances,
+      postTokenBalances
+    }
+  );
 };
 
 // Create deposit transaction logs
@@ -158,108 +320,13 @@ function createDepositTransaction(params: {
   tokenAddress: string;
   paymentAmount: string;
 }): TransactionResponse {
-  // const types = RelayEscrowIdl.types;
-  // const idl = RelayEscrowIdl
-  // const layouts: any[] = idl.events.map((event) => {
-  //   let eventTypeDef = {
-  //     name: event.name,
-  //     type: {
-  //       kind: "struct",
-  //       fields: event.fields.map((f) => {
-  //         return { name: f.name, type: f.type };
-  //       }),
-  //     },
-  //   };
-  //   return [event.name, IdlCoder.typeDefLayout(eventTypeDef as any, idl.types as any)];
-  // });
-
-  // const discriminators = idl.events.map((e) => [
-  //   eventDiscriminator(e.name).toString('base64'),
-  //   e.name,
-  // ] as const);
-
-  // const logArr = Buffer.from('XAqyuBIseHyD6q3CsL4+q/8vpriI7Znwv82QTXEgc/7YdToVNNU48AAA4fUFAAAAAOR/ngmWAQAAQxXyZwAAAAC6wUYM1quIijgngodEMdwvpDcpi1C1upEEr7d/coYFjYmNNdNGyIwr7uBGBuJEKw0NK1Ht/OvBhp4dbV4JCJaV', 'base64');
-  // const discId = logArr.slice(0, 8).toString('base64');
-  // console.log('params', params, layouts[0][1].encode)
-
-  // const buffer = Buffer.alloc(1000);
-  // const [
-  //   eventName,
-  //   layout
-  // ] = layouts[0];
-
   const logData = encodeEventData('DepositEvent', {
     depositor: new PublicKey(params.depositorAddress),
     token: null,
     amount: new BN(params.paymentAmount),
     id: Buffer.from(Array(32).fill(1))
   });
-
-  console.log('logData', logData)
-
-  // encodeEventData('TransferExecutedEvent',
-  //   {
-  //     request: {
-  //       recipient: new PublicKey(params.depositorAddress),
-  //       token: null,
-  //       amount: new BN(params.paymentAmount),
-  //       nonce: new BN(1),
-  //       expiration: new BN(Math.floor(Date.now() / 1000) + 36000),
-  //     },
-  //     executor: new PublicKey(randomBs58(32)),
-  //     id: new PublicKey(randomBs58(32)),
-  //   }
-  // )
-  // const len = layout.encode({
-  //   request: {
-  //     recipient: new PublicKey(params.depositorAddress),
-  //     token: null,
-  //     amount: new BN(params.paymentAmount),
-  //     nonce: new BN(1),
-  //     expiration: new BN(Math.floor(Date.now() / 1000) + 36000),
-  //   },
-  //   executor: new PublicKey(randomBs58(32)),
-  //   id: new PublicKey(randomBs58(32)),
-  // }, buffer);
-
-  // console.log('eventData', 
-  //   Buffer.concat([
-  //     eventDiscriminator(eventName),
-  //     buffer.slice(0, len)
-  //   ]).toString('base64')
-  // )
-  // console.log('disc',  discId, layouts[0][1].decode(logArr.slice(8)))
-  // const layouts = RelayEscrowIdl.events.map((ev) => {
-  //   // const typeDef = RelayEscrowIdl.types.find((ty) => ty.name === ev.name);
-  //   // console.log('typeDef', typeDef)
-  //   // if (!typeDef) {
-  //   //   throw new Error(`Event not found: ${ev.name}`);
-  //   // }
-  //   return [
-  //     ev.name,
-  //     {
-  //       discriminator: eventDiscriminator(ev.name),
-  //       // layout: IdlCoder.typeDefLayout(typeDef as any, types as any, ev.name),
-  //     },
-  //   ] as const;
-  // });
-  // console.log('layouts', layouts, discriminators)
-  // throw new Error("Not implemented");
-  const { 
-    depositTxHash, 
-    // depositorAddress, 
-    // escrowAddress, tokenAddress, 
-    // paymentAmount 
-  } = params;
-  // const depositTransferLog = generateTransferLog({
-  //   transactionHash: depositTxHash,
-  //   logIndex: 0,
-  //   from: depositorAddress,
-  //   to: escrowAddress,
-  //   token: tokenAddress,
-  //   amount: paymentAmount,
-  // });
- 
+  const { depositTxHash } = params;
   return generateTransactionResponse(depositTxHash, ['Program data: ' + logData]);
 }
 
@@ -269,21 +336,42 @@ function createRefundTransaction(params: {
   refundRecipient: string;
   solverContractAddress: string;
   paymentAmount: string;
+  orderHash: string;
 }): TransactionResponse {
-  // throw new Error("Not implemented");
-  const { refundTxHash, 
-    // refundRecipient, solverContractAddress, paymentAmount
-   } = params;
+  const { 
+    refundTxHash, 
+    refundRecipient,
+    solverContractAddress,
+    paymentAmount,
+    orderHash
+  } = params;
   
-  // const refundNativeTransferLog = generateSolverNativeTransferLog({
-  //   transactionHash: refundTxHash,
-  //   logIndex: 0,
-  //   from: refundRecipient,
-  //   to: solverContractAddress,
-  //   amount: paymentAmount,
-  // });
-  
-  return generateTransactionResponse(refundTxHash, ['']);
+  // Create memo instruction containing order hash
+  const memoInstruction = {
+    programIdIndex: 0, // Index of the memo program in the accountKeys array
+    accountKeyIndexes: [],
+    data: Buffer.from(orderHash, 'utf-8'),
+  };
+
+  // Create account keys including memo program and recipient
+  const accountKeys = [
+    new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'), // Memo program
+    new PublicKey(refundRecipient), // Refund recipient
+    new PublicKey(solverContractAddress), // Solver contract
+    new PublicKey(zeroAddress), // System program (for native SOL transfers)
+  ];
+
+  // Generate transaction with balance changes showing payment to the recipient
+  return generateTransactionResponse(
+    refundTxHash,
+    [`Program log: Refund executed for order: ${orderHash}`], 
+    [memoInstruction],
+    accountKeys,
+    {
+      paymentRecipient: refundRecipient,
+      paymentAmount: paymentAmount
+    }
+  );
 }
 
 // Create fill transaction logs
@@ -292,21 +380,42 @@ function createFillTransaction(params: {
   outputRecipient: string;
   solverContractAddress: string;
   paymentAmount: string;
+  orderHash: string;
 }): TransactionResponse {
-  // throw new Error("Not implemented");
-  const { fillTxHash, 
-    // outputRecipient, solverContractAddress, paymentAmount 
+  const { 
+    fillTxHash, 
+    outputRecipient,
+    solverContractAddress,
+    paymentAmount,
+    orderHash
   } = params;
   
-  // const fillNativeTransferLog = generateSolverNativeTransferLog({
-  //   transactionHash: fillTxHash,
-  //   logIndex: 0,
-  //   from: outputRecipient,
-  //   to: solverContractAddress,
-  //   amount: paymentAmount,
-  // });
+  // Create memo instruction containing order hash
+  const memoInstruction = {
+    programIdIndex: 0, // Index of the memo program in the accountKeys array
+    accountKeyIndexes: [],
+    data: Buffer.from(orderHash, 'utf-8'),
+  };
+
+  // Create account keys including memo program and recipient
+  const accountKeys = [
+    new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'), // Memo program
+    new PublicKey(outputRecipient), // Payment recipient
+    new PublicKey(solverContractAddress), // Solver contract
+    new PublicKey(zeroAddress), // System program (for native SOL transfers)
+  ];
   
-  return generateTransactionResponse(fillTxHash, ['']);
+  // Generate transaction with balance changes showing payment to the recipient
+  return generateTransactionResponse(
+    fillTxHash,
+    [`Program log: Fill executed for order: ${orderHash}`], 
+    [memoInstruction],
+    accountKeys,
+    {
+      paymentRecipient: outputRecipient,
+      paymentAmount: paymentAmount
+    }
+  );
 }
 
 // Create a standard test Order object
@@ -328,7 +437,7 @@ function createTestOrder({
   return {
     salt: "0x1",
     solver: {
-      chainId: 1000,
+      chainId: 1001,
       address: solverAddress,
     },
     inputs: [
@@ -383,12 +492,12 @@ interface TestSetupParams {
 
 function setupTestData(): TestSetupParams {
   const currentTimestamp = Math.floor(Date.now() / 1000);
-  const depositorAddress = randomBs58(32);
-  const tokenAddress = randomBs58(32)
+  const depositorAddress = randomBase58(32);
+  const tokenAddress = randomBase58(32)
   const paymentAmount = randomNumber(1e10).toString();
-  const outputRecipient = randomBs58(32)
-  const refundRecipient = randomBs58(32)
-  const solverContractAddress = randomBs58(32)
+  const outputRecipient = randomBase58(32)
+  const refundRecipient = randomBase58(32)
+  const solverContractAddress = randomBase58(32)
 
   return {
     chain: null, // Will be set at call site
@@ -418,10 +527,10 @@ const setupTestEnvironment = async (options: {
 } = {}) => {
   const chains = Object.values(await getChains());
   const testData = setupTestData();
-  testData.chain = chains[randomNumber(chains.length)];
+  testData.chain = chains.find((chain) => chain.id === 1000);
   
-  const depositTxHash = randomBs58(32);
-  const actionTxHash = randomBs58(32); // Can be either fill or refund transaction hash
+  const depositTxHash = randomBase58(32);
+  const actionTxHash = randomBase58(32); // Can be either fill or refund transaction hash
   
   // Adjust payment amount if specified
   const paymentAmount = options.customPaymentAmount || testData.paymentAmount;
@@ -438,6 +547,7 @@ const setupTestEnvironment = async (options: {
       to: testData.chain.escrow,
       tokenAddress: testData.tokenAddress,
       amount: paymentAmount,
+      orderHash: '0x1234567890abcdef',
     });
   } else {
     depositTxReceipt = createDepositTransaction({
@@ -464,8 +574,8 @@ const setupTestEnvironment = async (options: {
   if (options.expiredDeadline) {
     testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600; // 1 hour in the past
   }
-  
-  const orderHash = getOrderHash(testOrder, {
+
+  const orderHash = getOrderId(testOrder, {
     1000: vmType,
   });
   
@@ -480,6 +590,7 @@ const setupTestEnvironment = async (options: {
       to: isRefund ? testData.refundRecipient : testData.outputRecipient,
       tokenAddress: testData.tokenAddress,
       amount: fillAmount,
+      orderHash,
     });
   } else if (isRefund) {
     actionTxReceipt = createRefundTransaction({
@@ -487,6 +598,7 @@ const setupTestEnvironment = async (options: {
       refundRecipient: testData.refundRecipient,
       solverContractAddress: testData.solverContractAddress,
       paymentAmount: fillAmount,
+      orderHash,
     });
   } else {
     actionTxReceipt = createFillTransaction({
@@ -494,9 +606,10 @@ const setupTestEnvironment = async (options: {
       outputRecipient: testData.outputRecipient,
       solverContractAddress: testData.solverContractAddress,
       paymentAmount: fillAmount,
+      orderHash,
     });
   }
-  
+
   // Create mock RPC data
   const mockRpcData = createMockRpcData({
     transactions: {
@@ -529,25 +642,25 @@ const setupTestEnvironment = async (options: {
     chainId: testData.chain.id,
     transactionId: depositTxHash,
   });
-  
+
   // Create inputs array
   const inputs = options.duplicateOnchainIds
     ? [
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].onchainId,
+          onchainId: escrowDeposits[0].result.onchainId,
           inputIndex: 0,
         },
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].onchainId, // Duplicate onchainId
+          onchainId: escrowDeposits[0].result.onchainId, // Duplicate onchainId
           inputIndex: 0,
         },
       ]
     : [
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].onchainId,
+          onchainId: escrowDeposits[0].result.onchainId,
           inputIndex: 0,
         },
       ];
@@ -586,25 +699,16 @@ function createMockRpcData(params: {
 // Setup RPC mock implementation
 function setupRpcMock(mockRpcData: any) {
   (httpRpc as jest.Mock).mockImplementation(() => ({
-    getTransaction: ({ hash }: { hash: string }) => {
-      const txData = mockRpcData.transactions[hash];
-      if (!txData) {
-        throw new Error(`Invalid transaction ID: ${hash}`);
-      }
-      return { input: txData.input };
+    getParsedTransaction: (txId: string) => {
+      const receipt = mockRpcData.transactions[txId]?.receipt;
+      return receipt
     },
-    getTransactionReceipt: ({ hash }: { hash: string }) => {
-      const txData = mockRpcData.transactions[hash];
+    getTransaction: (txId: any) => {
+      const txData = mockRpcData.transactions[txId]?.receipt;
       if (!txData) {
-        throw new Error(`Invalid transaction ID: ${hash}`);
+        throw new Error(`Invalid transaction ID: ${txId}`);
       }
-      return txData.receipt;
-    },
-    getBlock: ({ blockNumber }: { blockNumber: bigint }) => {
-      return Promise.resolve({
-        ...mockRpcData.block,
-        number: blockNumber,
-      });
+      return txData;
     },
   }));
 }
@@ -649,7 +753,7 @@ const testAttestSolverFill = async (options: {
       },
     });
     
-    expect(solverFillResult.result.validated).toBe(true);
+    expect(solverFillResult.result.status).toBe(SolverRefundStatus.SUCCESSFUL);
     expect(solverFillResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
     return solverFillResult;
   }
@@ -703,7 +807,7 @@ const testAttestSolverRefund = async (options: {
       ],
     });
     
-    expect(solverRefundResult.result.validated).toBe(true);
+    expect(solverRefundResult.result.status).toBe(SolverRefundStatus.SUCCESSFUL);
     expect(solverRefundResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
     return solverRefundResult;
   }
@@ -718,10 +822,18 @@ jest.mock("../../../../src/common/chains", () => {
       httpRpcUrl: "http://127.0.0.1:8545",
       escrow: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
     },
+    1001: {
+      id: 1001,
+      name: "Test",
+      vmType: "ethereum-vm",
+      httpRpcUrl: "http://127.0.0.1:8546",
+      escrow: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
+    },
   };
   return {
-    getChains: () => chains,
-    getChain: (chainId: number) => chains[chainId],
+    getChains: async () => chains,
+    getChain: async (chainId: number) => chains[chainId],
+    getSdkChainsConfig: () => ({ 1000: "solana-vm", 1001: "ethereum-vm" }),
   };
 });
 jest.mock("../../../../src/common/vm/solana-vm/rpc", () => {
@@ -731,37 +843,6 @@ jest.mock("../../../../src/common/vm/solana-vm/rpc", () => {
 });
 
 describe("SolanaAttestationService", () => {
-  it("attestEscrowDeposits - should attest transfer executed event", async () => {
-    const logs = [
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u invoke [1]",
-      "Program log: Instruction: ExecuteTransfer",
-      "Program data: XAqyuBIseHyD6q3CsL4+q/8vpriI7Znwv82QTXEgc/7YdToVNNU48AAA4fUFAAAAAOR/ngmWAQAAQxXyZwAAAAC6wUYM1quIijgngodEMdwvpDcpi1C1upEEr7d/coYFjYmNNdNGyIwr7uBGBuJEKw0NK1Ht/OvBhp4dbV4JCJaV",
-    ];
-
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
-        meta: {
-          logMessages: logs,
-        },
-      }),
-    }));
-
-    const service = new AttestationService();
-    const messages = await service.attestEscrowWithdrawals({
-      chainId: Object.values(await getChains())[0].id,
-      transactionId: randomBs58(32),
-    });
-
-    expect(messages.length).toBe(1);
-    expect(messages[0].result.currency).toBe(
-      "11111111111111111111111111111111"
-    );
-    expect(messages[0].result.amount).toBe("100000000");
-    expect(messages[0].result.withdrawalId).toBe(
-      "AFwk1wX1efTqiV37seaAzJAKHjjUDZxeKnfBU5p6wmbJ"
-    );
-  });
-
   it("attestEscrowDeposits - should attest spl-token deposit event", async () => {
     const logs = [
       "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u invoke [1]",
@@ -807,7 +888,7 @@ describe("SolanaAttestationService", () => {
     const service = new AttestationService();
     const messages = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
-      transactionId: randomBs58(32),
+      transactionId: randomBase58(32),
     });
     const msg = messages[0];
 
@@ -846,7 +927,7 @@ describe("SolanaAttestationService", () => {
     const service = new AttestationService();
     const messages = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
-      transactionId: randomBs58(32),
+      transactionId: randomBase58(32),
     });
     const msg = messages[0];
 
@@ -873,24 +954,7 @@ describe("SolanaAttestationService", () => {
     const service = new AttestationService();
     const deposits = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
-      transactionId: randomBs58(32),
-    });
-    expect(deposits).toEqual([]);
-  });
-
-  it("attestEscrowWithdrawals - should return empty array when no events found", async () => {
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
-        meta: {
-          logMessages: [],
-        },
-      }),
-    }));
-
-    const service = new AttestationService();
-    const deposits = await service.attestEscrowWithdrawals({
-      chainId: Object.values(await getChains())[0].id,
-      transactionId: randomBs58(32),
+      transactionId: randomBase58(32),
     });
     expect(deposits).toEqual([]);
   });
@@ -903,7 +967,7 @@ describe("SolanaAttestationService", () => {
     const service = new AttestationService();
     const deposits = await service.attestEscrowDeposits({
       chainId: Object.values(await getChains())[0].id,
-      transactionId: randomBs58(32),
+      transactionId: randomBase58(32),
     });
     expect(deposits).toEqual([]);
   });
@@ -958,8 +1022,6 @@ describe("SolanaAttestationService", () => {
   });
   
   it("attestSolverRefund - validates with ERC20 token payments", async () => {
-    console.log('xxx', Buffer.from('HbJBtg4wSXXwV5UoLkNpjLbLC2ZCS2AiPp3nhGXxcpdd', 'utf8'))
-    console.log('xxx', Buffer.from(Buffer.from('HbJBtg4wSXXwV5UoLkNpjLbLC2ZCS2AiPp3nhGXxcpdd', 'utf8')).toString('utf8'))
     await testAttestSolverRefund({ 
       useSPLToken: true 
     });
