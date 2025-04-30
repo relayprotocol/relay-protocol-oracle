@@ -5,12 +5,5 @@
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$HTTP_RPC_URL_11155111",
     "escrow": ""
-  },
-  {
-    "id": 8900000000,
-    "name": "solana-testnet",
-    "vmType": "solana-vm",
-    "httpRpcUrl": "$HTTP_RPC_URL_8900000000",
-    "escrow": ""
   }
 ]
