@@ -194,7 +194,7 @@ export class AttestationService {
 
     // Verify the order signature
     const isSignatureValid = await verifyMessage({
-      address: data.order.solver.address as Address,
+      address: data.order.solver as Address,
       message: {
         raw: orderHash,
       },

@@ -273,10 +273,8 @@ function createTestOrder({
 }): Order {
   return {
     salt: "0x1",
-    solver: {
-      chainId: 1000,
-      address: solverAddress,
-    },
+    solverChainId: 1000,
+    solver: solverAddress,
     inputs: [
       {
         payment: {
