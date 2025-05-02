@@ -6,6 +6,7 @@ import {
 
 import { getOnchainId } from "../utils";
 import { externalError, internalError } from "../../../../common/error";
+import { getChain } from "../../../../common/chains";
 import { httpRpc } from "../../../../common/vm/sui-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
@@ -38,7 +39,8 @@ export class SuiVmAttestor extends VmAttestor {
     return this.parseTransactionLogs(
       chainId,
       transactionId,
-      transaction.events
+      transaction.events,
+      await getChain(chainId).then((chain) => chain.escrow)
     );
   }
 
@@ -145,7 +147,8 @@ export class SuiVmAttestor extends VmAttestor {
   private parseTransactionLogs(
     chainId: string,
     transactionId: string,
-    events: SuiEvent[]
+    events: SuiEvent[],
+    escrow: string
   ): EscrowDepositMessage[] {
     const messages: EscrowDepositMessage[] = [];
 
@@ -155,7 +158,8 @@ export class SuiVmAttestor extends VmAttestor {
         event,
         chainId,
         transactionId,
-        messageIndex++
+        messageIndex++,
+        escrow
       );
       if (message) {
         messages.push(message);
@@ -169,7 +173,8 @@ export class SuiVmAttestor extends VmAttestor {
     event: SuiEvent,
     chainId: string,
     transactionId: string,
-    messageIndex: number
+    messageIndex: number,
+    escrow: string
   ): EscrowDepositMessage | undefined {
     const onchainId = getOnchainId(
       chainId,
@@ -186,7 +191,8 @@ export class SuiVmAttestor extends VmAttestor {
       return this.createDepositMessage(
         event.parsedJson as DepositEventData,
         onchainId,
-        input
+        input,
+        escrow
       );
     } else {
       return undefined;
@@ -196,12 +202,14 @@ export class SuiVmAttestor extends VmAttestor {
   private createDepositMessage(
     event: DepositEventData,
     onchainId: string,
-    data: { chainId: string; transactionId: string }
+    data: { chainId: string; transactionId: string },
+    escrow: string
   ): EscrowDepositMessage {
     return {
       data,
       result: {
         onchainId,
+        escrow,
         depositId: Buffer.from(event.deposit_id).toString("hex"),
         depositor: event.from,
         currency: event.coin_type.name,

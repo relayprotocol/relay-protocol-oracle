@@ -81,6 +81,9 @@ describe("SuiAttestationService", () => {
     expect(msg.result.depositor).toBe(
       "0x5f7f85e64cb90f4fad427c119cfcfe916397e6f559e052e686df05fe561f9f80"
     );
+    expect(msg.result.escrow).toBe(
+      "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e"
+    );
     expect(msg.result.depositId).toBe(
       "0303030303030303030303030303030303030303030303030303030303030303"
     );

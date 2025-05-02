@@ -106,6 +106,7 @@ export class EthereumVmAttestor extends VmAttestor {
               transactionId,
               currentLog.logIndex.toString()
             ),
+            escrow: chain.escrow,
             depositId,
             depositor: currentLog.args.from.toLowerCase(),
             currency: zeroAddress,
@@ -173,6 +174,7 @@ export class EthereumVmAttestor extends VmAttestor {
               transactionId,
               currentLog.logIndex.toString()
             ),
+            escrow: chain.escrow,
             depositId: depositId ?? zeroHash,
             depositor: currentLog.args.from.toLowerCase(),
             currency: currentLog.address.toLowerCase(),
@@ -223,6 +225,7 @@ export class EthereumVmAttestor extends VmAttestor {
       },
       result: {
         withdrawalId,
+        escrow: chain.escrow,
         status,
       },
     };

@@ -74,6 +74,9 @@ describe("TonAttestationService", () => {
     expect(msg.result.depositor).toBe(
       "EQBoxZL3xvd0jxyAelu6w96xPdurEs-8q--LD8gHS2P-k3h3"
     );
+    expect(msg.result.escrow).toBe(
+      "EQCPCNJo1kfIutVC_VDrov-3TfbwreJDMUtfRA7NxGlrZntT"
+    );
     expect(msg.result.depositId).toBe("109");
   });
 
@@ -117,6 +120,9 @@ describe("TonAttestationService", () => {
     expect(msg.result.amount).toBe("10000000");
     expect(msg.result.depositor).toBe(
       "EQBoxZL3xvd0jxyAelu6w96xPdurEs-8q--LD8gHS2P-k3h3"
+    );
+    expect(msg.result.escrow).toBe(
+      "EQCPCNJo1kfIutVC_VDrov-3TfbwreJDMUtfRA7NxGlrZntT"
     );
     expect(msg.result.depositId).toBe("108");
   });

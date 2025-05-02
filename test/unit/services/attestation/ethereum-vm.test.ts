@@ -514,6 +514,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
@@ -565,6 +566,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
@@ -612,6 +614,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
@@ -659,6 +662,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
@@ -709,6 +713,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
@@ -752,6 +757,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
@@ -794,6 +800,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
@@ -830,6 +837,7 @@ describe("EvmAttestationService", () => {
       chainId: chain.id,
       withdrawal: encodeWithdrawal(decodedWithdrawal),
     });
+    expect(message.result.escrow).toEqual(chain.escrow);
     expect(message.result.status).toEqual(EscrowWithdrawalStatus.EXECUTED);
   });
 
@@ -869,6 +877,7 @@ describe("EvmAttestationService", () => {
       chainId: chain.id,
       withdrawal: encodeWithdrawal(decodedWithdrawal),
     });
+    expect(message.result.escrow).toEqual(chain.escrow);
     expect(message.result.status).toEqual(EscrowWithdrawalStatus.EXPIRED);
   });
 
@@ -908,6 +917,7 @@ describe("EvmAttestationService", () => {
       chainId: chain.id,
       withdrawal: encodeWithdrawal(decodedWithdrawal),
     });
+    expect(message.result.escrow).toEqual(chain.escrow);
     expect(message.result.status).toEqual(EscrowWithdrawalStatus.PENDING);
   });
 

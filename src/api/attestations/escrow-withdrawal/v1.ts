@@ -30,6 +30,9 @@ const Schema = {
             withdrawalId: Type.String({
               description: "The id of the attested withdrawal",
             }),
+            escrow: Type.String({
+              description: "The escrow address for the withdrawal",
+            }),
             status: Type.Union(
               [
                 Type.Literal("executed"),

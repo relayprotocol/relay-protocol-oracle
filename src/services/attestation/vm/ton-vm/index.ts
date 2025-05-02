@@ -235,7 +235,12 @@ export class TonVmAttestor extends VmAttestor {
     );
 
     if (message?.name === "Deposit") {
-      return this.createDepositMessage(message, onchainId, input);
+      return this.createDepositMessage(
+        message,
+        onchainId,
+        input,
+        escrowAddress
+      );
     } else {
       return undefined;
     }
@@ -244,12 +249,14 @@ export class TonVmAttestor extends VmAttestor {
   private createDepositMessage(
     event: DepositEvent,
     onchainId: string,
-    data: { chainId: string; transactionId: string }
+    data: { chainId: string; transactionId: string },
+    escrow: string
   ): EscrowDepositMessage {
     return {
       data,
       result: {
         onchainId,
+        escrow,
         depositId: event.data.depositId.toString(),
         depositor: event.data.depositor,
         currency:

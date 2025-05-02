@@ -9,6 +9,7 @@ import bs58 from "bs58";
 
 import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
 import { getOnchainId } from "../utils";
+import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 import { VmAttestor } from "../../vm/types";
@@ -45,7 +46,8 @@ export class SolanaVmAttestor extends VmAttestor {
     return this.parseTransactionLogs(
       chainId,
       transactionId,
-      transaction.meta.logMessages
+      transaction.meta.logMessages,
+      await getChain(chainId).then((chain) => chain.escrow)
     );
   }
 
@@ -193,7 +195,8 @@ export class SolanaVmAttestor extends VmAttestor {
   private parseTransactionLogs(
     chainId: string,
     transactionId: string,
-    logs: string[]
+    logs: string[],
+    escrow: string
   ): EscrowDepositMessage[] {
     const messages: EscrowDepositMessage[] = [];
 
@@ -215,7 +218,8 @@ export class SolanaVmAttestor extends VmAttestor {
           event,
           chainId,
           transactionId,
-          messageIndex++
+          messageIndex++,
+          escrow
         );
         if (message) {
           messages.push(message);
@@ -232,7 +236,8 @@ export class SolanaVmAttestor extends VmAttestor {
     event: any,
     chainId: string,
     transactionId: string,
-    messageIndex: number
+    messageIndex: number,
+    escrow: string
   ): EscrowDepositMessage | undefined {
     const onchainId = getOnchainId(
       chainId,
@@ -250,7 +255,8 @@ export class SolanaVmAttestor extends VmAttestor {
         return this.createDepositMessage(
           event.data as DepositEventData,
           onchainId,
-          input
+          input,
+          escrow
         );
       }
 
@@ -263,13 +269,15 @@ export class SolanaVmAttestor extends VmAttestor {
   private createDepositMessage(
     event: DepositEventData,
     onchainId: string,
-    data: { chainId: string; transactionId: string }
+    data: { chainId: string; transactionId: string },
+    escrow: string
   ): EscrowDepositMessage {
     return {
       data,
       result: {
         onchainId,
         depositId: Buffer.from(event.id).toString("hex"),
+        escrow,
         depositor: event.depositor.toBase58(),
         currency: event.token
           ? event.token.toBase58()

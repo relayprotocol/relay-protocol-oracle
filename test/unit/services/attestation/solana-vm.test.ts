@@ -87,6 +87,9 @@ describe("SolanaAttestationService", () => {
     expect(msg.result.depositor).toBe(
       "61uUNRFVyDQsyne2cHzEmjA76UYpfsRKi2EaDoYH64Rs"
     );
+    expect(msg.result.escrow).toBe(
+      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
+    );
     expect(msg.result.depositId).toBe(
       "0202020202020202020202020202020202020202020202020202020202020202"
     );
@@ -123,6 +126,9 @@ describe("SolanaAttestationService", () => {
     expect(msg.result.amount).toBe("1000000000");
     expect(msg.result.depositor).toBe(
       "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv"
+    );
+    expect(msg.result.escrow).toBe(
+      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
     );
     expect(msg.result.depositId).toBe(
       "0101010101010101010101010101010101010101010101010101010101010101"
