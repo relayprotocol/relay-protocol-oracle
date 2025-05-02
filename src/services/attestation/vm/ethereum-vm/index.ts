@@ -39,7 +39,7 @@ export const ABI = parseAbi([
 
 export class EthereumVmAttestor extends VmAttestor {
   public async getEscrowDepositMessages(
-    chainId: number,
+    chainId: string,
     transactionId: string
   ): Promise<EscrowDepositMessage[]> {
     const rpc = await httpRpc(chainId);
@@ -186,7 +186,7 @@ export class EthereumVmAttestor extends VmAttestor {
   }
 
   public async getEscrowWithdrawalMessage(
-    chainId: number,
+    chainId: string,
     withdrawal: string
   ): Promise<EscrowWithdrawalMessage> {
     const rpc = await httpRpc(chainId);
@@ -229,7 +229,7 @@ export class EthereumVmAttestor extends VmAttestor {
   }
 
   public async getSolverPaidAmount(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     payment: {
       currency: string;
@@ -315,7 +315,7 @@ export class EthereumVmAttestor extends VmAttestor {
   }
 
   public async verifySolverCalls(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     calls: string[]
   ): Promise<boolean> {

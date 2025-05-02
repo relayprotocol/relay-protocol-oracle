@@ -8,7 +8,7 @@ const Schema = {
     200: Type.Object({
       chains: Type.Array(
         Type.Object({
-          id: Type.Number({ description: "The id of the chain" }),
+          id: Type.String({ description: "The id of the chain" }),
           name: Type.String({ description: "The name of the chain" }),
           vmType: Type.Union(
             [

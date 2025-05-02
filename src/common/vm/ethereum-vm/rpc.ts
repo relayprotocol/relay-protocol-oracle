@@ -2,11 +2,12 @@ import { createPublicClient, http } from "viem";
 
 import { getChain } from "../../chains";
 
-export const httpRpc = async (chainId: number) => {
+export const httpRpc = async (chainId: string) => {
   const chain = await getChain(chainId);
   return createPublicClient({
     chain: {
-      id: chain.id,
+      // We only need to `rpcUrls`, but viem makes all the other ones mandatory
+      id: 0,
       name: chain.name,
       nativeCurrency: {
         name: "Native",

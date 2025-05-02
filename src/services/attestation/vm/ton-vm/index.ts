@@ -22,7 +22,7 @@ import { VmAttestor } from "../../vm/types";
 
 export class TonVmAttestor extends VmAttestor {
   public async getEscrowDepositMessages(
-    chainId: number,
+    chainId: string,
     transactionId: string
   ): Promise<EscrowDepositMessage[]> {
     const connection = await httpRpc(chainId);
@@ -46,14 +46,14 @@ export class TonVmAttestor extends VmAttestor {
   }
 
   public async getEscrowWithdrawalMessage(
-    _chainId: number,
+    _chainId: string,
     _withdrawal: string
   ): Promise<EscrowWithdrawalMessage> {
     throw internalError("Not implemented");
   }
 
   public async getSolverPaidAmount(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     payment: {
       currency: string;
@@ -178,7 +178,7 @@ export class TonVmAttestor extends VmAttestor {
   }
 
   public verifySolverCalls(
-    _chainId: number,
+    _chainId: string,
     _transactionId: string,
     _calls: string[]
   ): Promise<boolean> {
@@ -186,7 +186,7 @@ export class TonVmAttestor extends VmAttestor {
   }
 
   private async parseTransactionLogs(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     events: Message[],
     connection: TonClient
@@ -212,7 +212,7 @@ export class TonVmAttestor extends VmAttestor {
 
   private async createMessageFromEvent(
     event: Message,
-    chainId: number,
+    chainId: string,
     transactionId: string,
     messageIndex: number,
     connection: TonClient
@@ -244,7 +244,7 @@ export class TonVmAttestor extends VmAttestor {
   private createDepositMessage(
     event: DepositEvent,
     onchainId: string,
-    data: { chainId: number; transactionId: string }
+    data: { chainId: string; transactionId: string }
   ): EscrowDepositMessage {
     return {
       data,

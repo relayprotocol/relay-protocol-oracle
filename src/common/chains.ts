@@ -5,14 +5,14 @@ import { readConfigValue } from "./utils";
 import { config } from "../config";
 
 export type Chain = {
-  id: number;
+  id: string;
   name: string;
   vmType: VmType;
   httpRpcUrl: string;
   escrow: string;
 };
 
-let _chains: { [id: number]: Chain } | undefined;
+let _chains: { [id: string]: Chain } | undefined;
 export const getChains = async () => {
   if (!_chains) {
     const __chains: { [id: number]: Chain } = {};
@@ -34,7 +34,7 @@ export const getChains = async () => {
   return _chains;
 };
 
-export const getChain = async (chainId: number) => {
+export const getChain = async (chainId: string) => {
   const chains = await getChains();
   if (!chains[chainId]) {
     throw externalError(`Chain ${chainId} is not available`);

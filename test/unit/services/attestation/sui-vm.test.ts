@@ -1,14 +1,14 @@
 import { describe, expect, it, jest } from "@jest/globals";
 
 import { randomBase58 } from "../../../common/utils";
-import { getChains } from "../../../../src/common/chains";
+import { Chain, getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/sui-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 
 jest.mock("../../../../src/common/chains", () => {
-  const chains: Record<number, any> = {
-    1: {
-      id: 1,
+  const chains: Record<string, Chain> = {
+    sui: {
+      id: "sui",
       name: "Test",
       vmType: "sui-vm",
       httpRpcUrl: "http://127.0.0.1:9000",
@@ -19,6 +19,10 @@ jest.mock("../../../../src/common/chains", () => {
   return {
     getChains: async () => chains,
     getChain: async (chainId: number) => chains[chainId],
+    getSdkChainsConfig: () =>
+      Object.fromEntries(
+        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+      ),
   };
 });
 jest.mock("../../../../src/common/vm/sui-vm/rpc", () => {

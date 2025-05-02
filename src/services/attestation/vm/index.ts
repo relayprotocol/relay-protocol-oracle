@@ -7,7 +7,7 @@ import { SolanaVmAttestor } from "./solana-vm";
 import { SuiVmAttestor } from "./sui-vm";
 import { TonVmAttestor } from "./ton-vm";
 
-export const getVmAttestor = async (chainId: number): Promise<VmAttestor> => {
+export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
   const chain = await getChain(chainId);
   switch (chain.vmType) {
     case "ethereum-vm":

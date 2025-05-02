@@ -21,7 +21,11 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { getChains } from "../../../../src/common/chains";
+import {
+  Chain,
+  getChains,
+  getSdkChainsConfig,
+} from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/ethereum-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
@@ -33,9 +37,9 @@ const testSolverPrivateKey =
 const solverWallet = privateKeyToAccount(testSolverPrivateKey);
 
 jest.mock("../../../../src/common/chains", () => {
-  const chains: Record<number, any> = {
-    1000: {
-      id: 1000,
+  const chains: Record<string, Chain> = {
+    ethereum: {
+      id: "ethereum",
       name: "Test",
       vmType: "ethereum-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
@@ -45,7 +49,10 @@ jest.mock("../../../../src/common/chains", () => {
   return {
     getChains: async () => chains,
     getChain: async (chainId: number) => chains[chainId],
-    getSdkChainsConfig: () => ({ 1000: "ethereum-vm" }),
+    getSdkChainsConfig: () =>
+      Object.fromEntries(
+        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+      ),
   };
 });
 jest.mock("../../../../src/common/vm/ethereum-vm/rpc", () => {
@@ -273,19 +280,19 @@ function createTestOrder({
 }): Order {
   return {
     salt: "0x1",
-    solverChainId: 1000,
+    solverChainId: "ethereum",
     solver: solverAddress,
     inputs: [
       {
         payment: {
-          chainId: 1000,
+          chainId: "ethereum",
           currency: inputCurrency,
           amount: paymentAmount,
           weight: "1",
         },
         refunds: [
           {
-            chainId: 1000,
+            chainId: "ethereum",
             recipient: refundRecipient,
             currency: inputCurrency,
             minimumAmount: paymentAmount,
@@ -299,7 +306,7 @@ function createTestOrder({
       },
     ],
     output: {
-      chainId: 1000,
+      chainId: "ethereum",
       payments: [
         {
           recipient: outputRecipient,
@@ -1041,7 +1048,6 @@ const setupTestEnvironment = async (
   }
 
   // Create test order
-  const vmType = "ethereum-vm";
   const testOrder = createTestOrder({
     paymentAmount,
     outputRecipient: testData.outputRecipient,
@@ -1057,9 +1063,7 @@ const setupTestEnvironment = async (
     testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600; // 1 hour in the past
   }
 
-  const orderHash = getOrderId(testOrder, {
-    1000: vmType,
-  });
+  const orderHash = getOrderId(testOrder, await getSdkChainsConfig());
 
   // Create action transaction receipt (fill or refund)
   let actionTxReceipt: TransactionReceipt;

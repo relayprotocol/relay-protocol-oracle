@@ -5,17 +5,17 @@ import {
 
 export abstract class VmAttestor {
   public abstract getEscrowDepositMessages(
-    chainId: number,
+    chainId: string,
     transactionId: string
   ): Promise<EscrowDepositMessage[]>;
 
   public abstract getEscrowWithdrawalMessage(
-    chainId: number,
+    chainId: string,
     withdrawal: string
   ): Promise<EscrowWithdrawalMessage>;
 
   public abstract getSolverPaidAmount(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     payment: {
       currency: string;
@@ -27,7 +27,7 @@ export abstract class VmAttestor {
   ): Promise<bigint>;
 
   public abstract verifySolverCalls(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     calls: string[]
   ): Promise<boolean>;

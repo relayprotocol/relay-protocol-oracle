@@ -9,7 +9,7 @@ import {
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
-  chainId: Type.Number({
+  chainId: Type.String({
     description: "The chain id of the transaction to attest",
   }),
   transactionId: Type.String({

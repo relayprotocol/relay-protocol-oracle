@@ -30,7 +30,7 @@ export class SolanaVmAttestor extends VmAttestor {
   }
 
   public async getEscrowDepositMessages(
-    chainId: number,
+    chainId: string,
     transactionId: string
   ): Promise<EscrowDepositMessage[]> {
     const connection = await httpRpc(chainId);
@@ -50,14 +50,14 @@ export class SolanaVmAttestor extends VmAttestor {
   }
 
   public async getEscrowWithdrawalMessage(
-    _chainId: number,
+    _chainId: string,
     _withdrawal: string
   ): Promise<EscrowWithdrawalMessage> {
     throw internalError("Not implemented");
   }
 
   public async getSolverPaidAmount(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     payment: {
       currency: string;
@@ -183,7 +183,7 @@ export class SolanaVmAttestor extends VmAttestor {
   }
 
   public verifySolverCalls(
-    _chainId: number,
+    _chainId: string,
     _transactionId: string,
     _calls: string[]
   ): Promise<boolean> {
@@ -191,7 +191,7 @@ export class SolanaVmAttestor extends VmAttestor {
   }
 
   private parseTransactionLogs(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     logs: string[]
   ): EscrowDepositMessage[] {
@@ -230,7 +230,7 @@ export class SolanaVmAttestor extends VmAttestor {
 
   private createMessageFromEvent(
     event: any,
-    chainId: number,
+    chainId: string,
     transactionId: string,
     messageIndex: number
   ): EscrowDepositMessage | undefined {
@@ -263,7 +263,7 @@ export class SolanaVmAttestor extends VmAttestor {
   private createDepositMessage(
     event: DepositEventData,
     onchainId: string,
-    data: { chainId: number; transactionId: string }
+    data: { chainId: string; transactionId: string }
   ): EscrowDepositMessage {
     return {
       data,
