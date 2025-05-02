@@ -8,7 +8,7 @@ export const httpRpc = async (chainId: string) => {
     chain: {
       // We only need to `rpcUrls`, but viem makes all the other ones mandatory
       id: 0,
-      name: chain.name,
+      name: "Chain",
       nativeCurrency: {
         name: "Native",
         symbol: "NATIVE",

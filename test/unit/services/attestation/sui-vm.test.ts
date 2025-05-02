@@ -9,7 +9,6 @@ jest.mock("../../../../src/common/chains", () => {
   const chains: Record<string, Chain> = {
     sui: {
       id: "sui",
-      name: "Test",
       vmType: "sui-vm",
       httpRpcUrl: "http://127.0.0.1:9000",
       escrow:

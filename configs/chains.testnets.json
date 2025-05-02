@@ -1,7 +1,6 @@
 [
   {
-    "id": 11155111,
-    "name": "ethereum-sepolia",
+    "id": "ethereum-sepolia",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$HTTP_RPC_URL_11155111",
     "escrow": ""

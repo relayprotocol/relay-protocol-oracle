@@ -6,7 +6,6 @@ import { config } from "../config";
 
 export type Chain = {
   id: string;
-  name: string;
   vmType: VmType;
   httpRpcUrl: string;
   escrow: string;
@@ -21,7 +20,6 @@ export const getChains = async () => {
     for (const chain of chains) {
       __chains[chain.id] = {
         id: readConfigValue(chain.id),
-        name: readConfigValue(chain.name),
         vmType: readConfigValue(chain.vmType),
         httpRpcUrl: readConfigValue(chain.httpRpcUrl),
         escrow: readConfigValue(chain.escrow),
