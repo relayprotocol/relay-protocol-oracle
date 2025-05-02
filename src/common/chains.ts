@@ -15,7 +15,7 @@ export type Chain = {
 let _chains: { [id: string]: Chain } | undefined;
 export const getChains = async () => {
   if (!_chains) {
-    const __chains: { [id: number]: Chain } = {};
+    const __chains: { [id: string]: Chain } = {};
 
     const chains = require(`../../configs/chains.${config.environment}.json`);
     for (const chain of chains) {
