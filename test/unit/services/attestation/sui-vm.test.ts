@@ -1,15 +1,14 @@
 import { describe, expect, it, jest } from "@jest/globals";
 
 import { randomBase58 } from "../../../common/utils";
-import { getChains } from "../../../../src/common/chains";
+import { Chain, getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/sui-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 
 jest.mock("../../../../src/common/chains", () => {
-  const chains: Record<number, any> = {
-    1: {
-      id: 1,
-      name: "Test",
+  const chains: Record<string, Chain> = {
+    sui: {
+      id: "sui",
       vmType: "sui-vm",
       httpRpcUrl: "http://127.0.0.1:9000",
       escrow:
@@ -18,7 +17,11 @@ jest.mock("../../../../src/common/chains", () => {
   };
   return {
     getChains: async () => chains,
-    getChain: async (chainId: number) => chains[chainId],
+    getChain: async (chainId: string) => chains[chainId],
+    getSdkChainsConfig: () =>
+      Object.fromEntries(
+        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+      ),
   };
 });
 jest.mock("../../../../src/common/vm/sui-vm/rpc", () => {
@@ -77,6 +80,9 @@ describe("SuiAttestationService", () => {
     expect(msg.result.amount).toBe("3000");
     expect(msg.result.depositor).toBe(
       "0x5f7f85e64cb90f4fad427c119cfcfe916397e6f559e052e686df05fe561f9f80"
+    );
+    expect(msg.result.escrow).toBe(
+      "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e"
     );
     expect(msg.result.depositId).toBe(
       "0303030303030303030303030303030303030303030303030303030303030303"

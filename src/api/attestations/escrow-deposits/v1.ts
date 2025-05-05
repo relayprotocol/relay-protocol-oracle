@@ -9,7 +9,7 @@ import {
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
-  chainId: Type.Number({
+  chainId: Type.String({
     description: "The chain id of the transaction to attest",
   }),
   transactionId: Type.String({
@@ -28,6 +28,9 @@ const Schema = {
           result: Type.Object({
             onchainId: Type.String({
               description: "The onchain id of the deposit",
+            }),
+            escrow: Type.String({
+              description: "The escrow address for the deposit",
             }),
             depositId: Type.Optional(
               Type.String({ description: "The id associated to the deposit" })

@@ -12,22 +12,20 @@ import { AttestationService } from "../../../services/attestation";
 const MessageData = Type.Object({
   order: Type.Object(
     {
-      solver: Type.Object({
-        chainId: Type.Number(),
-        address: Type.String(),
-      }),
+      solverChainId: Type.String(),
+      solver: Type.String(),
       salt: Type.String(),
       inputs: Type.Array(
         Type.Object({
           payment: Type.Object({
-            chainId: Type.Number(),
+            chainId: Type.String(),
             currency: Type.String(),
             amount: Type.String(),
             weight: Type.String(),
           }),
           refunds: Type.Array(
             Type.Object({
-              chainId: Type.Number(),
+              chainId: Type.String(),
               recipient: Type.String(),
               currency: Type.String(),
               minimumAmount: Type.String(),
@@ -38,7 +36,7 @@ const MessageData = Type.Object({
         })
       ),
       output: Type.Object({
-        chainId: Type.Number(),
+        chainId: Type.String(),
         payments: Type.Array(
           Type.Object({
             recipient: Type.String(),
@@ -53,9 +51,9 @@ const MessageData = Type.Object({
       }),
       fees: Type.Array(
         Type.Object({
-          recipientChainId: Type.Number(),
+          recipientChainId: Type.String(),
           recipient: Type.String(),
-          currencyChainId: Type.Number(),
+          currencyChainId: Type.String(),
           currency: Type.String(),
           amount: Type.String(),
         })

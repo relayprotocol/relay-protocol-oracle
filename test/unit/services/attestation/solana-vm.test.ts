@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from "@jest/globals";
 
 import { randomBase58 } from "../../../common/utils";
-import { getChains } from "../../../../src/common/chains";
+import { Chain, getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/solana-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { privateKeyToAccount } from "viem/accounts";
@@ -436,21 +436,19 @@ function createTestOrder({
 }): Order {
   return {
     salt: "0x1",
-    solver: {
-      chainId: 1001,
-      address: solverAddress,
-    },
+    solverChainId: "ethereum",
+    solver: solverAddress,
     inputs: [
       {
         payment: {
-          chainId: 1000,
+          chainId: "solana",
           currency: inputCurrency,
           amount: paymentAmount,
           weight: "1",
         },
         refunds: [
           {
-            chainId: 1000,
+            chainId: "solana",
             recipient: refundRecipient,
             currency: inputCurrency,
             minimumAmount: paymentAmount,
@@ -461,7 +459,7 @@ function createTestOrder({
       },
     ],
     output: {
-      chainId: 1000,
+      chainId: "solana",
       payments: [
         {
           recipient: outputRecipient,
@@ -527,7 +525,7 @@ const setupTestEnvironment = async (options: {
 } = {}) => {
   const chains = Object.values(await getChains());
   const testData = setupTestData();
-  testData.chain = chains.find((chain) => chain.id === 1000);
+  testData.chain = chains.find((chain) => chain.id === "solana");
   
   const depositTxHash = randomBase58(32);
   const actionTxHash = randomBase58(32); // Can be either fill or refund transaction hash
@@ -560,7 +558,6 @@ const setupTestEnvironment = async (options: {
   }
   
   // Create test order
-  const vmType = "solana-vm";
   const testOrder = createTestOrder({
     paymentAmount,
     outputRecipient: testData.outputRecipient,
@@ -575,8 +572,11 @@ const setupTestEnvironment = async (options: {
     testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600; // 1 hour in the past
   }
 
+  console.log('testOrder', testOrder)
+
   const orderHash = getOrderId(testOrder, {
-    1000: vmType,
+    "solana": "solana-vm",
+    "ethereum": "ethereum-vm"
   });
   
   // Create action transaction receipt (fill or refund)
@@ -814,17 +814,15 @@ const testAttestSolverRefund = async (options: {
 };
 
 jest.mock("../../../../src/common/chains", () => {
-  const chains: Record<number, any> = {
-    1000: {
-      id: 1000,
-      name: "Test",
+  const chains: Record<string, Chain> = {
+    solana: {
+      id: "solana",
       vmType: "solana-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
       escrow: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
     },
-    1001: {
-      id: 1001,
-      name: "Test",
+    ethereum: {
+      id: "ethereum",
       vmType: "ethereum-vm",
       httpRpcUrl: "http://127.0.0.1:8546",
       escrow: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
@@ -832,8 +830,11 @@ jest.mock("../../../../src/common/chains", () => {
   };
   return {
     getChains: async () => chains,
-    getChain: async (chainId: number) => chains[chainId],
-    getSdkChainsConfig: () => ({ 1000: "solana-vm", 1001: "ethereum-vm" }),
+    getChain: async (chainId: string) => chains[chainId],
+    getSdkChainsConfig: () =>
+      Object.fromEntries(
+        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+      ),
   };
 });
 jest.mock("../../../../src/common/vm/solana-vm/rpc", () => {
@@ -900,6 +901,9 @@ describe("SolanaAttestationService", () => {
     expect(msg.result.depositor).toBe(
       "61uUNRFVyDQsyne2cHzEmjA76UYpfsRKi2EaDoYH64Rs"
     );
+    expect(msg.result.escrow).toBe(
+      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
+    );
     expect(msg.result.depositId).toBe(
       "0202020202020202020202020202020202020202020202020202020202020202"
     );
@@ -936,6 +940,9 @@ describe("SolanaAttestationService", () => {
     expect(msg.result.amount).toBe("1000000000");
     expect(msg.result.depositor).toBe(
       "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv"
+    );
+    expect(msg.result.escrow).toBe(
+      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
     );
     expect(msg.result.depositId).toBe(
       "0101010101010101010101010101010101010101010101010101010101010101"

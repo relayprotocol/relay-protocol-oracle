@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 export const getOnchainId = (
-  chainId: number,
+  chainId: string,
   transactionId: string,
   entryId: string
 ) =>

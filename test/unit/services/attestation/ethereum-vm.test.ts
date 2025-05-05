@@ -21,7 +21,11 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { getChains } from "../../../../src/common/chains";
+import {
+  Chain,
+  getChains,
+  getSdkChainsConfig,
+} from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/ethereum-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
@@ -33,10 +37,9 @@ const testSolverPrivateKey =
 const solverWallet = privateKeyToAccount(testSolverPrivateKey);
 
 jest.mock("../../../../src/common/chains", () => {
-  const chains: Record<number, any> = {
-    1000: {
-      id: 1000,
-      name: "Test",
+  const chains: Record<string, Chain> = {
+    ethereum: {
+      id: "ethereum",
       vmType: "ethereum-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
       escrow: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
@@ -44,8 +47,11 @@ jest.mock("../../../../src/common/chains", () => {
   };
   return {
     getChains: async () => chains,
-    getChain: async (chainId: number) => chains[chainId],
-    getSdkChainsConfig: () => ({ 1000: "ethereum-vm" }),
+    getChain: async (chainId: string) => chains[chainId],
+    getSdkChainsConfig: () =>
+      Object.fromEntries(
+        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+      ),
   };
 });
 jest.mock("../../../../src/common/vm/ethereum-vm/rpc", () => {
@@ -273,21 +279,19 @@ function createTestOrder({
 }): Order {
   return {
     salt: "0x1",
-    solver: {
-      chainId: 1000,
-      address: solverAddress,
-    },
+    solverChainId: "ethereum",
+    solver: solverAddress,
     inputs: [
       {
         payment: {
-          chainId: 1000,
+          chainId: "ethereum",
           currency: inputCurrency,
           amount: paymentAmount,
           weight: "1",
         },
         refunds: [
           {
-            chainId: 1000,
+            chainId: "ethereum",
             recipient: refundRecipient,
             currency: inputCurrency,
             minimumAmount: paymentAmount,
@@ -301,7 +305,7 @@ function createTestOrder({
       },
     ],
     output: {
-      chainId: 1000,
+      chainId: "ethereum",
       payments: [
         {
           recipient: outputRecipient,
@@ -510,6 +514,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
@@ -561,6 +566,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
@@ -608,6 +614,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
@@ -655,6 +662,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
@@ -705,6 +713,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
@@ -748,6 +757,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
@@ -790,6 +800,7 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
@@ -826,6 +837,7 @@ describe("EvmAttestationService", () => {
       chainId: chain.id,
       withdrawal: encodeWithdrawal(decodedWithdrawal),
     });
+    expect(message.result.escrow).toEqual(chain.escrow);
     expect(message.result.status).toEqual(EscrowWithdrawalStatus.EXECUTED);
   });
 
@@ -865,6 +877,7 @@ describe("EvmAttestationService", () => {
       chainId: chain.id,
       withdrawal: encodeWithdrawal(decodedWithdrawal),
     });
+    expect(message.result.escrow).toEqual(chain.escrow);
     expect(message.result.status).toEqual(EscrowWithdrawalStatus.EXPIRED);
   });
 
@@ -904,6 +917,7 @@ describe("EvmAttestationService", () => {
       chainId: chain.id,
       withdrawal: encodeWithdrawal(decodedWithdrawal),
     });
+    expect(message.result.escrow).toEqual(chain.escrow);
     expect(message.result.status).toEqual(EscrowWithdrawalStatus.PENDING);
   });
 
@@ -1043,7 +1057,6 @@ const setupTestEnvironment = async (
   }
 
   // Create test order
-  const vmType = "ethereum-vm";
   const testOrder = createTestOrder({
     paymentAmount,
     outputRecipient: testData.outputRecipient,
@@ -1059,9 +1072,7 @@ const setupTestEnvironment = async (
     testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600; // 1 hour in the past
   }
 
-  const orderHash = getOrderId(testOrder, {
-    1000: vmType,
-  });
+  const orderHash = getOrderId(testOrder, await getSdkChainsConfig());
 
   // Create action transaction receipt (fill or refund)
   let actionTxReceipt: TransactionReceipt;

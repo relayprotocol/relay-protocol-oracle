@@ -1,15 +1,14 @@
 import { describe, expect, it, jest } from "@jest/globals";
 import { loadTransaction, Cell, Address } from "@ton/core";
 
-import { getChains } from "../../../../src/common/chains";
+import { Chain, getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/ton-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 
 jest.mock("../../../../src/common/chains", () => {
-  const chains: Record<number, any> = {
-    1: {
-      id: 1,
-      name: "Test",
+  const chains: Record<string, Chain> = {
+    ton: {
+      id: "ton",
       vmType: "ton-vm",
       httpRpcUrl: "http://127.0.0.1:9000",
       escrow: "EQCPCNJo1kfIutVC_VDrov-3TfbwreJDMUtfRA7NxGlrZntT",
@@ -17,7 +16,11 @@ jest.mock("../../../../src/common/chains", () => {
   };
   return {
     getChains: async () => chains,
-    getChain: async (chainId: number) => chains[chainId],
+    getChain: async (chainId: string) => chains[chainId],
+    getSdkChainsConfig: () =>
+      Object.fromEntries(
+        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+      ),
   };
 });
 jest.mock("../../../../src/common/vm/ton-vm/rpc", () => {
@@ -71,6 +74,9 @@ describe("TonAttestationService", () => {
     expect(msg.result.depositor).toBe(
       "EQBoxZL3xvd0jxyAelu6w96xPdurEs-8q--LD8gHS2P-k3h3"
     );
+    expect(msg.result.escrow).toBe(
+      "EQCPCNJo1kfIutVC_VDrov-3TfbwreJDMUtfRA7NxGlrZntT"
+    );
     expect(msg.result.depositId).toBe("109");
   });
 
@@ -114,6 +120,9 @@ describe("TonAttestationService", () => {
     expect(msg.result.amount).toBe("10000000");
     expect(msg.result.depositor).toBe(
       "EQBoxZL3xvd0jxyAelu6w96xPdurEs-8q--LD8gHS2P-k3h3"
+    );
+    expect(msg.result.escrow).toBe(
+      "EQCPCNJo1kfIutVC_VDrov-3TfbwreJDMUtfRA7NxGlrZntT"
     );
     expect(msg.result.depositId).toBe("108");
   });

@@ -10,7 +10,7 @@ import {
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
-  chainId: Type.Number({
+  chainId: Type.String({
     description: "The chain id of the withdrawal to attest",
   }),
   withdrawal: Type.String({
@@ -29,6 +29,9 @@ const Schema = {
           result: Type.Object({
             withdrawalId: Type.String({
               description: "The id of the attested withdrawal",
+            }),
+            escrow: Type.String({
+              description: "The escrow address for the withdrawal",
             }),
             status: Type.Union(
               [

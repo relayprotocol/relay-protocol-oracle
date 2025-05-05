@@ -39,7 +39,7 @@ export const ABI = parseAbi([
 
 export class EthereumVmAttestor extends VmAttestor {
   public async getEscrowDepositMessages(
-    chainId: number,
+    chainId: string,
     transactionId: string
   ): Promise<EscrowDepositMessage[]> {
     const rpc = await httpRpc(chainId);
@@ -106,6 +106,7 @@ export class EthereumVmAttestor extends VmAttestor {
               transactionId,
               currentLog.logIndex.toString()
             ),
+            escrow: chain.escrow,
             depositId,
             depositor: currentLog.args.from.toLowerCase(),
             currency: zeroAddress,
@@ -173,6 +174,7 @@ export class EthereumVmAttestor extends VmAttestor {
               transactionId,
               currentLog.logIndex.toString()
             ),
+            escrow: chain.escrow,
             depositId: depositId ?? zeroHash,
             depositor: currentLog.args.from.toLowerCase(),
             currency: currentLog.address.toLowerCase(),
@@ -186,7 +188,7 @@ export class EthereumVmAttestor extends VmAttestor {
   }
 
   public async getEscrowWithdrawalMessage(
-    chainId: number,
+    chainId: string,
     withdrawal: string
   ): Promise<EscrowWithdrawalMessage> {
     const rpc = await httpRpc(chainId);
@@ -223,13 +225,14 @@ export class EthereumVmAttestor extends VmAttestor {
       },
       result: {
         withdrawalId,
+        escrow: chain.escrow,
         status,
       },
     };
   }
 
   public async getSolverPaidAmount(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     payment: {
       currency: string;
@@ -315,7 +318,7 @@ export class EthereumVmAttestor extends VmAttestor {
   }
 
   public async verifySolverCalls(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     calls: string[]
   ): Promise<boolean> {

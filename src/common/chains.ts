@@ -5,23 +5,21 @@ import { readConfigValue } from "./utils";
 import { config } from "../config";
 
 export type Chain = {
-  id: number;
-  name: string;
+  id: string;
   vmType: VmType;
   httpRpcUrl: string;
   escrow: string;
 };
 
-let _chains: { [id: number]: Chain } | undefined;
+let _chains: { [id: string]: Chain } | undefined;
 export const getChains = async () => {
   if (!_chains) {
-    const __chains: { [id: number]: Chain } = {};
+    const __chains: { [id: string]: Chain } = {};
 
     const chains = require(`../../configs/chains.${config.environment}.json`);
     for (const chain of chains) {
       __chains[chain.id] = {
         id: readConfigValue(chain.id),
-        name: readConfigValue(chain.name),
         vmType: readConfigValue(chain.vmType),
         httpRpcUrl: readConfigValue(chain.httpRpcUrl),
         escrow: readConfigValue(chain.escrow),
@@ -34,7 +32,7 @@ export const getChains = async () => {
   return _chains;
 };
 
-export const getChain = async (chainId: number) => {
+export const getChain = async (chainId: string) => {
   const chains = await getChains();
   if (!chains[chainId]) {
     throw externalError(`Chain ${chainId} is not available`);

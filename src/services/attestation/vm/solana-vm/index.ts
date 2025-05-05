@@ -9,6 +9,7 @@ import bs58 from "bs58";
 
 import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
 import { getOnchainId } from "../utils";
+import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 import { VmAttestor } from "../../vm/types";
@@ -31,7 +32,7 @@ export class SolanaVmAttestor extends VmAttestor {
   }
 
   public async getEscrowDepositMessages(
-    chainId: number,
+    chainId: string,
     transactionId: string
   ): Promise<EscrowDepositMessage[]> {
     const connection = await httpRpc(chainId);
@@ -46,19 +47,20 @@ export class SolanaVmAttestor extends VmAttestor {
     return this.parseTransactionLogs(
       chainId,
       transactionId,
-      transaction.meta.logMessages
+      transaction.meta.logMessages,
+      await getChain(chainId).then((chain) => chain.escrow)
     );
   }
 
   public async getEscrowWithdrawalMessage(
-    _chainId: number,
+    _chainId: string,
     _withdrawal: string
   ): Promise<EscrowWithdrawalMessage> {
     throw internalError("Not implemented");
   }
 
   public async getSolverPaidAmount(
-    chainId: number,
+    chainId: string,
     transactionId: string,
     payment: {
       currency: string;
@@ -184,7 +186,7 @@ export class SolanaVmAttestor extends VmAttestor {
   }
 
   public verifySolverCalls(
-    _chainId: number,
+    _chainId: string,
     _transactionId: string,
     _calls: string[]
   ): Promise<boolean> {
@@ -192,9 +194,10 @@ export class SolanaVmAttestor extends VmAttestor {
   }
 
   private parseTransactionLogs(
-    chainId: number,
+    chainId: string,
     transactionId: string,
-    logs: string[]
+    logs: string[],
+    escrow: string
   ): EscrowDepositMessage[] {
     const messages: EscrowDepositMessage[] = [];
 
@@ -216,7 +219,8 @@ export class SolanaVmAttestor extends VmAttestor {
           event,
           chainId,
           transactionId,
-          messageIndex++
+          messageIndex++,
+          escrow
         );
         if (message) {
           messages.push(message);
@@ -231,9 +235,10 @@ export class SolanaVmAttestor extends VmAttestor {
 
   private createMessageFromEvent(
     event: any,
-    chainId: number,
+    chainId: string,
     transactionId: string,
-    messageIndex: number
+    messageIndex: number,
+    escrow: string
   ): EscrowDepositMessage | undefined {
     const onchainId = getOnchainId(
       chainId,
@@ -251,7 +256,8 @@ export class SolanaVmAttestor extends VmAttestor {
         return this.createDepositMessage(
           event.data as DepositEventData,
           onchainId,
-          input
+          input,
+          escrow
         );
       }
 
@@ -264,13 +270,15 @@ export class SolanaVmAttestor extends VmAttestor {
   private createDepositMessage(
     event: DepositEventData,
     onchainId: string,
-    data: { chainId: number; transactionId: string }
+    data: { chainId: string; transactionId: string },
+    escrow: string
   ): EscrowDepositMessage {
     return {
       data,
       result: {
         onchainId,
         depositId: Buffer.from(event.id).toString("hex"),
+        escrow,
         depositor: event.depositor.toBase58(),
         currency: event.token
           ? event.token.toBase58()
