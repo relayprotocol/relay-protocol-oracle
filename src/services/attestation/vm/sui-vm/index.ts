@@ -51,70 +51,70 @@ export class SuiVmAttestor extends VmAttestor {
   }
 
   public async getEscrowWithdrawalMessage(
-        chainId: string,
-        withdrawal: string
-      ): Promise<EscrowWithdrawalMessage> {
-      const rpc = await httpRpc(chainId);
-      const chain = await getChain(chainId);
-  
-      const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
-      const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
+    chainId: string,
+    withdrawal: string
+  ): Promise<EscrowWithdrawalMessage> {
+    const rpc = await httpRpc(chainId);
+    const chain = await getChain(chainId);
 
-      let status: EscrowWithdrawalStatus;
-      let onChainStatus: boolean | null = null;
-      try {
-        const tx = new Transaction();
-        tx.moveCall({
-          target: `${chain.escrow}::escrow::check_request_executed`,
-          typeArguments: [],
-          arguments: [
-            // TODO: add EXECUTED_REQUESTS_ID
-            tx.object('EXECUTED_REQUESTS_ID'),
-            tx.pure.vector("u8", Buffer.from(withdrawalId, 'hex'))
-          ]
-        });
-  
-        const randomWallet = new Ed25519Keypair();
-        const response = await rpc.devInspectTransactionBlock({
-          transactionBlock: tx,
-          sender: randomWallet.toSuiAddress()
-        });
-  
-        if (!response.results?.[0]?.returnValues?.[0]?.[0]) {
-          throw internalError('Failed to cal check_request_executed');
-        }
-        const isExecuted = bcs.Bool.parse(new Uint8Array(response.results[0].returnValues[0][0]));
-        if (isExecuted) {
-          onChainStatus = true;
-        }
-      } catch {
-        // Skip error
+    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
+    const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
+
+    let status: EscrowWithdrawalStatus;
+    let onChainStatus: boolean | null = null;
+    try {
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${chain.escrow}::escrow::check_request_executed`,
+        typeArguments: [],
+        arguments: [
+          // TODO: add EXECUTED_REQUESTS_ID
+          tx.object('EXECUTED_REQUESTS_ID'),
+          tx.pure.vector("u8", Buffer.from(withdrawalId, 'hex'))
+        ]
+      });
+
+      const randomWallet = new Ed25519Keypair();
+      const response = await rpc.devInspectTransactionBlock({
+        transactionBlock: tx,
+        sender: randomWallet.toSuiAddress()
+      });
+
+      if (!response.results?.[0]?.returnValues?.[0]?.[0]) {
+        throw internalError('Failed to cal check_request_executed');
       }
-  
-      if (onChainStatus) {
-        status = EscrowWithdrawalStatus.EXECUTED;
-      } else {
-        const latestCheckpointSeq = await rpc.getLatestCheckpointSequenceNumber();
-        const checkpoint = await rpc.getCheckpoint({ id: latestCheckpointSeq });
-        if (BigInt(checkpoint.timestampMs) > BigInt(decodedWithdrawal.withdrawal.expiration)) {
-          status = EscrowWithdrawalStatus.EXPIRED;
-        } else {
-          status = EscrowWithdrawalStatus.PENDING;
-        }
+      const isExecuted = bcs.Bool.parse(new Uint8Array(response.results[0].returnValues[0][0]));
+      if (isExecuted) {
+        onChainStatus = true;
       }
-  
-      return {
-        data: {
-          chainId,
-          withdrawal,
-        },
-        result: {
-          withdrawalId,
-          escrow: chain.escrow,
-          status,
-        },
-      };
+    } catch {
+      // Skip error
     }
+  
+    if (onChainStatus) {
+      status = EscrowWithdrawalStatus.EXECUTED;
+    } else {
+      const latestCheckpointSeq = await rpc.getLatestCheckpointSequenceNumber();
+      const checkpoint = await rpc.getCheckpoint({ id: latestCheckpointSeq });
+      if (BigInt(Number(checkpoint.timestampMs) / 1000) > BigInt(decodedWithdrawal.withdrawal.expiration)) {
+        status = EscrowWithdrawalStatus.EXPIRED;
+      } else {
+        status = EscrowWithdrawalStatus.PENDING;
+      }
+    }
+
+    return {
+      data: {
+        chainId,
+        withdrawal,
+      },
+      result: {
+        withdrawalId,
+        escrow: chain.escrow,
+        status,
+      },
+    };
+  }
 
   public async getSolverPaidAmount(
     chainId: string,
