@@ -2,17 +2,22 @@ import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
   EscrowDepositMessage,
   EscrowWithdrawalMessage,
+  decodeWithdrawal,
+  EscrowWithdrawalStatus,
+  getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { PublicKey, SystemProgram, Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 
-import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
+import { IDL as RelayEscrowIdl, RelayEscrow } from "./idls/RelayEscrowIdl";
 import { getOnchainId } from "../utils";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 import { VmAttestor } from "../../vm/types";
+import * as anchor from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 
 interface DepositEventData {
   depositor: PublicKey;
@@ -52,10 +57,65 @@ export class SolanaVmAttestor extends VmAttestor {
   }
 
   public async getEscrowWithdrawalMessage(
-    _chainId: string,
-    _withdrawal: string
-  ): Promise<EscrowWithdrawalMessage> {
-    throw internalError("Not implemented");
+      chainId: string,
+      withdrawal: string
+    ): Promise<EscrowWithdrawalMessage> {
+    const rpc = await httpRpc(chainId);
+    const chain = await getChain(chainId);
+
+    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
+    const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
+    const randomWallet = Keypair.generate();
+    const program = new Program<RelayEscrow>(
+      RelayEscrowIdl as RelayEscrow,
+      new PublicKey(chain.escrow),
+      new anchor.AnchorProvider(rpc, new anchor.Wallet(randomWallet), {
+        commitment: "processed"
+      })
+    );
+
+    const requestHash = Buffer.from(withdrawalId, 'hex');
+    const [requestPDA] = await PublicKey.findProgramAddress(
+      [
+        Buffer.from("used_request"),
+        requestHash
+      ],
+      program.programId
+    );
+
+    let usedRequestState;
+    try {
+      usedRequestState = await program.account.usedRequest.fetch(requestPDA);
+    } catch (error) {
+      usedRequestState = null;
+    }
+
+    let status: EscrowWithdrawalStatus;
+    if (usedRequestState && usedRequestState.isUsed) {
+      status = EscrowWithdrawalStatus.EXECUTED;
+    } else {
+      const chainTimestamp = await rpc.getBlockTime(await rpc.getSlot());
+      if (!chainTimestamp) {
+        throw internalError("Failed to fetch Solana block time");
+      }
+      if (BigInt(chainTimestamp) > BigInt(decodedWithdrawal.withdrawal.expiration)) {
+        status = EscrowWithdrawalStatus.EXPIRED;
+      } else {
+        status = EscrowWithdrawalStatus.PENDING;
+      }
+    }
+
+    return {
+      data: {
+        chainId,
+        withdrawal,
+      },
+      result: {
+        withdrawalId,
+        escrow: chain.escrow,
+        status,
+      },
+    };
   }
 
   public async getSolverPaidAmount(
