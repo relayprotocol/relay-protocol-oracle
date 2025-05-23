@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": "base",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-base.nodes.svc.cluster.local:8545/base",
+    "escrow": "0x4a235cd4d004b1cc78ade9811df6fc607e646264"
+  },
+  {
+    "id": "arbitrum",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-arbitrum.nodes.svc.cluster.local:8545/arbitrum",
+    "escrow": "0x093f2fd80b38e7908273e86be495afca21bd2ba8"
+  }
+]
