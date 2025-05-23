@@ -68,6 +68,8 @@ jobs:
 
       - name: Deploy to Dev Environment
         working-directory: k8s-configs
+        env:
+          DEVOPSBOT_GPG_PRIVATE_KEY: ${{ secrets.DEVOPSBOT_GPG_PRIVATE_KEY }}
         run: |
           ./utils/version_update.sh \
             ./dev/platform/relay-protocol-oracle.yaml \
