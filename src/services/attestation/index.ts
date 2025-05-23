@@ -199,7 +199,7 @@ export class AttestationService {
         raw: orderHash,
       },
       signature: data.orderSignature as Hex,
-    });
+    }).catch(() => false);
     if (!isSignatureValid) {
       throw externalError("Invalid order signature");
     }
