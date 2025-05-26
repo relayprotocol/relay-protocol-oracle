@@ -64,7 +64,7 @@ const Schema = {
 
 export default {
   method: "POST",
-  url: "/attestations/escrow-withdrawal/v1",
+  url: "/attestations/escrow-withdrawals/v1",
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,

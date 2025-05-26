@@ -1,5 +1,5 @@
 import { Type } from "@fastify/type-provider-typebox";
-import { SolverFillStatus } from "@reservoir0x/relay-protocol-sdk";
+import { SolverRefundStatus } from "@reservoir0x/relay-protocol-sdk";
 
 import {
   Endpoint,
@@ -7,7 +7,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
-import { signSolverFillMessage } from "../../../common/signer";
+import { signSolverRefundMessage } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -80,11 +80,19 @@ const MessageData = Type.Object({
       }),
     })
   ),
-  fill: Type.Object({
-    transactionId: Type.String({
-      description: "The fill transaction",
-    }),
-  }),
+  refunds: Type.Array(
+    Type.Object({
+      transactionId: Type.String({
+        description: "The refund transaction",
+      }),
+      inputIndex: Type.Number({
+        description: "The index of the order input",
+      }),
+      refundIndex: Type.Number({
+        description: "The index of the order input refund",
+      }),
+    })
+  ),
 });
 
 const Schema = {
@@ -102,7 +110,7 @@ const Schema = {
             status: Type.Union(
               [Type.Literal("failed"), Type.Literal("successful")],
               {
-                description: "The status of the solver fill",
+                description: "The status of the solver refund",
               }
             ),
             totalWeightedInputPaymentBpsDiff: Type.String({
@@ -120,7 +128,7 @@ const Schema = {
           }),
         },
         {
-          description: "The resulting 'solver-fill' message",
+          description: "The resulting 'solver-refund' message",
         }
       ),
     }),
@@ -129,14 +137,14 @@ const Schema = {
 
 export default {
   method: "POST",
-  url: "/attestations/solver-fill/v1",
+  url: "/attestations/solver-refunds/v1",
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
     const attestationService = new AttestationService();
-    const message = await attestationService.attestSolverFill(req.body);
+    const message = await attestationService.attestSolverRefund(req.body);
 
     return reply.send({
       message: {
@@ -144,11 +152,11 @@ export default {
         result: {
           ...message.result,
           status:
-            message.result.status === SolverFillStatus.FAILED
+            message.result.status === SolverRefundStatus.FAILED
               ? "failed"
               : "successful",
         },
-        signature: await signSolverFillMessage(message),
+        signature: await signSolverRefundMessage(message),
       },
     });
   },
