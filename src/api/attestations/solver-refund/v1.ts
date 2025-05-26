@@ -7,6 +7,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
+import { signSolverRefundMessage } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -117,6 +118,14 @@ const Schema = {
                 "The bps difference between the quoted amount and the deposited amount",
             }),
           }),
+          signature: Type.Object({
+            oracle: Type.String({
+              description: "The address of the signing oracle",
+            }),
+            signature: Type.String({
+              description: "The message signature",
+            }),
+          }),
         },
         {
           description: "The resulting 'solver-refund' message",
@@ -147,6 +156,7 @@ export default {
               ? "failed"
               : "successful",
         },
+        signature: await signSolverRefundMessage(message),
       },
     });
   },

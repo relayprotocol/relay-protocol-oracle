@@ -7,6 +7,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
+import { signEscrowWithdrawalMessage } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -44,6 +45,14 @@ const Schema = {
               }
             ),
           }),
+          signature: Type.Object({
+            oracle: Type.String({
+              description: "The address of the signing oracle",
+            }),
+            signature: Type.String({
+              description: "The message signature",
+            }),
+          }),
         },
         {
           description: "The resulting 'escrow-withdrawal' message",
@@ -76,6 +85,7 @@ export default {
               ? "executed"
               : "expired",
         },
+        signature: await signEscrowWithdrawalMessage(message),
       },
     });
   },

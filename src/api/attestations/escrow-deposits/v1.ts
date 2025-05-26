@@ -6,6 +6,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
+import { signEscrowDepositMessage } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -43,6 +44,14 @@ const Schema = {
             }),
             amount: Type.String({ description: "The deposited amount" }),
           }),
+          signature: Type.Object({
+            oracle: Type.String({
+              description: "The address of the signing oracle",
+            }),
+            signature: Type.String({
+              description: "The message signature",
+            }),
+          }),
         }),
         {
           description:
@@ -64,6 +73,13 @@ export default {
     const attestationService = new AttestationService();
     const messages = await attestationService.attestEscrowDeposits(req.body);
 
-    return reply.send({ messages });
+    return reply.send({
+      messages: await Promise.all(
+        messages.map(async (message) => ({
+          ...message,
+          signature: await signEscrowDepositMessage(message),
+        }))
+      ),
+    });
   },
 } as Endpoint;
