@@ -1,5 +1,4 @@
 import { Type } from "@fastify/type-provider-typebox";
-import { SolverRefundStatus } from "@reservoir0x/relay-protocol-sdk";
 
 import {
   Endpoint,
@@ -107,12 +106,10 @@ const Schema = {
             orderId: Type.String({
               description: "The id of the attested order",
             }),
-            status: Type.Union(
-              [Type.Literal("failed"), Type.Literal("successful")],
-              {
-                description: "The status of the solver refund",
-              }
-            ),
+            status: Type.Number({
+              description:
+                "The status of the solver refund (0 = failed, 1 = successful)",
+            }),
             totalWeightedInputPaymentBpsDiff: Type.String({
               description:
                 "The bps difference between the quoted amount and the deposited amount",
@@ -148,14 +145,8 @@ export default {
 
     return reply.send({
       message: {
-        ...message,
-        result: {
-          ...message.result,
-          status:
-            message.result.status === SolverRefundStatus.FAILED
-              ? "failed"
-              : "successful",
-        },
+        data: message.data,
+        result: message.result,
         signature: await signSolverRefundMessage(message),
       },
     });

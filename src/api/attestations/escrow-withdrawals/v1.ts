@@ -1,5 +1,4 @@
 import { Type } from "@fastify/type-provider-typebox";
-import { EscrowWithdrawalStatus } from "@reservoir0x/relay-protocol-sdk";
 
 import {
   Endpoint,
@@ -34,16 +33,10 @@ const Schema = {
             escrow: Type.String({
               description: "The escrow address for the withdrawal",
             }),
-            status: Type.Union(
-              [
-                Type.Literal("executed"),
-                Type.Literal("expired"),
-                Type.Literal("pending"),
-              ],
-              {
-                description: "The status of the withdrawal",
-              }
-            ),
+            status: Type.Number({
+              description:
+                "The status of the withdrawal (0 = pending, 1 = executed, 2 = expired)",
+            }),
           }),
           signature: Type.Object({
             oracle: Type.String({
@@ -75,16 +68,8 @@ export default {
 
     return reply.send({
       message: {
-        ...message,
-        result: {
-          ...message.result,
-          status:
-            message.result.status === EscrowWithdrawalStatus.PENDING
-              ? "pending"
-              : message.result.status === EscrowWithdrawalStatus.EXECUTED
-              ? "executed"
-              : "expired",
-        },
+        data: message.data,
+        result: message.result,
         signature: await signEscrowWithdrawalMessage(message),
       },
     });
