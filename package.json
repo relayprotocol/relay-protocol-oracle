@@ -11,7 +11,7 @@
     "@coral-xyz/anchor": "0.29.0",
     "@fastify/type-provider-typebox": "^5.1.0",
     "@mysten/sui": "^1.26.1",
-    "@reservoir0x/relay-protocol-sdk": "^0.0.25",
+    "@reservoir0x/relay-protocol-sdk": "^0.0.26",
     "@sinclair/typebox": "^0.34.14",
     "@solana/spl-memo": "^0.2.5",
     "@solana/web3.js": "^1.98.0",
