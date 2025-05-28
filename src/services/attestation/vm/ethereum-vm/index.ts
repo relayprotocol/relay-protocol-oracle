@@ -116,20 +116,23 @@ export class EthereumVmAttestor extends VmAttestor {
       }
 
       if (currentLog?.eventName === "Transfer") {
-        // If the next event in the transaction is a matching `Erc20Deposit` event, take the id from there
+        let depositor = currentLog.args.from.toLowerCase();
+
+        // If the next event in the transaction is a matching `Erc20Deposit` event, take the id and depositor from there
         let depositId: string | undefined;
         if (
           nextLog &&
           nextLog.logIndex === currentLog.logIndex + 1 &&
           nextLog.eventName === "EscrowErc20Deposit" &&
-          nextLog.args.from.toLowerCase() ===
-            currentLog.args.from.toLowerCase() &&
           nextLog.args.token.toLowerCase() ===
             currentLog.address.toLowerCase() &&
-          nextLog.args.amount === currentLog.args.amount &&
-          nextLog.args.id !== zeroHash
+          nextLog.args.amount === currentLog.args.amount
         ) {
-          depositId = nextLog.args.id;
+          depositor = nextLog.args.from.toLowerCase();
+
+          if (nextLog.args.id !== zeroHash) {
+            depositId = nextLog.args.id;
+          }
         }
 
         // If the transaction involves a single `Transfer` event and the calldata matches a standard ERC20 transfer,
@@ -176,7 +179,7 @@ export class EthereumVmAttestor extends VmAttestor {
             ),
             escrow: chain.escrow,
             depositId: depositId ?? zeroHash,
-            depositor: currentLog.args.from.toLowerCase(),
+            depositor,
             currency: currentLog.address.toLowerCase(),
             amount: currentLog.args.amount.toString(),
           },

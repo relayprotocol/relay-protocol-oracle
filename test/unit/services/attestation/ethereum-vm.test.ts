@@ -572,7 +572,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestEscrowDeposits - single Transfer event with consecutive EscrowErc20Deposit event", async () => {
+  it("attestEscrowDeposits - Transfer event with consecutive EscrowErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -620,7 +620,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestEscrowDeposits - single Transfer event with non-consecutive EscrowErc20Deposit event", async () => {
+  it("attestEscrowDeposits - Transfer event with non-consecutive EscrowErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -668,7 +668,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(zeroHash);
   });
 
-  it("attestEscrowDeposits - single Transfer event with consecutive EscrowErc20Deposit event but without id", async () => {
+  it("attestEscrowDeposits - Transfer event with consecutive EscrowErc20Deposit event but without id", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -713,6 +713,113 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.escrow).toEqual(chain.escrow);
+    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.amount).toEqual(amount);
+    expect(msg.result.depositId).toEqual(zeroHash);
+  });
+
+  it("attestEscrowDeposits - Transfer event with consecutive EscrowErc20Deposit and different depositor", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const from = randomHex(20);
+    const depositor = randomHex(20);
+    const token = randomHex(20);
+    const amount = randomNumber(1e10).toString();
+    const id = randomHex(32);
+
+    const params = {
+      transactionHash,
+      from,
+      to: chain.escrow,
+      token,
+      amount,
+    };
+
+    const transferLog = generateTransferLog({ ...params, logIndex: 0 });
+    const depositLog = generateErc20DepositLog({
+      ...params,
+      from: depositor,
+      id,
+      logIndex: 1,
+    });
+    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+      transferLog,
+      depositLog,
+    ]);
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: () => ({ input: "0x" }),
+      getTransactionReceipt: () => transactionReceipt,
+    }));
+
+    const messages = await new AttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
+    expect(messages.length === 1).toBeTruthy();
+
+    const msg = messages[0];
+
+    expect(msg.data.chainId).toEqual(chain.id);
+    expect(msg.data.transactionId).toEqual(transactionHash);
+    expect(msg.result.depositor).toEqual(depositor);
+    expect(msg.result.escrow).toEqual(chain.escrow);
+    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.amount).toEqual(amount);
+    expect(msg.result.depositId).toEqual(id);
+  });
+
+  it("attestEscrowDeposits - Transfer event with consecutive EscrowErc20Deposit and different depositor and without id", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const from = randomHex(20);
+    const depositor = randomHex(20);
+    const token = randomHex(20);
+    const amount = randomNumber(1e10).toString();
+
+    const params = {
+      transactionHash,
+      from,
+      to: chain.escrow,
+      token,
+      amount,
+    };
+
+    const transferLog = generateTransferLog({ ...params, logIndex: 0 });
+    const depositLog = generateErc20DepositLog({
+      ...params,
+      from: depositor,
+      id: zeroHash,
+      logIndex: 1,
+    });
+    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+      transferLog,
+      depositLog,
+    ]);
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: () => ({ input: "0x" }),
+      getTransactionReceipt: () => transactionReceipt,
+    }));
+
+    const messages = await new AttestationService().attestEscrowDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
+    expect(messages.length === 1).toBeTruthy();
+
+    const msg = messages[0];
+
+    expect(msg.data.chainId).toEqual(chain.id);
+    expect(msg.data.transactionId).toEqual(transactionHash);
+    expect(msg.result.depositor).toEqual(depositor);
     expect(msg.result.escrow).toEqual(chain.escrow);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
