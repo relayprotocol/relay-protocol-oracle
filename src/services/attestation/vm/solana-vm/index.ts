@@ -276,7 +276,7 @@ export class SolanaVmAttestor extends VmAttestor {
       data,
       result: {
         onchainId,
-        depositId: Buffer.from(event.id).toString("hex"),
+        depositId: "0x" + Buffer.from(event.id).toString("hex"),
         escrow,
         depositor: event.depositor.toBase58(),
         currency: event.token
