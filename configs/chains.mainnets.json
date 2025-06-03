@@ -12,9 +12,9 @@
     "escrow": "0x6544a81a7e3961b35040f6fc848294367822b6b9"
   },
   {
-    "id": "solana-devnet",
+    "id": "solana",
     "vmType": "solana-vm",
-    "httpRpcUrl": "http://proxy-solana-devnet.nodes.svc.cluster.local:8545/solanadevnet",
-    "escrow": "Hz17BWNjrZXrVDjQxYXZGwhdCAQakmMBS5EcZfZxxvto"
+    "httpRpcUrl": "http://proxy-solana.nodes.svc.cluster.local:8545/solana",
+    "escrow": "H7BhnmRd2wjuifbDRzjVMNZoXM7Y1qXh2cRAD24tQFr"
   }
 ]
