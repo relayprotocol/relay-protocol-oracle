@@ -14,7 +14,7 @@
   {
     "id": "solana",
     "vmType": "solana-vm",
-    "httpRpcUrl": "http://proxy-solana.nodes.svc.cluster.local:8545/solana",
+    "httpRpcUrl": "https://api.mainnet-beta.solana.com",
     "escrow": "H7BhnmRd2wjuifbDRzjVMNZoXM7Y1qXh2cRAD24tQFr"
   }
 ]
