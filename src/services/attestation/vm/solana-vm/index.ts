@@ -200,8 +200,8 @@ export class SolanaVmAttestor extends VmAttestor {
   ): EscrowDepositMessage[] {
     const messages: EscrowDepositMessage[] = [];
 
-    let messageIndex = 0;
-    for (const log of logs) {
+    for (let i = 0; i < logs.length; i++) {
+      const log = logs[i];
       if (!log.startsWith("Program data: ")) {
         continue;
       }
@@ -218,7 +218,7 @@ export class SolanaVmAttestor extends VmAttestor {
           event,
           chainId,
           transactionId,
-          messageIndex++,
+          i,
           escrow
         );
         if (message) {
