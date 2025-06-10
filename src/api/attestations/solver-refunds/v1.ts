@@ -12,6 +12,7 @@ import { AttestationService } from "../../../services/attestation";
 const MessageData = Type.Object({
   order: Type.Object(
     {
+      version: Type.Literal("v1"),
       solverChainId: Type.String(),
       solver: Type.String(),
       salt: Type.String(),

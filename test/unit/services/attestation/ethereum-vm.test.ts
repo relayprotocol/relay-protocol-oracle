@@ -278,6 +278,7 @@ function createTestOrder({
   outputCurrency?: string;
 }): Order {
   return {
+    version: "v1",
     salt: "0x1",
     solverChainId: "ethereum",
     solver: solverAddress,
