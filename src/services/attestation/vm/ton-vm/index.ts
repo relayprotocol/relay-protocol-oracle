@@ -180,7 +180,8 @@ export class TonVmAttestor extends VmAttestor {
   public verifySolverCalls(
     _chainId: string,
     _transactionId: string,
-    _calls: string[]
+    _calls: string[],
+    _extraData: string
   ): Promise<boolean> {
     throw internalError("Not implemented");
   }
@@ -228,19 +229,19 @@ export class TonVmAttestor extends VmAttestor {
       transactionId,
     };
 
-    const escrowAddress = await getChain(chainId).then((chain) => chain.escrow);
+    const chain = await getChain(chainId);
+    const escrow = chain.escrow;
+    if (!escrow) {
+      throw externalError("Chain has no escrow configured");
+    }
+
     const message = await RelayEscrow.parseOutMessage(
       event,
-      connection.provider(Address.parse(escrowAddress))
+      connection.provider(Address.parse(escrow))
     );
 
     if (message?.name === "Deposit") {
-      return this.createDepositMessage(
-        message,
-        onchainId,
-        input,
-        escrowAddress
-      );
+      return this.createDepositMessage(message, onchainId, input, escrow);
     } else {
       return undefined;
     }

@@ -36,11 +36,17 @@ export class SuiVmAttestor extends VmAttestor {
       return [];
     }
 
+    const chain = await getChain(chainId);
+    const escrow = chain.escrow;
+    if (!escrow) {
+      throw externalError("Chain has no escrow configured");
+    }
+
     return this.parseTransactionLogs(
       chainId,
       transactionId,
       transaction.events,
-      await getChain(chainId).then((chain) => chain.escrow)
+      escrow
     );
   }
 
@@ -139,7 +145,8 @@ export class SuiVmAttestor extends VmAttestor {
   public verifySolverCalls(
     _chainId: string,
     _transactionId: string,
-    _calls: string[]
+    _calls: string[],
+    _extraData: string
   ): Promise<boolean> {
     throw internalError("Not implemented");
   }

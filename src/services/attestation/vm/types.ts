@@ -29,6 +29,7 @@ export abstract class VmAttestor {
   public abstract verifySolverCalls(
     chainId: string,
     transactionId: string,
-    calls: string[]
+    calls: string[],
+    extraData: string
   ): Promise<boolean>;
 }

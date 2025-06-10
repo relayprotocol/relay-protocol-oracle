@@ -3,6 +3,7 @@ import { getChain } from "../../../common/chains";
 import { externalError } from "../../../common/error";
 
 import { EthereumVmAttestor } from "./ethereum-vm";
+import { HyperliquidVmAttestor } from "./hyperliquid-vm";
 import { SolanaVmAttestor } from "./solana-vm";
 import { SuiVmAttestor } from "./sui-vm";
 import { TonVmAttestor } from "./ton-vm";
@@ -12,6 +13,9 @@ export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
   switch (chain.vmType) {
     case "ethereum-vm":
       return new EthereumVmAttestor();
+
+    case "hyperliquid-vm":
+      return new HyperliquidVmAttestor();
 
     case "solana-vm":
       return new SolanaVmAttestor();

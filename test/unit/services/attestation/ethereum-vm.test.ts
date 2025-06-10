@@ -491,7 +491,7 @@ describe("EvmAttestationService", () => {
       transactionHash,
       logIndex: 0,
       from,
-      to: chain.escrow,
+      to: chain.escrow!,
       token,
       amount,
     });
@@ -536,7 +536,7 @@ describe("EvmAttestationService", () => {
       transactionHash,
       logIndex: 0,
       from,
-      to: chain.escrow,
+      to: chain.escrow!,
       token,
       amount,
     });
@@ -587,7 +587,7 @@ describe("EvmAttestationService", () => {
     const params = {
       transactionHash,
       from,
-      to: chain.escrow,
+      to: chain.escrow!,
       token,
       amount,
     };
@@ -635,7 +635,7 @@ describe("EvmAttestationService", () => {
     const params = {
       transactionHash,
       from,
-      to: chain.escrow,
+      to: chain.escrow!,
       token,
       amount,
     };
@@ -682,7 +682,7 @@ describe("EvmAttestationService", () => {
     const params = {
       transactionHash,
       from,
-      to: chain.escrow,
+      to: chain.escrow!,
       token,
       amount,
     };
@@ -735,7 +735,7 @@ describe("EvmAttestationService", () => {
     const params = {
       transactionHash,
       from,
-      to: chain.escrow,
+      to: chain.escrow!,
       token,
       amount,
     };
@@ -788,7 +788,7 @@ describe("EvmAttestationService", () => {
     const params = {
       transactionHash,
       from,
-      to: chain.escrow,
+      to: chain.escrow!,
       token,
       amount,
     };
@@ -841,7 +841,7 @@ describe("EvmAttestationService", () => {
       transactionHash,
       logIndex: 0,
       from,
-      to: chain.escrow,
+      to: chain.escrow!,
       amount,
       id,
     });
@@ -884,7 +884,7 @@ describe("EvmAttestationService", () => {
       transactionHash,
       logIndex: 0,
       from,
-      to: chain.escrow,
+      to: chain.escrow!,
       amount,
       id: zeroHash,
     });

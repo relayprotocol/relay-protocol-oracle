@@ -8,7 +8,7 @@ export type Chain = {
   id: string;
   vmType: VmType;
   httpRpcUrl: string;
-  escrow: string;
+  escrow?: string;
 };
 
 let _chains: { [id: string]: Chain } | undefined;

@@ -80,7 +80,8 @@ export class AttestationService {
         !(await attestor.verifySolverCalls(
           data.order.output.chainId,
           data.fill.transactionId,
-          data.order.output.calls
+          data.order.output.calls,
+          data.order.output.extraData
         ))
       ) {
         throw externalError(`Missing call executions`);

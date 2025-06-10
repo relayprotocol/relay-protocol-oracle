@@ -54,6 +54,11 @@ export class EthereumVmAttestor extends VmAttestor {
 
     const chain = await getChain(chainId);
 
+    const escrow = chain.escrow;
+    if (!escrow) {
+      throw externalError("Chain has no escrow configured");
+    }
+
     // Parse and filter the logs we're interested in
     const parsedLogs = parseEventLogs({
       abi: ABI,
@@ -62,21 +67,21 @@ export class EthereumVmAttestor extends VmAttestor {
     }).filter((log) => {
       if (
         log.eventName === "EscrowNativeDeposit" &&
-        log.address.toLowerCase() === chain.escrow.toLowerCase()
+        log.address.toLowerCase() === escrow.toLowerCase()
       ) {
         return true;
       }
 
       if (
         log.eventName === "EscrowErc20Deposit" &&
-        log.address.toLowerCase() === chain.escrow.toLowerCase()
+        log.address.toLowerCase() === escrow.toLowerCase()
       ) {
         return true;
       }
 
       if (
         log.eventName === "Transfer" &&
-        log.args.to.toLowerCase() === chain.escrow.toLowerCase()
+        log.args.to.toLowerCase() === escrow.toLowerCase()
       ) {
         return true;
       }
@@ -106,7 +111,7 @@ export class EthereumVmAttestor extends VmAttestor {
               transactionId,
               currentLog.logIndex.toString()
             ),
-            escrow: chain.escrow,
+            escrow,
             depositId,
             depositor: currentLog.args.from.toLowerCase(),
             currency: zeroAddress,
@@ -177,7 +182,7 @@ export class EthereumVmAttestor extends VmAttestor {
               transactionId,
               currentLog.logIndex.toString()
             ),
-            escrow: chain.escrow,
+            escrow,
             depositId: depositId ?? zeroHash,
             depositor,
             currency: currentLog.address.toLowerCase(),
@@ -197,15 +202,22 @@ export class EthereumVmAttestor extends VmAttestor {
     const rpc = await httpRpc(chainId);
     const chain = await getChain(chainId);
 
+    const escrow = chain.escrow;
+    if (!escrow) {
+      throw externalError("Chain has no escrow configured");
+    }
+
     const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
-    const escrow = getContract({
+    const escrowContract = getContract({
       address: chain.escrow as Address,
       abi: ABI,
       client: rpc,
     });
-    const isExecuted = await escrow.read.callRequests([withdrawalId as Hex]);
+    const isExecuted = await escrowContract.read.callRequests([
+      withdrawalId as Hex,
+    ]);
 
     let status: EscrowWithdrawalStatus;
     if (isExecuted) {
@@ -228,7 +240,7 @@ export class EthereumVmAttestor extends VmAttestor {
       },
       result: {
         withdrawalId,
-        escrow: chain.escrow,
+        escrow,
         status,
       },
     };
@@ -323,7 +335,8 @@ export class EthereumVmAttestor extends VmAttestor {
   public async verifySolverCalls(
     chainId: string,
     transactionId: string,
-    calls: string[]
+    calls: string[],
+    extraData: string
   ): Promise<boolean> {
     const rpc = await httpRpc(chainId);
     const chain = await getChain(chainId);
@@ -336,6 +349,9 @@ export class EthereumVmAttestor extends VmAttestor {
       throw externalError(`Missing or reverted transaction ${transactionId}`);
     }
 
+    const fillContract = decodeOrderExtraData(extraData, "ethereum-vm")
+      .extraData.fillContract;
+
     // Parse and filter the logs we're interested in
     const parsedLogs = parseEventLogs({
       abi: ABI,
@@ -344,7 +360,7 @@ export class EthereumVmAttestor extends VmAttestor {
     }).filter((log) => {
       if (
         log.eventName === "SolverCallExecuted" &&
-        log.address.toLowerCase() === chain.escrow.toLowerCase()
+        log.address.toLowerCase() === fillContract.toLowerCase()
       ) {
         return true;
       }
