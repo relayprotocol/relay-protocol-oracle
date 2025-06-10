@@ -11,7 +11,9 @@ const Schema = {
           id: Type.String({ description: "The id of the chain" }),
           vmType: Type.Union(
             [
+              Type.Literal("bitcoin-vm"),
               Type.Literal("ethereum-vm"),
+              Type.Literal("hyperliquid-vm"),
               Type.Literal("solana-vm"),
               Type.Literal("sui-vm"),
               Type.Literal("ton-vm"),
