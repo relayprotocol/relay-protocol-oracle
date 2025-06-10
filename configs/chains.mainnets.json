@@ -16,5 +16,10 @@
     "vmType": "solana-vm",
     "httpRpcUrl": "https://api.mainnet-beta.solana.com",
     "escrow": "H7BhnmRd2wjuifbDRzjVMNZoXM7Y1qXh2cRAD24tQFr"
+  },
+  {
+    "id": "hyperliquid",
+    "vmType": "hyperliquid-vm",
+    "httpRpcUrl": "https://api.hyperliquid.xyz"
   }
 ]
