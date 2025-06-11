@@ -63,7 +63,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
           txParameters.destination.toLowerCase() ===
           payment.recipient.toLowerCase()
         ) {
-          return parseUnits(txParameters.amount, 6);
+          return parseUnits(Number(txParameters.amount).toFixed(8), 8);
         }
       }
 
