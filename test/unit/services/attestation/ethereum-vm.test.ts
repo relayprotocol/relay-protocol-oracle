@@ -433,48 +433,28 @@ function createRefundTransaction(params: {
   return generateTransactionReceipt(refundTxHash, [refundNativeTransferLog]);
 }
 
-// Create mock RPC data
-function createMockRpcData(params: {
-  transactions: Record<string, { input: string; receipt: any }>;
-  currentTimestamp: number;
-}) {
-  const { transactions, currentTimestamp } = params;
-
-  return {
-    transactions,
-    block: {
-      timestamp: BigInt(currentTimestamp),
-      hash: randomHex(32),
-      parentHash: randomHex(32),
-    },
-  };
-}
-
-// Setup RPC mock implementation
-function setupRpcMock(mockRpcData: any) {
+function setupRpcMock(mockData: any) {
   (httpRpc as jest.Mock).mockImplementation(() => ({
-    getTransaction: ({ hash }: { hash: string }) => {
-      const txData = mockRpcData.transactions[hash];
-      if (!txData) {
-        throw new Error(`Invalid transaction ID: ${hash}`);
-      }
+    getTransaction: async ({ hash }: { hash: string }) => {
+      const txData = mockData.transactions[hash];
       return { input: txData.input };
     },
-    getTransactionReceipt: ({ hash }: { hash: string }) => {
-      const txData = mockRpcData.transactions[hash];
-      if (!txData) {
-        throw new Error(`Invalid transaction ID: ${hash}`);
-      }
+    getTransactionReceipt: async ({ hash }: { hash: string }) => {
+      const txData = mockData.transactions[hash];
       return txData.receipt;
     },
-    getBlock: ({ blockNumber }: { blockNumber: bigint }) => {
-      return Promise.resolve({
-        ...mockRpcData.block,
-        number: blockNumber,
-      });
-    },
+    getBlock: getBlockMock,
   }));
 }
+
+const getBlockMock = async (data?: any) => {
+  const now = Math.floor(Date.now() / 1000);
+  if (!data || data.blockTag === "latest") {
+    return { timestamp: now + 60 * 2 };
+  } else {
+    return { timestamp: now };
+  }
+};
 
 describe("EvmAttestationService", () => {
   it("attestEscrowDeposits - single Transfer event", async () => {
@@ -500,8 +480,9 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
     const messages = await new AttestationService().attestEscrowDeposits({
@@ -545,7 +526,8 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({
+      getBlock: getBlockMock,
+      getTransaction: async () => ({
         input:
           encodeFunctionData({
             abi: ABI,
@@ -553,7 +535,7 @@ describe("EvmAttestationService", () => {
             args: [chain.escrow as Hex, BigInt(amount)],
           }) + id.slice(2),
       }),
-      getTransactionReceipt: () => transactionReceipt,
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
     const messages = await new AttestationService().attestEscrowDeposits({
@@ -600,8 +582,9 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
     const messages = await new AttestationService().attestEscrowDeposits({
@@ -648,8 +631,9 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
     const messages = await new AttestationService().attestEscrowDeposits({
@@ -699,8 +683,9 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
     const messages = await new AttestationService().attestEscrowDeposits({
@@ -753,8 +738,9 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
     const messages = await new AttestationService().attestEscrowDeposits({
@@ -806,8 +792,9 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
     const messages = await new AttestationService().attestEscrowDeposits({
@@ -850,8 +837,9 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
     const messages = await new AttestationService().attestEscrowDeposits({
@@ -893,8 +881,9 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
     const messages = await new AttestationService().attestEscrowDeposits({
@@ -1177,7 +1166,7 @@ const setupTestEnvironment = async (
 
   // Set expired deadline if specified
   if (options.expiredDeadline) {
-    testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600; // 1 hour in the past
+    testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600;
   }
 
   const orderHash = getOrderId(testOrder, await getSdkChainsConfig());
@@ -1210,8 +1199,8 @@ const setupTestEnvironment = async (
     });
   }
 
-  // Create mock RPC data
-  const mockRpcData = createMockRpcData({
+  // Setup RPC mock
+  setupRpcMock({
     transactions: {
       [depositTxHash]: {
         input: "0x",
@@ -1222,13 +1211,7 @@ const setupTestEnvironment = async (
         receipt: actionTxReceipt,
       },
     },
-    currentTimestamp: options.expiredDeadline
-      ? Math.floor(Date.now() / 1000)
-      : testData.currentTimestamp,
   });
-
-  // Setup RPC mock
-  setupRpcMock(mockRpcData);
 
   // Create order signature
   const signerWallet = options.invalidSignature

@@ -15,6 +15,7 @@ import {
   Hex,
   parseAbi,
   parseEventLogs,
+  TransactionReceipt,
   zeroAddress,
   zeroHash,
 } from "viem";
@@ -51,6 +52,9 @@ export class EthereumVmAttestor extends VmAttestor {
     if (!receipt || receipt.status !== "success") {
       throw externalError(`Missing or reverted transaction ${transactionId}`);
     }
+
+    // Ensure the transaction is finalized
+    await this._ensureTxFinalization(chainId, receipt);
 
     const chain = await getChain(chainId);
 
@@ -207,6 +211,8 @@ export class EthereumVmAttestor extends VmAttestor {
       throw externalError("Chain has no escrow configured");
     }
 
+    // TODO: Is there a way to check for finalization?
+
     const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
@@ -266,6 +272,9 @@ export class EthereumVmAttestor extends VmAttestor {
     if (!receipt || receipt.status !== "success") {
       throw externalError(`Missing or reverted transaction ${transactionId}`);
     }
+
+    // Ensure the transaction is finalized
+    await this._ensureTxFinalization(chainId, receipt);
 
     const transactionTimestamp = await rpc
       .getBlock({ blockNumber: receipt.blockNumber })
@@ -349,6 +358,9 @@ export class EthereumVmAttestor extends VmAttestor {
       throw externalError(`Missing or reverted transaction ${transactionId}`);
     }
 
+    // Ensure the transaction is finalized
+    await this._ensureTxFinalization(chainId, receipt);
+
     const fillContract = decodeOrderExtraData(extraData, "ethereum-vm")
       .extraData.fillContract;
 
@@ -387,5 +399,17 @@ export class EthereumVmAttestor extends VmAttestor {
     }
 
     return true;
+  }
+
+  private async _ensureTxFinalization(chainId: string, tx: TransactionReceipt) {
+    const rpc = await httpRpc(chainId);
+
+    const latestBlockTimestamp = await rpc.getBlock().then((b) => b.timestamp);
+    const txTimestamp = await rpc
+      .getBlock({ blockNumber: tx.blockNumber })
+      .then((b) => b.timestamp);
+    if (latestBlockTimestamp - txTimestamp < 60) {
+      throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
+    }
   }
 }
