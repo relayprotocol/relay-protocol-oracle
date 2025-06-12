@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [build]
-    environment: dev
+    environment: prod
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository k8s-configs
