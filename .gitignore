@@ -9,4 +9,4 @@ node_modules
 !.env.example
 
 # Local configs
-*-local.json
+*.local.json
