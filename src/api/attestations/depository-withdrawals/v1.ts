@@ -6,7 +6,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
-import { signEscrowWithdrawalMessage } from "../../../common/signer";
+import { signDepositoryWithdrawalMessage } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -30,8 +30,8 @@ const Schema = {
             withdrawalId: Type.String({
               description: "The id of the attested withdrawal",
             }),
-            escrow: Type.String({
-              description: "The escrow address for the withdrawal",
+            depository: Type.String({
+              description: "The depository address for the withdrawal",
             }),
             status: Type.Number({
               description:
@@ -48,7 +48,7 @@ const Schema = {
           }),
         },
         {
-          description: "The resulting 'escrow-withdrawal' message",
+          description: "The resulting 'depository-withdrawal' message",
         }
       ),
     }),
@@ -57,20 +57,22 @@ const Schema = {
 
 export default {
   method: "POST",
-  url: "/attestations/escrow-withdrawals/v1",
+  url: "/attestations/depository-withdrawals/v1",
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
     const attestationService = new AttestationService();
-    const message = await attestationService.attestEscrowWithdrawal(req.body);
+    const message = await attestationService.attestDepositoryWithdrawal(
+      req.body
+    );
 
     return reply.send({
       message: {
         data: message.data,
         result: message.result,
-        signature: await signEscrowWithdrawalMessage(message),
+        signature: await signDepositoryWithdrawalMessage(message),
       },
     });
   },

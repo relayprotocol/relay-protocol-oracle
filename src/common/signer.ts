@@ -1,8 +1,8 @@
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
-  getEscrowDepositMessageId,
-  getEscrowWithdrawalMessageId,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
+  getDepositoryDepositMessageId,
+  getDepositoryWithdrawalMessageId,
   getSolverFillMessageId,
   getSolverRefundMessageId,
   SolverFillMessage,
@@ -33,11 +33,13 @@ const sign = async (data: Hex) => {
   };
 };
 
-export const signEscrowDepositMessage = async (m: EscrowDepositMessage) =>
-  sign(getEscrowDepositMessageId(m, await getSdkChainsConfig()));
+export const signDepositoryDepositMessage = async (
+  m: DepositoryDepositMessage
+) => sign(getDepositoryDepositMessageId(m, await getSdkChainsConfig()));
 
-export const signEscrowWithdrawalMessage = async (m: EscrowWithdrawalMessage) =>
-  sign(getEscrowWithdrawalMessageId(m, await getSdkChainsConfig()));
+export const signDepositoryWithdrawalMessage = async (
+  m: DepositoryWithdrawalMessage
+) => sign(getDepositoryWithdrawalMessageId(m, await getSdkChainsConfig()));
 
 export const signSolverFillMessage = async (m: SolverFillMessage) =>
   sign(getSolverFillMessageId(m, await getSdkChainsConfig()));

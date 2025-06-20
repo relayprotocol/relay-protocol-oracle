@@ -1,7 +1,7 @@
 import * as hl from "@nktkas/hyperliquid";
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
 } from "@reservoir0x/relay-protocol-sdk";
 
 import { Hex, parseUnits } from "viem";
@@ -13,18 +13,18 @@ import { VmAttestor } from "../../vm/types";
 const USDC_PERPS_CURRENCY = "0x00000000000000000000000000000000";
 
 export class HyperliquidVmAttestor extends VmAttestor {
-  public async getEscrowDepositMessages(
+  public async getDepositoryDepositMessages(
     _chainId: string,
     _transactionId: string
-  ): Promise<EscrowDepositMessage[]> {
-    throw internalError("Not implemented (getEscrowDepositMessages)");
+  ): Promise<DepositoryDepositMessage[]> {
+    throw internalError("Not implemented (getDepositoryDepositMessages)");
   }
 
-  public async getEscrowWithdrawalMessage(
+  public async getDepositoryWithdrawalMessage(
     _chainId: string,
     _withdrawal: string
-  ): Promise<EscrowWithdrawalMessage> {
-    throw internalError("Not implemented (getEscrowWithdrawalMessage)");
+  ): Promise<DepositoryWithdrawalMessage> {
+    throw internalError("Not implemented (getDepositoryWithdrawalMessage)");
   }
 
   public async getSolverPaidAmount(

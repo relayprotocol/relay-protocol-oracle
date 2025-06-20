@@ -11,7 +11,7 @@ jest.mock("../../../../src/common/chains", () => {
       id: "solana",
       vmType: "solana-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
-      escrow: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
+      depository: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
     },
   };
   return {
@@ -30,7 +30,7 @@ jest.mock("../../../../src/common/vm/solana-vm/rpc", () => {
 });
 
 describe("SolanaAttestationService", () => {
-  it("attestEscrowDeposits - should attest spl-token deposit event", async () => {
+  it("attestDepositoryDeposits - should attest spl-token deposit event", async () => {
     const logs = [
       "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u invoke [1]",
       "Program log: Instruction: DepositToken",
@@ -73,7 +73,7 @@ describe("SolanaAttestationService", () => {
     }));
 
     const service = new AttestationService();
-    const messages = await service.attestEscrowDeposits({
+    const messages = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
@@ -87,7 +87,7 @@ describe("SolanaAttestationService", () => {
     expect(msg.result.depositor).toBe(
       "61uUNRFVyDQsyne2cHzEmjA76UYpfsRKi2EaDoYH64Rs"
     );
-    expect(msg.result.escrow).toBe(
+    expect(msg.result.depository).toBe(
       "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
     );
     expect(msg.result.depositId).toBe(
@@ -95,7 +95,7 @@ describe("SolanaAttestationService", () => {
     );
   });
 
-  it("attestEscrowDeposits - should attest native deposit event", async () => {
+  it("attestDepositoryDeposits - should attest native deposit event", async () => {
     const logs = [
       "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u invoke [1]",
       "Program log: Instruction: DepositSol",
@@ -115,7 +115,7 @@ describe("SolanaAttestationService", () => {
     }));
 
     const service = new AttestationService();
-    const messages = await service.attestEscrowDeposits({
+    const messages = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
@@ -127,7 +127,7 @@ describe("SolanaAttestationService", () => {
     expect(msg.result.depositor).toBe(
       "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv"
     );
-    expect(msg.result.escrow).toBe(
+    expect(msg.result.depository).toBe(
       "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
     );
     expect(msg.result.depositId).toBe(
@@ -135,7 +135,7 @@ describe("SolanaAttestationService", () => {
     );
   });
 
-  it("attestEscrowDeposits - should return empty array when no events found", async () => {
+  it("attestDepositoryDeposits - should return empty array when no events found", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
       getParsedTransaction: () => ({
         meta: {
@@ -145,20 +145,20 @@ describe("SolanaAttestationService", () => {
     }));
 
     const service = new AttestationService();
-    const deposits = await service.attestEscrowDeposits({
+    const deposits = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
     expect(deposits).toEqual([]);
   });
 
-  it("attestEscrowDeposits - should handle missing transaction", async () => {
+  it("attestDepositoryDeposits - should handle missing transaction", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
       getParsedTransaction: () => null,
     }));
 
     const service = new AttestationService();
-    const deposits = await service.attestEscrowDeposits({
+    const deposits = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });

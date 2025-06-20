@@ -23,9 +23,9 @@ const Schema = {
               description: "The vm type of the chain",
             }
           ),
-          escrow: Type.Optional(
+          depository: Type.Optional(
             Type.String({
-              description: "The escrow address for the chain",
+              description: "The depository address for the chain",
             })
           ),
         }),
@@ -49,7 +49,7 @@ export default {
       chains: Object.values(chains).map((chain) => ({
         id: chain.id,
         vmType: chain.vmType,
-        escrow: chain.escrow,
+        depository: chain.depository,
       })),
     });
   },

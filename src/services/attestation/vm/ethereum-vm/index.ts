@@ -2,9 +2,9 @@ import {
   decodeOrderCall,
   decodeOrderExtraData,
   decodeWithdrawal,
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
-  EscrowWithdrawalStatus,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
+  DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 
@@ -28,8 +28,8 @@ import { httpRpc } from "../../../../common/vm/ethereum-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
 export const ABI = parseAbi([
-  "event EscrowNativeDeposit(address from, uint256 amount, bytes32 id)",
-  "event EscrowErc20Deposit(address from, address token, uint256 amount, bytes32 id)",
+  "event DepositoryNativeDeposit(address from, uint256 amount, bytes32 id)",
+  "event DepositoryErc20Deposit(address from, address token, uint256 amount, bytes32 id)",
   "event SolverNativeTransfer(address to, uint256 amount)",
   "event SolverCallExecuted(address to, bytes data, uint256 amount)",
   "event Transfer(address indexed from, address indexed to, uint256 amount)",
@@ -39,10 +39,10 @@ export const ABI = parseAbi([
 ]);
 
 export class EthereumVmAttestor extends VmAttestor {
-  public async getEscrowDepositMessages(
+  public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<EscrowDepositMessage[]> {
+  ): Promise<DepositoryDepositMessage[]> {
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
@@ -58,34 +58,38 @@ export class EthereumVmAttestor extends VmAttestor {
 
     const chain = await getChain(chainId);
 
-    const escrow = chain.escrow;
-    if (!escrow) {
-      throw externalError("Chain has no escrow configured");
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
     }
 
     // Parse and filter the logs we're interested in
     const parsedLogs = parseEventLogs({
       abi: ABI,
       logs: receipt.logs,
-      eventName: ["EscrowNativeDeposit", "EscrowErc20Deposit", "Transfer"],
+      eventName: [
+        "DepositoryNativeDeposit",
+        "DepositoryErc20Deposit",
+        "Transfer",
+      ],
     }).filter((log) => {
       if (
-        log.eventName === "EscrowNativeDeposit" &&
-        log.address.toLowerCase() === escrow.toLowerCase()
+        log.eventName === "DepositoryNativeDeposit" &&
+        log.address.toLowerCase() === depository.toLowerCase()
       ) {
         return true;
       }
 
       if (
-        log.eventName === "EscrowErc20Deposit" &&
-        log.address.toLowerCase() === escrow.toLowerCase()
+        log.eventName === "DepositoryErc20Deposit" &&
+        log.address.toLowerCase() === depository.toLowerCase()
       ) {
         return true;
       }
 
       if (
         log.eventName === "Transfer" &&
-        log.args.to.toLowerCase() === escrow.toLowerCase()
+        log.args.to.toLowerCase() === depository.toLowerCase()
       ) {
         return true;
       }
@@ -96,12 +100,12 @@ export class EthereumVmAttestor extends VmAttestor {
     // Sort the logs accordigng to their onchain order
     parsedLogs.sort((l1, l2) => l1.logIndex - l2.logIndex);
 
-    const messages: EscrowDepositMessage[] = [];
+    const messages: DepositoryDepositMessage[] = [];
     for (let i = 0; i < parsedLogs.length; i++) {
       const currentLog = parsedLogs[i];
       const nextLog = i + 1 < parsedLogs.length ? parsedLogs[i + 1] : undefined;
 
-      if (currentLog?.eventName === "EscrowNativeDeposit") {
+      if (currentLog?.eventName === "DepositoryNativeDeposit") {
         const depositId = currentLog.args.id.toLowerCase();
 
         messages.push({
@@ -115,7 +119,7 @@ export class EthereumVmAttestor extends VmAttestor {
               transactionId,
               currentLog.logIndex.toString()
             ),
-            escrow,
+            depository,
             depositId,
             depositor: currentLog.args.from.toLowerCase(),
             currency: zeroAddress,
@@ -132,7 +136,7 @@ export class EthereumVmAttestor extends VmAttestor {
         if (
           nextLog &&
           nextLog.logIndex === currentLog.logIndex + 1 &&
-          nextLog.eventName === "EscrowErc20Deposit" &&
+          nextLog.eventName === "DepositoryErc20Deposit" &&
           nextLog.args.token.toLowerCase() ===
             currentLog.address.toLowerCase() &&
           nextLog.args.amount === currentLog.args.amount
@@ -186,7 +190,7 @@ export class EthereumVmAttestor extends VmAttestor {
               transactionId,
               currentLog.logIndex.toString()
             ),
-            escrow,
+            depository,
             depositId: depositId ?? zeroHash,
             depositor,
             currency: currentLog.address.toLowerCase(),
@@ -199,16 +203,16 @@ export class EthereumVmAttestor extends VmAttestor {
     return messages;
   }
 
-  public async getEscrowWithdrawalMessage(
+  public async getDepositoryWithdrawalMessage(
     chainId: string,
     withdrawal: string
-  ): Promise<EscrowWithdrawalMessage> {
+  ): Promise<DepositoryWithdrawalMessage> {
     const rpc = await httpRpc(chainId);
     const chain = await getChain(chainId);
 
-    const escrow = chain.escrow;
-    if (!escrow) {
-      throw externalError("Chain has no escrow configured");
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
     }
 
     // TODO: Is there a way to check for finalization?
@@ -216,26 +220,26 @@ export class EthereumVmAttestor extends VmAttestor {
     const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
-    const escrowContract = getContract({
-      address: chain.escrow as Address,
+    const depositoryContract = getContract({
+      address: chain.depository as Address,
       abi: ABI,
       client: rpc,
     });
-    const isExecuted = await escrowContract.read.callRequests([
+    const isExecuted = await depositoryContract.read.callRequests([
       withdrawalId as Hex,
     ]);
 
-    let status: EscrowWithdrawalStatus;
+    let status: DepositoryWithdrawalStatus;
     if (isExecuted) {
-      status = EscrowWithdrawalStatus.EXECUTED;
+      status = DepositoryWithdrawalStatus.EXECUTED;
     } else {
       const chainTimestamp = await rpc
         .getBlock()
         .then((block) => block.timestamp);
       if (chainTimestamp > BigInt(decodedWithdrawal.withdrawal.expiration)) {
-        status = EscrowWithdrawalStatus.EXPIRED;
+        status = DepositoryWithdrawalStatus.EXPIRED;
       } else {
-        status = EscrowWithdrawalStatus.PENDING;
+        status = DepositoryWithdrawalStatus.PENDING;
       }
     }
 
@@ -246,7 +250,7 @@ export class EthereumVmAttestor extends VmAttestor {
       },
       result: {
         withdrawalId,
-        escrow,
+        depository,
         status,
       },
     };

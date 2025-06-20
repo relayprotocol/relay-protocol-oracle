@@ -1,6 +1,6 @@
 ## SUI Indexing
 
-<b>Deposits</b> are indexed based on the `DepositEvent` emitted by the escrow contract:
+<b>Deposits</b> are indexed based on the `DepositEvent` emitted by the depository contract:
 
 - All coin types (including native SUI and custom coins)
   - The deposit is tracked using the `DepositEvent` which includes the following parameters:
@@ -10,7 +10,7 @@
     - `deposit_id`: Unique identifier provided during the `deposit_coin` call
   - Each event emission corresponds to one deposit record indexed by the oracle
 
-<b>Withdrawals</b> are indexed based on the `TransferExecutedEvent` emitted by the escrow contract:
+<b>Withdrawals</b> are indexed based on the `TransferExecutedEvent` emitted by the depository contract:
 
 - Executed transfer requests via `execute_transfer` function
   - Withdrawals are tracked using `TransferExecutedEvent` containing:

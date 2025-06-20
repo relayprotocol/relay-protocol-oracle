@@ -1,6 +1,6 @@
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
   getOrderId,
   Order,
   SolverFillMessage,
@@ -15,19 +15,19 @@ import { getSdkChainsConfig } from "../../common/chains";
 import { externalError } from "../../common/error";
 
 export class AttestationService {
-  public async attestEscrowDeposits(
-    data: EscrowDepositMessage["data"]
-  ): Promise<EscrowDepositMessage[]> {
+  public async attestDepositoryDeposits(
+    data: DepositoryDepositMessage["data"]
+  ): Promise<DepositoryDepositMessage[]> {
     return getVmAttestor(data.chainId).then((attestor) =>
-      attestor.getEscrowDepositMessages(data.chainId, data.transactionId)
+      attestor.getDepositoryDepositMessages(data.chainId, data.transactionId)
     );
   }
 
-  public async attestEscrowWithdrawal(
-    data: EscrowWithdrawalMessage["data"]
-  ): Promise<EscrowWithdrawalMessage> {
+  public async attestDepositoryWithdrawal(
+    data: DepositoryWithdrawalMessage["data"]
+  ): Promise<DepositoryWithdrawalMessage> {
     return getVmAttestor(data.chainId).then((attestor) =>
-      attestor.getEscrowWithdrawalMessage(data.chainId, data.withdrawal)
+      attestor.getDepositoryWithdrawalMessage(data.chainId, data.withdrawal)
     );
   }
 
@@ -225,16 +225,16 @@ export class AttestationService {
           );
         }
 
-        // Get the escrow deposit corresponding to the current order input payment
-        const escrowDeposit = await this.attestEscrowDeposits({
+        // Get the depository deposit corresponding to the current order input payment
+        const depositoryDeposit = await this.attestDepositoryDeposits({
           chainId: orderInput.payment.chainId,
           transactionId: inputInformation.transactionId,
-        }).then((escrowDeposits) =>
-          escrowDeposits.find(
+        }).then((depositoryDeposits) =>
+          depositoryDeposits.find(
             (d) => d.result.onchainId === inputInformation.onchainId
           )
         );
-        if (!escrowDeposit) {
+        if (!depositoryDeposit) {
           throw externalError(
             `Invalid input information for order input payment ${inputPaymentIndex}`
           );
@@ -242,7 +242,7 @@ export class AttestationService {
 
         // Keep track of the total weighted paid amount
         totalWeightedPaidAmount +=
-          BigInt(escrowDeposit.result.amount) *
+          BigInt(depositoryDeposit.result.amount) *
           BigInt(orderInput.payment.weight);
       }
     }

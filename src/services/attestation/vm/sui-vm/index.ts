@@ -1,7 +1,7 @@
 import { SuiEvent } from "@mysten/sui/client";
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
 } from "@reservoir0x/relay-protocol-sdk";
 
 import { getOnchainId } from "../utils";
@@ -20,10 +20,10 @@ interface DepositEventData {
 }
 
 export class SuiVmAttestor extends VmAttestor {
-  public async getEscrowDepositMessages(
+  public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<EscrowDepositMessage[]> {
+  ): Promise<DepositoryDepositMessage[]> {
     const connection = await httpRpc(chainId);
     const transaction = await connection.getTransactionBlock({
       digest: transactionId,
@@ -37,23 +37,23 @@ export class SuiVmAttestor extends VmAttestor {
     }
 
     const chain = await getChain(chainId);
-    const escrow = chain.escrow;
-    if (!escrow) {
-      throw externalError("Chain has no escrow configured");
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
     }
 
     return this.parseTransactionLogs(
       chainId,
       transactionId,
       transaction.events,
-      escrow
+      depository
     );
   }
 
-  public async getEscrowWithdrawalMessage(
+  public async getDepositoryWithdrawalMessage(
     _chainId: string,
     _withdrawal: string
-  ): Promise<EscrowWithdrawalMessage> {
+  ): Promise<DepositoryWithdrawalMessage> {
     throw internalError("Not implemented");
   }
 
@@ -155,9 +155,9 @@ export class SuiVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string,
     events: SuiEvent[],
-    escrow: string
-  ): EscrowDepositMessage[] {
-    const messages: EscrowDepositMessage[] = [];
+    depository: string
+  ): DepositoryDepositMessage[] {
+    const messages: DepositoryDepositMessage[] = [];
 
     let messageIndex = 0;
     for (const event of events) {
@@ -166,7 +166,7 @@ export class SuiVmAttestor extends VmAttestor {
         chainId,
         transactionId,
         messageIndex++,
-        escrow
+        depository
       );
       if (message) {
         messages.push(message);
@@ -181,8 +181,8 @@ export class SuiVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string,
     messageIndex: number,
-    escrow: string
-  ): EscrowDepositMessage | undefined {
+    depository: string
+  ): DepositoryDepositMessage | undefined {
     const onchainId = getOnchainId(
       chainId,
       transactionId,
@@ -199,7 +199,7 @@ export class SuiVmAttestor extends VmAttestor {
         event.parsedJson as DepositEventData,
         onchainId,
         input,
-        escrow
+        depository
       );
     } else {
       return undefined;
@@ -210,13 +210,13 @@ export class SuiVmAttestor extends VmAttestor {
     event: DepositEventData,
     onchainId: string,
     data: { chainId: string; transactionId: string },
-    escrow: string
-  ): EscrowDepositMessage {
+    depository: string
+  ): DepositoryDepositMessage {
     return {
       data,
       result: {
         onchainId,
-        escrow,
+        depository,
         depositId: Buffer.from(event.deposit_id).toString("hex"),
         depositor: event.from,
         currency: event.coin_type.name,

@@ -1,4 +1,4 @@
-export const RelayEscrowIdl = {
+export const RelayDepositoryIdl = {
   address: "",
   metadata: {
     name: "relay_escrow",

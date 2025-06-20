@@ -3,19 +3,19 @@
     "id": "base",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-base.nodes.svc.cluster.local:8545/base",
-    "escrow": "0xb24ac15b9da6d88e283ffe048befe02e188ea64e"
+    "depository": "0xb24ac15b9da6d88e283ffe048befe02e188ea64e"
   },
   {
     "id": "arbitrum",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-arbitrum.nodes.svc.cluster.local:8545/arbitrum",
-    "escrow": "0x6544a81a7e3961b35040f6fc848294367822b6b9"
+    "depository": "0x6544a81a7e3961b35040f6fc848294367822b6b9"
   },
   {
     "id": "solana",
     "vmType": "solana-vm",
     "httpRpcUrl": "https://api.mainnet-beta.solana.com",
-    "escrow": "H7BhnmRd2wjuifbDRzjVMNZoXM7Y1qXh2cRAD24tQFr"
+    "depository": "H7BhnmRd2wjuifbDRzjVMNZoXM7Y1qXh2cRAD24tQFr"
   },
   {
     "id": "hyperliquid",

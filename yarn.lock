@@ -1299,10 +1299,10 @@
     is-ipfs "^0.6.0"
     path "^0.12.7"
 
-"@reservoir0x/relay-protocol-sdk@^0.0.28":
-  version "0.0.28"
-  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.28.tgz#344f898174d35dafa5962bb210117cd0c2de5095"
-  integrity sha512-jVVG5Y37qFxAtuhaxvqUHCTvt0M7Tbkz1fvYWdP36rKLSBttzPtgz+eW7mHDpY/nC7gdcEeTt/ACOEgcTTCt3Q==
+"@reservoir0x/relay-protocol-sdk@^0.0.29":
+  version "0.0.29"
+  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.29.tgz#892ba26cef948d39f87a58601aa60a1b7ae32fc4"
+  integrity sha512-C9gjl0Q4fG44sZusBLuSbeX5qBQyNuRy4r65+t8/6RHbscj0Aej3dSsof0Mct6zSRnx1IvJXHXmqA/BAPWTQYQ==
   dependencies:
     "@ton/core" "^0.60.1"
     "@ton/crypto" "^3.3.0"

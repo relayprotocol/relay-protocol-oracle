@@ -1,13 +1,13 @@
 import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
 } from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import bs58 from "bs58";
 
-import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
+import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
 import { getOnchainId } from "../utils";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
@@ -20,13 +20,13 @@ export class SolanaVmAttestor extends VmAttestor {
   constructor() {
     super();
 
-    this.eventCoder = new BorshEventCoder(RelayEscrowIdl as Idl);
+    this.eventCoder = new BorshEventCoder(RelayDepositoryIdl as Idl);
   }
 
-  public async getEscrowDepositMessages(
+  public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<EscrowDepositMessage[]> {
+  ): Promise<DepositoryDepositMessage[]> {
     const connection = await httpRpc(chainId);
 
     const transaction = await connection.getParsedTransaction(transactionId, {
@@ -39,23 +39,23 @@ export class SolanaVmAttestor extends VmAttestor {
     }
 
     const chain = await getChain(chainId);
-    const escrow = chain.escrow;
-    if (!escrow) {
-      throw externalError("Chain has no escrow configured");
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
     }
 
     return this._parseTransactionLogs(
       chainId,
       transactionId,
       transaction.meta.logMessages,
-      escrow
+      depository
     );
   }
 
-  public async getEscrowWithdrawalMessage(
+  public async getDepositoryWithdrawalMessage(
     _chainId: string,
     _withdrawal: string
-  ): Promise<EscrowWithdrawalMessage> {
+  ): Promise<DepositoryWithdrawalMessage> {
     throw internalError("Not implemented");
   }
 
@@ -200,9 +200,9 @@ export class SolanaVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string,
     logs: string[],
-    escrow: string
-  ): EscrowDepositMessage[] {
-    const messages: EscrowDepositMessage[] = [];
+    depository: string
+  ): DepositoryDepositMessage[] {
+    const messages: DepositoryDepositMessage[] = [];
 
     for (let i = 0; i < logs.length; i++) {
       const log = logs[i];
@@ -235,7 +235,7 @@ export class SolanaVmAttestor extends VmAttestor {
             result: {
               onchainId,
               depositId: "0x" + Buffer.from(eventData.id).toString("hex"),
-              escrow,
+              depository,
               depositor: eventData.depositor.toBase58(),
               currency: eventData.token
                 ? eventData.token.toBase58()

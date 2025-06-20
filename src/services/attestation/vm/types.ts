@@ -1,18 +1,18 @@
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
 } from "@reservoir0x/relay-protocol-sdk";
 
 export abstract class VmAttestor {
-  public abstract getEscrowDepositMessages(
+  public abstract getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<EscrowDepositMessage[]>;
+  ): Promise<DepositoryDepositMessage[]>;
 
-  public abstract getEscrowWithdrawalMessage(
+  public abstract getDepositoryWithdrawalMessage(
     chainId: string,
     withdrawal: string
-  ): Promise<EscrowWithdrawalMessage>;
+  ): Promise<DepositoryWithdrawalMessage>;
 
   public abstract getSolverPaidAmount(
     chainId: string,
