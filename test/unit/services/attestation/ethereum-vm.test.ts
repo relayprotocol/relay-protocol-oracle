@@ -165,7 +165,7 @@ const generateNativeDepositLog = ({
 }) => {
   const topics = encodeEventTopics({
     abi: ABI,
-    eventName: "DepositoryNativeDeposit",
+    eventName: "RelayNativeDeposit",
   });
   const data = encodeAbiParameters(
     [
@@ -204,7 +204,7 @@ const generateErc20DepositLog = ({
 }) => {
   const topics = encodeEventTopics({
     abi: ABI,
-    eventName: "DepositoryErc20Deposit",
+    eventName: "RelayErc20Deposit",
   });
   const data = encodeAbiParameters(
     [
@@ -555,7 +555,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestDepositoryDeposits - Transfer event with consecutive DepositoryErc20Deposit event", async () => {
+  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -604,7 +604,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestDepositoryDeposits - Transfer event with non-consecutive DepositoryErc20Deposit event", async () => {
+  it("attestDepositoryDeposits - Transfer event with non-consecutive RelayErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -653,7 +653,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(zeroHash);
   });
 
-  it("attestDepositoryDeposits - Transfer event with consecutive DepositoryErc20Deposit event but without id", async () => {
+  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit event but without id", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -705,7 +705,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(zeroHash);
   });
 
-  it("attestDepositoryDeposits - Transfer event with consecutive DepositoryErc20Deposit and different depositor", async () => {
+  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit and different depositor", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -760,7 +760,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestDepositoryDeposits - Transfer event with consecutive DepositoryErc20Deposit and different depositor and without id", async () => {
+  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit and different depositor and without id", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -814,7 +814,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(zeroHash);
   });
 
-  it("attestDepositoryDeposits - single DepositoryNativeDeposit event", async () => {
+  it("attestDepositoryDeposits - single RelayNativeDeposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -859,7 +859,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestDepositoryDeposits - single DepositoryNativeDeposit event without id", async () => {
+  it("attestDepositoryDeposits - single RelayNativeDeposit event without id", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];

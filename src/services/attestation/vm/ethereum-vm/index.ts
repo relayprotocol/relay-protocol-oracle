@@ -28,8 +28,8 @@ import { httpRpc } from "../../../../common/vm/ethereum-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
 export const ABI = parseAbi([
-  "event DepositoryNativeDeposit(address from, uint256 amount, bytes32 id)",
-  "event DepositoryErc20Deposit(address from, address token, uint256 amount, bytes32 id)",
+  "event RelayNativeDeposit(address from, uint256 amount, bytes32 id)",
+  "event RelayErc20Deposit(address from, address token, uint256 amount, bytes32 id)",
   "event SolverNativeTransfer(address to, uint256 amount)",
   "event SolverCallExecuted(address to, bytes data, uint256 amount)",
   "event Transfer(address indexed from, address indexed to, uint256 amount)",
@@ -67,21 +67,17 @@ export class EthereumVmAttestor extends VmAttestor {
     const parsedLogs = parseEventLogs({
       abi: ABI,
       logs: receipt.logs,
-      eventName: [
-        "DepositoryNativeDeposit",
-        "DepositoryErc20Deposit",
-        "Transfer",
-      ],
+      eventName: ["RelayNativeDeposit", "RelayErc20Deposit", "Transfer"],
     }).filter((log) => {
       if (
-        log.eventName === "DepositoryNativeDeposit" &&
+        log.eventName === "RelayNativeDeposit" &&
         log.address.toLowerCase() === depository.toLowerCase()
       ) {
         return true;
       }
 
       if (
-        log.eventName === "DepositoryErc20Deposit" &&
+        log.eventName === "RelayErc20Deposit" &&
         log.address.toLowerCase() === depository.toLowerCase()
       ) {
         return true;
@@ -105,7 +101,7 @@ export class EthereumVmAttestor extends VmAttestor {
       const currentLog = parsedLogs[i];
       const nextLog = i + 1 < parsedLogs.length ? parsedLogs[i + 1] : undefined;
 
-      if (currentLog?.eventName === "DepositoryNativeDeposit") {
+      if (currentLog?.eventName === "RelayNativeDeposit") {
         const depositId = currentLog.args.id.toLowerCase();
 
         messages.push({
@@ -136,7 +132,7 @@ export class EthereumVmAttestor extends VmAttestor {
         if (
           nextLog &&
           nextLog.logIndex === currentLog.logIndex + 1 &&
-          nextLog.eventName === "DepositoryErc20Deposit" &&
+          nextLog.eventName === "RelayErc20Deposit" &&
           nextLog.args.token.toLowerCase() ===
             currentLog.address.toLowerCase() &&
           nextLog.args.amount === currentLog.args.amount
