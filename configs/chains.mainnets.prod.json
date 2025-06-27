@@ -443,5 +443,15 @@
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-rari.nodes.svc.cluster.local:8545/rari"
+  },
+  {
+    "id": "solana",
+    "vmType": "solana-vm",
+    "httpRpcUrl": "https://api.mainnet-beta.solana.com"
+  },
+  {
+    "id": "hyperliquid",
+    "vmType": "hyperliquid-vm",
+    "httpRpcUrl": "https://api.hyperliquid.xyz"
   }
 ]
