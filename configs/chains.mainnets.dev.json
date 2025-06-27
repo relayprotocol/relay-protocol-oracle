@@ -3,31 +3,37 @@
     "id": "ethereum",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-ethereum.nodes.svc.cluster.local:8545/ethereum",
-    "depository": "0x14aa49fd5c2461892f63a3524561673f56a7ff72"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
   },
   {
     "id": "optimism",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-optimism.nodes.svc.cluster.local:8545/optimism",
-    "depository": "0x14aa49fd5c2461892f63a3524561673f56a7ff72"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
+  },
+  {
+    "id": "polygon",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-polygon.nodes.svc.cluster.local:8545/polygon",
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
   },
   {
     "id": "abstract",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-abstract.nodes.svc.cluster.local:8545/abstract",
-    "depository": "0x14aa49fd5c2461892f63a3524561673f56a7ff72"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
   },
   {
     "id": "base",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-base.nodes.svc.cluster.local:8545/base",
-    "depository": "0x14aa49fd5c2461892f63a3524561673f56a7ff72"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
   },
   {
     "id": "arbitrum",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-arbitrum.nodes.svc.cluster.local:8545/arbitrum",
-    "depository": "0x14aa49fd5c2461892f63a3524561673f56a7ff72"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
   },
   {
     "id": "solana",
