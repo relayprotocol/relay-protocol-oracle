@@ -1,1 +1,447 @@
-[]
+[
+  {
+    "id": "ethereum",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-ethereum.nodes.svc.cluster.local:8545/ethereum"
+  },
+  {
+    "id": "optimism",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-optimism.nodes.svc.cluster.local:8545/optimism"
+  },
+  {
+    "id": "cronos",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-cronos.nodes.svc.cluster.local:8545/cronos"
+  },
+  {
+    "id": "bnb",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-bsc.nodes.svc.cluster.local:8545/bsc"
+  },
+  {
+    "id": "gnosis",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-gnosis.nodes.svc.cluster.local:8545/gnosis"
+  },
+  {
+    "id": "polygon",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-polygon.nodes.svc.cluster.local:8545/polygon"
+  },
+  {
+    "id": "unichain",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-unichain.nodes.svc.cluster.local:8545/unichain"
+  },
+  {
+    "id": "sonic",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-sonic.nodes.svc.cluster.local:8545/sonic"
+  },
+  {
+    "id": "manta",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-manta-pacific.nodes.svc.cluster.local:8545/mantapacific"
+  },
+  {
+    "id": "mint",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-mint.nodes.svc.cluster.local:8545/mint"
+  },
+  {
+    "id": "boba",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-boba-eth.nodes.svc.cluster.local:8545/bobaeth"
+  },
+  {
+    "id": "zksync",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-zksync.nodes.svc.cluster.local:8545/zksync"
+  },
+  {
+    "id": "shape",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-shape.nodes.svc.cluster.local:8545/shape"
+  },
+  {
+    "id": "appchain",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-appchain.nodes.svc.cluster.local:8545/appchain"
+  },
+  {
+    "id": "worldchain",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-worldchain.nodes.svc.cluster.local:8545/worldchain"
+  },
+  {
+    "id": "redstone",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-redstone.nodes.svc.cluster.local:8545/redstone"
+  },
+  {
+    "id": "flow",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://mainnet.evm.nodes.onflow.org"
+  },
+  {
+    "id": "hyperevm",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://methodical-skilled-reel.hype-mainnet.quiknode.pro/14a843f8acfb585606cd057010e0d236beda0b85/evm"
+  },
+  {
+    "id": "metis",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-metis.nodes.svc.cluster.local:8545/metis"
+  },
+  {
+    "id": "polygon_zkevm",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-polygon-zkevm.nodes.svc.cluster.local:8545/polygonzkevm"
+  },
+  {
+    "id": "lisk",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-lisk.nodes.svc.cluster.local:8545/lisk"
+  },
+  {
+    "id": "sei",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-sei.nodes.svc.cluster.local:8545/sei"
+  },
+  {
+    "id": "perennial",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-perennial.nodes.svc.cluster.local:8545/perennial"
+  },
+  {
+    "id": "story",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-story.nodes.svc.cluster.local:8545/story"
+  },
+  {
+    "id": "gravity",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-gravity-alpha.nodes.svc.cluster.local:8545/gravityalpha"
+  },
+  {
+    "id": "soneium",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-soneium.nodes.svc.cluster.local:8545/soneium"
+  },
+  {
+    "id": "swellchain",
+    "additionalNotes": "Verification failed due to unknown reason",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://swell-mainnet.alt.technology"
+  },
+  {
+    "id": "sanko",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-sanko.nodes.svc.cluster.local:8545/sanko"
+  },
+  {
+    "id": "ronin",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-ronin.nodes.svc.cluster.local:8545/ronin"
+  },
+  {
+    "id": "game7",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-game7.nodes.svc.cluster.local:8545/game7"
+  },
+  {
+    "id": "abstract",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-abstract.nodes.svc.cluster.local:8545/abstract"
+  },
+  {
+    "id": "morph",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://blissful-blissful-frog.morph-mainnet.quiknode.pro/2be9b5f5c18cdadbaa181a055a75c12237197fee/"
+  },
+  {
+    "id": "hychain",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-hychain.nodes.svc.cluster.local:8545/hychain"
+  },
+  {
+    "id": "mantle",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-mantle.nodes.svc.cluster.local:8545/mantle"
+  },
+  {
+    "id": "ham",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-ham.nodes.svc.cluster.local:8545/ham"
+  },
+  {
+    "id": "superseed",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-superseed.nodes.svc.cluster.local:8545/superseed"
+  },
+  {
+    "id": "cyber",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-cyber.nodes.svc.cluster.local:8545/cyber"
+  },
+  {
+    "id": "powerloom",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-powerloom.nodes.svc.cluster.local:8545/powerloom"
+  },
+  {
+    "id": "arena_z",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-arena-z.nodes.svc.cluster.local:8545/arenaz"
+  },
+  {
+    "id": "b3",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-b3.nodes.svc.cluster.local:8545/b3"
+  },
+  {
+    "id": "base",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-base.nodes.svc.cluster.local:8545/base"
+  },
+  {
+    "id": "onchain_points",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-onchain-points.nodes.svc.cluster.local:8545/onchainpoints"
+  },
+  {
+    "id": "apechain",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-apechain.nodes.svc.cluster.local:8545/apechain"
+  },
+  {
+    "id": "funki",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-funki.nodes.svc.cluster.local:8545/funki"
+  },
+  {
+    "id": "mode",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-mode.nodes.svc.cluster.local:8545/mode"
+  },
+  {
+    "id": "arbitrum",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-arbitrum.nodes.svc.cluster.local:8545/arbitrum"
+  },
+  {
+    "id": "arbitrum_nova",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-arbitrum-nova.nodes.svc.cluster.local:8545/arbitrumnova"
+  },
+  {
+    "id": "celo",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-celo.nodes.svc.cluster.local:8545/celo"
+  },
+  {
+    "id": "hemi",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-hemi.nodes.svc.cluster.local:8545/hemi"
+  },
+  {
+    "id": "avalanche",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-avalanche.nodes.svc.cluster.local:8545/avalanche"
+  },
+  {
+    "id": "gunz",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://rpc.gunzchain.io/ext/bc/2M47TxWHGnhNtq6pM5zPXdATBtuqubxn5EPFgFmEawCQr9WFML/rpc"
+  },
+  {
+    "id": "zircuit",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://mainnet.zircuit.com"
+  },
+  {
+    "id": "superposition",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-superposition.nodes.svc.cluster.local:8545/superposition"
+  },
+  {
+    "id": "ink",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-ink.nodes.svc.cluster.local:8545/ink"
+  },
+  {
+    "id": "linea",
+    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-linea.nodes.svc.cluster.local:8545/linea"
+  },
+  {
+    "id": "bob",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-bob.nodes.svc.cluster.local:8545/bob"
+  },
+  {
+    "id": "anime",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://rpc-animechain-39xf6m45e3.t.conduit.xyz/FkJa1BMrbHboCvbfrCZJH9U5CHWpr3skv"
+  },
+  {
+    "id": "apex",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-apex.nodes.svc.cluster.local:8545/apex"
+  },
+  {
+    "id": "boss",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-boss.nodes.svc.cluster.local:8545/boss"
+  },
+  {
+    "id": "berachain",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://convincing-stylish-star.bera-mainnet.quiknode.pro/42d263fcf68affdc9853ddeefb3f8839a6410f7a/"
+  },
+  {
+    "id": "blast",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-blast.nodes.svc.cluster.local:8545/blast"
+  },
+  {
+    "id": "plume",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-plume.nodes.svc.cluster.local:8545/plume"
+  },
+  {
+    "id": "taiko",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-taiko.nodes.svc.cluster.local:8545/taiko"
+  },
+  {
+    "id": "scroll",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-scroll.nodes.svc.cluster.local:8545/scroll"
+  },
+  {
+    "id": "zero",
+    "depository": "0xa88cf7864951147a08707ed732237eaa9b1c3b9b",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-zero.nodes.svc.cluster.local:8545/zero"
+  },
+  {
+    "id": "xai",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-xai.nodes.svc.cluster.local:8545/xai"
+  },
+  {
+    "id": "katana",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://rpc.katanarpc.com/FkJa1BMrbHboCvbfrCZJH9U5CHWpr3skv"
+  },
+  {
+    "id": "forma",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-forma.nodes.svc.cluster.local:8545/forma"
+  },
+  {
+    "id": "zora",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-zora.nodes.svc.cluster.local:8545/zora"
+  },
+  {
+    "id": "corn",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-corn.nodes.svc.cluster.local:8545/corn"
+  },
+  {
+    "id": "lordchain",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://lordchain-rpc.appchain.base.org"
+  },
+  {
+    "id": "degen",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-degen.nodes.svc.cluster.local:8545/degen"
+  },
+  {
+    "id": "ancient8",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-ancient8.nodes.svc.cluster.local:8545/ancient8"
+  },
+  {
+    "id": "rari",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-rari.nodes.svc.cluster.local:8545/rari"
+  }
+]
