@@ -446,7 +446,7 @@
   },
   {
     "id": "solana",
-    "depository": "5CdJurnC4uskc9fyUqPmsWZJcwc7XzyLrEWRanUtDYJT",
+    "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
     "vmType": "solana-vm",
     "httpRpcUrl": "https://api.mainnet-beta.solana.com"
   },
