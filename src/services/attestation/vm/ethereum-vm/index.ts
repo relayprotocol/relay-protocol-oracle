@@ -211,8 +211,6 @@ export class EthereumVmAttestor extends VmAttestor {
       throw externalError("Chain has no depository configured");
     }
 
-    // TODO: Is there a way to check for finalization?
-
     const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
@@ -232,7 +230,10 @@ export class EthereumVmAttestor extends VmAttestor {
       const chainTimestamp = await rpc
         .getBlock()
         .then((block) => block.timestamp);
-      if (chainTimestamp > BigInt(decodedWithdrawal.withdrawal.expiration)) {
+      if (
+        chainTimestamp - this._FINALIZATION_TIME >
+        BigInt(decodedWithdrawal.withdrawal.expiration)
+      ) {
         status = DepositoryWithdrawalStatus.EXPIRED;
       } else {
         status = DepositoryWithdrawalStatus.PENDING;
@@ -401,6 +402,8 @@ export class EthereumVmAttestor extends VmAttestor {
     return true;
   }
 
+  private _FINALIZATION_TIME = 60n;
+
   private async _ensureTxFinalization(chainId: string, tx: TransactionReceipt) {
     const rpc = await httpRpc(chainId);
 
@@ -408,7 +411,7 @@ export class EthereumVmAttestor extends VmAttestor {
     const txTimestamp = await rpc
       .getBlock({ blockNumber: tx.blockNumber })
       .then((b) => b.timestamp);
-    if (latestBlockTimestamp - txTimestamp < 60) {
+    if (latestBlockTimestamp - txTimestamp < this._FINALIZATION_TIME) {
       throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
     }
   }
