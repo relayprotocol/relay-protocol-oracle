@@ -20,4 +20,18 @@ The status of withdrawals is determined by a call to the `function callRequests(
 
 ### Solver fills
 
+To determine whether an order was successfully filled, the oracle will compare the amount(s) received by the order's recipient to the output amount(s) initially agreed in the order. In case the corresponding order initiation deposit paid the solver either more, or less, than the amount specified by the order, the oracle will adjust the output amount(s) required by the order. The logic to determine the amount received by the order's recipient depends on the output currency:
+
+- native tokens
+  - if the fill transaction is a simple transfer to the recipient, then the amount is determined based on the transaction's `value`
+  - otherwise, the amount is determined from `SolverNativeTransfer(address to, uint256 amount)` event emitted on the fill contract specified by the order's output `extraData` field
+- erc20 tokens
+  - the amount is determined based on the standard erc20 `Transfer(address indexed from, address indexed to, uint256 amount)` where the `to` address is the order's recipient
+
+If the order's output specifies any calls to be executed, the oracle will verify those based on the `SolverCallExecuted(address to, bytes data, uint256 amount)` event emitted on the fill contract specified by the order's output `extraData` field.
+
+The oracle also ensures the fill transaction's `data` last 32 bytes reference the corresponding order id. This is needed to ensure the solver is not able to reuse previous fill transactions for a new similar order.
+
 ### Solver refunds
+
+The logic to determine payment of refunds is exactly the same as the logic described above to handle payments for successful fills.
