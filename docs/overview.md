@@ -7,8 +7,6 @@ The Relay oracle is responsible for attesting the following four core onchain ac
 - fills executed by solver
 - refunds executed by solver
 
-See [`relay-protocol-contracts`](github.com/relayprotocol/relay-protocol-contracts) for the actual implementation of the Relay depository contract across various VM types.
-
 The attestation logic the oracle uses depends on the VM type of the chain being indexed, as follows:
 
 - [ethereum-vm](./indexing/ethereum-vm.md)
