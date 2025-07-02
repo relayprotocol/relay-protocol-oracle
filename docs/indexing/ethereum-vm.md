@@ -1,4 +1,4 @@
-## Ethereum VM indexing
+## `ethereum-vm` indexing
 
 <b>Deposits</b> are indexed in two different ways, depending on the currency that's being deposited:
 
