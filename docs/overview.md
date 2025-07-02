@@ -13,8 +13,6 @@ The attestation logic the oracle uses depends on the VM type of the chain being 
 
 - [ethereum-vm](./indexing/ethereum-vm.md)
 - [solana-vm](./indexing/solana-vm.md)
-- [sui-vm](./indexing/sui-vm.md)
-- [ton-vm](./indexing/ton-vm.md)
 
 ### Deposits
 
