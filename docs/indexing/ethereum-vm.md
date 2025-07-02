@@ -24,7 +24,7 @@ To determine whether an order was successfully filled, the oracle will compare t
 
 - native tokens
   - if the fill transaction is a simple transfer to the recipient, then the amount is determined based on the transaction's `value`
-  - otherwise, the amount is determined from `SolverNativeTransfer(address to, uint256 amount)` event emitted on the fill contract specified by the order's output `extraData` field
+  - otherwise, the amount is determined from `SolverNativeTransfer(address to, uint256 amount)` events where to `to` address is the order's recipient, emitted on the fill contract specified by the order's output `extraData` field
 - erc20 tokens
   - the amount is determined based on the standard erc20 `Transfer(address indexed from, address indexed to, uint256 amount)` where the `to` address is the order's recipient
 
