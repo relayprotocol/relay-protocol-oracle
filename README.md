@@ -1,4 +1,4 @@
-## Relay oracle
+## Relay Oracle
 
 > #### Reference implementation of a Relay protocol oracle
 

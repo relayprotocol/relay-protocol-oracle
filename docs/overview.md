@@ -1,6 +1,6 @@
 ## Overview
 
-The Relay oracle is responsible for attesting the following four core onchain actions:
+The Relay Oracle is responsible for attesting the following four core onchain actions:
 
 - deposits into depository
 - withdrawals from depository
