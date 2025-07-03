@@ -105,7 +105,7 @@
     "id": "hyperevm",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "https://methodical-skilled-reel.hype-mainnet.quiknode.pro/14a843f8acfb585606cd057010e0d236beda0b85/evm"
+    "httpRpcUrl": "https://rpc.hyperliquid.xyz/evm"
   },
   {
     "id": "metis",
@@ -190,7 +190,7 @@
     "id": "morph",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "https://blissful-blissful-frog.morph-mainnet.quiknode.pro/2be9b5f5c18cdadbaa181a055a75c12237197fee/"
+    "httpRpcUrl": "https://rpc.morphl2.io"
   },
   {
     "id": "hychain",
@@ -358,7 +358,7 @@
     "id": "berachain",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "https://convincing-stylish-star.bera-mainnet.quiknode.pro/42d263fcf68affdc9853ddeefb3f8839a6410f7a/"
+    "httpRpcUrl": "https://rpc.berachain.com"
   },
   {
     "id": "blast",
@@ -400,7 +400,7 @@
     "id": "katana",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "https://rpc.katanarpc.com/FkJa1BMrbHboCvbfrCZJH9U5CHWpr3skv"
+    "httpRpcUrl": "https://rpc.katana.network"
   },
   {
     "id": "forma",
