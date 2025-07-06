@@ -146,7 +146,7 @@ export class EthereumVmAttestor extends VmAttestor {
 
         // If the transaction involves a single `Transfer` event and the calldata matches a standard ERC20 transfer,
         // take the deposit id from the end of calldata (if the end of calldata has at least 32 bytes)
-        if (!depositId && parsedLogs.length === 1) {
+        if (!depositId && receipt.logs.length === 1) {
           const transactionCalldata = (
             await rpc.getTransaction({ hash: transactionId as Hex })
           ).input;
