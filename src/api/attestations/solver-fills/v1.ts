@@ -1,5 +1,4 @@
 import { Type } from "@fastify/type-provider-typebox";
-import { SolverFillStatus } from "@reservoir0x/relay-protocol-sdk";
 
 import {
   Endpoint,
@@ -7,11 +6,13 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
+import { signSolverFillMessage } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
   order: Type.Object(
     {
+      version: Type.Literal("v1"),
       solverChainId: Type.String(),
       solver: Type.String(),
       salt: Type.String(),
@@ -98,15 +99,21 @@ const Schema = {
             orderId: Type.String({
               description: "The id of the attested order",
             }),
-            status: Type.Union(
-              [Type.Literal("failed"), Type.Literal("successful")],
-              {
-                description: "The status of the solver fill",
-              }
-            ),
+            status: Type.Number({
+              description:
+                "The status of the solver fill (0 = failed, 1 = successful)",
+            }),
             totalWeightedInputPaymentBpsDiff: Type.String({
               description:
                 "The bps difference between the quoted amount and the deposited amount",
+            }),
+          }),
+          signature: Type.Object({
+            oracle: Type.String({
+              description: "The address of the signing oracle",
+            }),
+            signature: Type.String({
+              description: "The message signature",
             }),
           }),
         },
@@ -120,7 +127,7 @@ const Schema = {
 
 export default {
   method: "POST",
-  url: "/attestations/solver-fill/v1",
+  url: "/attestations/solver-fills/v1",
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,
@@ -131,14 +138,9 @@ export default {
 
     return reply.send({
       message: {
-        ...message,
-        result: {
-          ...message.result,
-          status:
-            message.result.status === SolverFillStatus.FAILED
-              ? "failed"
-              : "successful",
-        },
+        data: message.data,
+        result: message.result,
+        signature: await signSolverFillMessage(message),
       },
     });
   },

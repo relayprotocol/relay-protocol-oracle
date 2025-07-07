@@ -1,5 +1,4 @@
 import { Type } from "@fastify/type-provider-typebox";
-import { SolverRefundStatus } from "@reservoir0x/relay-protocol-sdk";
 
 import {
   Endpoint,
@@ -7,11 +6,13 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
+import { signSolverRefundMessage } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
   order: Type.Object(
     {
+      version: Type.Literal("v1"),
       solverChainId: Type.String(),
       solver: Type.String(),
       salt: Type.String(),
@@ -106,15 +107,21 @@ const Schema = {
             orderId: Type.String({
               description: "The id of the attested order",
             }),
-            status: Type.Union(
-              [Type.Literal("failed"), Type.Literal("successful")],
-              {
-                description: "The status of the solver refund",
-              }
-            ),
+            status: Type.Number({
+              description:
+                "The status of the solver refund (0 = failed, 1 = successful)",
+            }),
             totalWeightedInputPaymentBpsDiff: Type.String({
               description:
                 "The bps difference between the quoted amount and the deposited amount",
+            }),
+          }),
+          signature: Type.Object({
+            oracle: Type.String({
+              description: "The address of the signing oracle",
+            }),
+            signature: Type.String({
+              description: "The message signature",
             }),
           }),
         },
@@ -128,7 +135,7 @@ const Schema = {
 
 export default {
   method: "POST",
-  url: "/attestations/solver-refund/v1",
+  url: "/attestations/solver-refunds/v1",
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,
@@ -139,14 +146,9 @@ export default {
 
     return reply.send({
       message: {
-        ...message,
-        result: {
-          ...message.result,
-          status:
-            message.result.status === SolverRefundStatus.FAILED
-              ? "failed"
-              : "successful",
-        },
+        data: message.data,
+        result: message.result,
+        signature: await signSolverRefundMessage(message),
       },
     });
   },

@@ -1,30 +1,22 @@
-import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
+import * as anchor from "@coral-xyz/anchor";
+import { BorshEventCoder, Idl, Program } from "@coral-xyz/anchor";
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
   decodeWithdrawal,
-  EscrowWithdrawalStatus,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
+  DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
-import { PublicKey, SystemProgram, Keypair } from "@solana/web3.js";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
 import bs58 from "bs58";
 
-import { IDL as RelayEscrowIdl, RelayEscrow } from "./idls/RelayEscrowIdl";
+import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
 import { getOnchainId } from "../utils";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 import { VmAttestor } from "../../vm/types";
-import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
-
-interface DepositEventData {
-  depositor: PublicKey;
-  token: PublicKey | null;
-  amount: bigint;
-  id: number[];
-}
 
 export class SolanaVmAttestor extends VmAttestor {
   private readonly eventCoder: BorshEventCoder;
@@ -32,76 +24,90 @@ export class SolanaVmAttestor extends VmAttestor {
   constructor() {
     super();
 
-    this.eventCoder = new BorshEventCoder(RelayEscrowIdl as Idl);
+    this.eventCoder = new BorshEventCoder(RelayDepositoryIdl as Idl);
   }
 
-  public async getEscrowDepositMessages(
+  public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<EscrowDepositMessage[]> {
-    const connection = await httpRpc(chainId);
-    const transaction = await connection.getParsedTransaction(transactionId, {
+  ): Promise<DepositoryDepositMessage[]> {
+    const rpc = await httpRpc(chainId, "finalized");
+
+    const transaction = await rpc.getParsedTransaction(transactionId, {
       maxSupportedTransactionVersion: 0,
     });
-
     if (!transaction?.meta?.logMessages) {
       return [];
     }
 
-    return this.parseTransactionLogs(
+    const chain = await getChain(chainId);
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
+    return this._parseTransactionLogs(
       chainId,
       transactionId,
       transaction.meta.logMessages,
-      await getChain(chainId).then((chain) => chain.escrow)
+      depository
     );
   }
 
-  public async getEscrowWithdrawalMessage(
-      chainId: string,
-      withdrawal: string
-    ): Promise<EscrowWithdrawalMessage> {
-    const rpc = await httpRpc(chainId);
+  public async getDepositoryWithdrawalMessage(
+    chainId: string,
+    withdrawal: string
+  ): Promise<DepositoryWithdrawalMessage> {
+    const rpc = await httpRpc(chainId, "finalized");
     const chain = await getChain(chainId);
+
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
 
     const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
-    const randomWallet = Keypair.generate();
-    const program = new Program<RelayEscrow>(
-      RelayEscrowIdl as RelayEscrow,
-      new PublicKey(chain.escrow),
-      new anchor.AnchorProvider(rpc, new anchor.Wallet(randomWallet), {
-        commitment: "processed"
-      })
+
+    const program = new Program(
+      {
+        address: depository,
+        ...RelayDepositoryIdl,
+      } as Idl,
+      new anchor.AnchorProvider(
+        new anchor.web3.Connection(rpc.rpcEndpoint, "finalized"),
+        new anchor.Wallet(anchor.web3.Keypair.generate())
+      )
     );
 
-    const requestHash = Buffer.from(withdrawalId, 'hex');
-    const [requestPDA] = await PublicKey.findProgramAddress(
-      [
-        Buffer.from("used_request"),
-        requestHash
-      ],
+    const [usedRequestPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("used_request"), Buffer.from(withdrawalId, "hex")],
       program.programId
     );
 
-    let usedRequestState;
+    let usedRequestState: { isUsed: boolean } | undefined;
     try {
-      usedRequestState = await program.account.usedRequest.fetch(requestPDA);
-    } catch (error) {
-      usedRequestState = null;
+      usedRequestState = await (program.account as any).usedRequest.fetch(
+        usedRequestPda
+      );
+    } catch {
+      // Skip errors (`usedRequestState` will be undefined if not found)
     }
 
-    let status: EscrowWithdrawalStatus;
+    let status: DepositoryWithdrawalStatus;
     if (usedRequestState && usedRequestState.isUsed) {
-      status = EscrowWithdrawalStatus.EXECUTED;
+      status = DepositoryWithdrawalStatus.EXECUTED;
     } else {
       const chainTimestamp = await rpc.getBlockTime(await rpc.getSlot());
       if (!chainTimestamp) {
         throw internalError("Failed to fetch Solana block time");
       }
-      if (BigInt(chainTimestamp) > BigInt(decodedWithdrawal.withdrawal.expiration)) {
-        status = EscrowWithdrawalStatus.EXPIRED;
+      if (
+        BigInt(chainTimestamp) > BigInt(decodedWithdrawal.withdrawal.expiration)
+      ) {
+        status = DepositoryWithdrawalStatus.EXPIRED;
       } else {
-        status = EscrowWithdrawalStatus.PENDING;
+        status = DepositoryWithdrawalStatus.PENDING;
       }
     }
 
@@ -112,7 +118,7 @@ export class SolanaVmAttestor extends VmAttestor {
       },
       result: {
         withdrawalId,
-        escrow: chain.escrow,
+        depository,
         status,
       },
     };
@@ -130,14 +136,16 @@ export class SolanaVmAttestor extends VmAttestor {
     }
   ): Promise<bigint> {
     const connection = await httpRpc(chainId);
+
     // Get the transaction details
     const transaction = await connection.getTransaction(transactionId, {
       maxSupportedTransactionVersion: 0,
+      // Ensure the transaction is finalized
+      commitment: "finalized",
     });
     if (!transaction) {
       throw externalError(`Missing transaction: ${transactionId}`);
     }
-
     if (transaction.meta?.err) {
       throw externalError(`Transaction failed: ${transactionId}`);
     }
@@ -247,21 +255,22 @@ export class SolanaVmAttestor extends VmAttestor {
   public verifySolverCalls(
     _chainId: string,
     _transactionId: string,
-    _calls: string[]
+    _calls: string[],
+    _extraData: string
   ): Promise<boolean> {
     throw internalError("Not implemented");
   }
 
-  private parseTransactionLogs(
+  private _parseTransactionLogs(
     chainId: string,
     transactionId: string,
     logs: string[],
-    escrow: string
-  ): EscrowDepositMessage[] {
-    const messages: EscrowDepositMessage[] = [];
+    depository: string
+  ): DepositoryDepositMessage[] {
+    const messages: DepositoryDepositMessage[] = [];
 
-    let messageIndex = 0;
-    for (const log of logs) {
+    for (let i = 0; i < logs.length; i++) {
+      const log = logs[i];
       if (!log.startsWith("Program data: ")) {
         continue;
       }
@@ -274,15 +283,31 @@ export class SolanaVmAttestor extends VmAttestor {
           continue;
         }
 
-        const message = this.createMessageFromEvent(
-          event,
-          chainId,
-          transactionId,
-          messageIndex++,
-          escrow
-        );
-        if (message) {
-          messages.push(message);
+        if (event.name === "DepositEvent") {
+          const eventData = event.data as {
+            depositor: PublicKey;
+            token: PublicKey | null;
+            amount: bigint;
+            id: number[];
+          };
+
+          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          messages.push({
+            data: {
+              chainId,
+              transactionId,
+            },
+            result: {
+              onchainId,
+              depositId: "0x" + Buffer.from(eventData.id).toString("hex"),
+              depository,
+              depositor: eventData.depositor.toBase58(),
+              currency: eventData.token
+                ? eventData.token.toBase58()
+                : SystemProgram.programId.toBase58(),
+              amount: eventData.amount.toString(),
+            },
+          });
         }
       } catch {
         // Skip errors
@@ -290,60 +315,5 @@ export class SolanaVmAttestor extends VmAttestor {
     }
 
     return messages;
-  }
-
-  private createMessageFromEvent(
-    event: any,
-    chainId: string,
-    transactionId: string,
-    messageIndex: number,
-    escrow: string
-  ): EscrowDepositMessage | undefined {
-    const onchainId = getOnchainId(
-      chainId,
-      transactionId,
-      messageIndex.toString()
-    );
-
-    const input = {
-      chainId,
-      transactionId,
-    };
-
-    switch (event.name) {
-      case "DepositEvent": {
-        return this.createDepositMessage(
-          event.data as DepositEventData,
-          onchainId,
-          input,
-          escrow
-        );
-      }
-
-      default: {
-        return undefined;
-      }
-    }
-  }
-
-  private createDepositMessage(
-    event: DepositEventData,
-    onchainId: string,
-    data: { chainId: string; transactionId: string },
-    escrow: string
-  ): EscrowDepositMessage {
-    return {
-      data,
-      result: {
-        onchainId,
-        depositId: Buffer.from(event.id).toString("hex"),
-        escrow,
-        depositor: event.depositor.toBase58(),
-        currency: event.token
-          ? event.token.toBase58()
-          : SystemProgram.programId.toBase58(),
-        amount: event.amount.toString(),
-      },
-    };
   }
 }

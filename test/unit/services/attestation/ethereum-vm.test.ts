@@ -2,7 +2,7 @@ import { describe, expect, it, jest } from "@jest/globals";
 import {
   decodeWithdrawal,
   encodeWithdrawal,
-  EscrowWithdrawalStatus,
+  DepositoryWithdrawalStatus,
   getOrderId,
   Order,
   SolverFillStatus,
@@ -42,7 +42,7 @@ jest.mock("../../../../src/common/chains", () => {
       id: "ethereum",
       vmType: "ethereum-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
-      escrow: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
+      depository: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
     },
   };
   return {
@@ -165,7 +165,7 @@ const generateNativeDepositLog = ({
 }) => {
   const topics = encodeEventTopics({
     abi: ABI,
-    eventName: "EscrowNativeDeposit",
+    eventName: "RelayNativeDeposit",
   });
   const data = encodeAbiParameters(
     [
@@ -204,7 +204,7 @@ const generateErc20DepositLog = ({
 }) => {
   const topics = encodeEventTopics({
     abi: ABI,
-    eventName: "EscrowErc20Deposit",
+    eventName: "RelayErc20Deposit",
   });
   const data = encodeAbiParameters(
     [
@@ -278,6 +278,7 @@ function createTestOrder({
   outputCurrency?: string;
 }): Order {
   return {
+    version: "v1",
     salt: "0x1",
     solverChainId: "ethereum",
     solver: solverAddress,
@@ -362,14 +363,14 @@ function setupTestData(): TestSetupParams {
 function createDepositTransaction(params: {
   depositTxHash: string;
   depositorAddress: string;
-  escrowAddress: string;
+  depositoryAddress: string;
   tokenAddress: string;
   paymentAmount: string;
 }) {
   const {
     depositTxHash,
     depositorAddress,
-    escrowAddress,
+    depositoryAddress,
     tokenAddress,
     paymentAmount,
   } = params;
@@ -378,7 +379,7 @@ function createDepositTransaction(params: {
     transactionHash: depositTxHash,
     logIndex: 0,
     from: depositorAddress,
-    to: escrowAddress,
+    to: depositoryAddress,
     token: tokenAddress,
     amount: paymentAmount,
   });
@@ -432,51 +433,31 @@ function createRefundTransaction(params: {
   return generateTransactionReceipt(refundTxHash, [refundNativeTransferLog]);
 }
 
-// Create mock RPC data
-function createMockRpcData(params: {
-  transactions: Record<string, { input: string; receipt: any }>;
-  currentTimestamp: number;
-}) {
-  const { transactions, currentTimestamp } = params;
-
-  return {
-    transactions,
-    block: {
-      timestamp: BigInt(currentTimestamp),
-      hash: randomHex(32),
-      parentHash: randomHex(32),
-    },
-  };
-}
-
-// Setup RPC mock implementation
-function setupRpcMock(mockRpcData: any) {
+function setupRpcMock(mockData: any) {
   (httpRpc as jest.Mock).mockImplementation(() => ({
-    getTransaction: ({ hash }: { hash: string }) => {
-      const txData = mockRpcData.transactions[hash];
-      if (!txData) {
-        throw new Error(`Invalid transaction ID: ${hash}`);
-      }
+    getTransaction: async ({ hash }: { hash: string }) => {
+      const txData = mockData.transactions[hash];
       return { input: txData.input };
     },
-    getTransactionReceipt: ({ hash }: { hash: string }) => {
-      const txData = mockRpcData.transactions[hash];
-      if (!txData) {
-        throw new Error(`Invalid transaction ID: ${hash}`);
-      }
+    getTransactionReceipt: async ({ hash }: { hash: string }) => {
+      const txData = mockData.transactions[hash];
       return txData.receipt;
     },
-    getBlock: ({ blockNumber }: { blockNumber: bigint }) => {
-      return Promise.resolve({
-        ...mockRpcData.block,
-        number: blockNumber,
-      });
-    },
+    getBlock: getBlockMock,
   }));
 }
 
+const getBlockMock = async (data?: any) => {
+  const now = Math.floor(Date.now() / 1000);
+  if (!data || data.blockTag === "latest") {
+    return { timestamp: now + 60 * 2 };
+  } else {
+    return { timestamp: now };
+  }
+};
+
 describe("EvmAttestationService", () => {
-  it("attestEscrowDeposits - single Transfer event", async () => {
+  it("attestDepositoryDeposits - single Transfer event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -490,7 +471,7 @@ describe("EvmAttestationService", () => {
       transactionHash,
       logIndex: 0,
       from,
-      to: chain.escrow,
+      to: chain.depository!,
       token,
       amount,
     });
@@ -499,11 +480,12 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -514,13 +496,13 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
-    expect(msg.result.escrow).toEqual(chain.escrow);
+    expect(msg.result.depository).toEqual(chain.depository);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
   });
 
-  it("attestEscrowDeposits - single Transfer event with id appended at the end of calldata", async () => {
+  it("attestDepositoryDeposits - single Transfer event with id appended at the end of calldata", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -535,7 +517,7 @@ describe("EvmAttestationService", () => {
       transactionHash,
       logIndex: 0,
       from,
-      to: chain.escrow,
+      to: chain.depository!,
       token,
       amount,
     });
@@ -544,18 +526,19 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({
+      getBlock: getBlockMock,
+      getTransaction: async () => ({
         input:
           encodeFunctionData({
             abi: ABI,
             functionName: "transfer",
-            args: [chain.escrow as Hex, BigInt(amount)],
+            args: [chain.depository as Hex, BigInt(amount)],
           }) + id.slice(2),
       }),
-      getTransactionReceipt: () => transactionReceipt,
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -566,13 +549,13 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
-    expect(msg.result.escrow).toEqual(chain.escrow);
+    expect(msg.result.depository).toEqual(chain.depository);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestEscrowDeposits - single Transfer event with consecutive EscrowErc20Deposit event", async () => {
+  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -586,7 +569,7 @@ describe("EvmAttestationService", () => {
     const params = {
       transactionHash,
       from,
-      to: chain.escrow,
+      to: chain.depository!,
       token,
       amount,
     };
@@ -599,11 +582,12 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -614,13 +598,13 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
-    expect(msg.result.escrow).toEqual(chain.escrow);
+    expect(msg.result.depository).toEqual(chain.depository);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestEscrowDeposits - single Transfer event with non-consecutive EscrowErc20Deposit event", async () => {
+  it("attestDepositoryDeposits - Transfer event with non-consecutive RelayErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -634,7 +618,7 @@ describe("EvmAttestationService", () => {
     const params = {
       transactionHash,
       from,
-      to: chain.escrow,
+      to: chain.depository!,
       token,
       amount,
     };
@@ -647,11 +631,12 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -662,13 +647,13 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
-    expect(msg.result.escrow).toEqual(chain.escrow);
+    expect(msg.result.depository).toEqual(chain.depository);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
   });
 
-  it("attestEscrowDeposits - single Transfer event with consecutive EscrowErc20Deposit event but without id", async () => {
+  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit event but without id", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -681,7 +666,7 @@ describe("EvmAttestationService", () => {
     const params = {
       transactionHash,
       from,
-      to: chain.escrow,
+      to: chain.depository!,
       token,
       amount,
     };
@@ -698,11 +683,12 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -713,13 +699,122 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
-    expect(msg.result.escrow).toEqual(chain.escrow);
+    expect(msg.result.depository).toEqual(chain.depository);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
   });
 
-  it("attestEscrowDeposits - single EscrowNativeDeposit event", async () => {
+  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit and different depositor", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const from = randomHex(20);
+    const depositor = randomHex(20);
+    const token = randomHex(20);
+    const amount = randomNumber(1e10).toString();
+    const id = randomHex(32);
+
+    const params = {
+      transactionHash,
+      from,
+      to: chain.depository!,
+      token,
+      amount,
+    };
+
+    const transferLog = generateTransferLog({ ...params, logIndex: 0 });
+    const depositLog = generateErc20DepositLog({
+      ...params,
+      from: depositor,
+      id,
+      logIndex: 1,
+    });
+    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+      transferLog,
+      depositLog,
+    ]);
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
+    }));
+
+    const messages = await new AttestationService().attestDepositoryDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
+    expect(messages.length === 1).toBeTruthy();
+
+    const msg = messages[0];
+
+    expect(msg.data.chainId).toEqual(chain.id);
+    expect(msg.data.transactionId).toEqual(transactionHash);
+    expect(msg.result.depositor).toEqual(depositor);
+    expect(msg.result.depository).toEqual(chain.depository);
+    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.amount).toEqual(amount);
+    expect(msg.result.depositId).toEqual(id);
+  });
+
+  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit and different depositor and without id", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const from = randomHex(20);
+    const depositor = randomHex(20);
+    const token = randomHex(20);
+    const amount = randomNumber(1e10).toString();
+
+    const params = {
+      transactionHash,
+      from,
+      to: chain.depository!,
+      token,
+      amount,
+    };
+
+    const transferLog = generateTransferLog({ ...params, logIndex: 0 });
+    const depositLog = generateErc20DepositLog({
+      ...params,
+      from: depositor,
+      id: zeroHash,
+      logIndex: 1,
+    });
+    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+      transferLog,
+      depositLog,
+    ]);
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
+    }));
+
+    const messages = await new AttestationService().attestDepositoryDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
+    expect(messages.length === 1).toBeTruthy();
+
+    const msg = messages[0];
+
+    expect(msg.data.chainId).toEqual(chain.id);
+    expect(msg.data.transactionId).toEqual(transactionHash);
+    expect(msg.result.depositor).toEqual(depositor);
+    expect(msg.result.depository).toEqual(chain.depository);
+    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.amount).toEqual(amount);
+    expect(msg.result.depositId).toEqual(zeroHash);
+  });
+
+  it("attestDepositoryDeposits - single RelayNativeDeposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -733,7 +828,7 @@ describe("EvmAttestationService", () => {
       transactionHash,
       logIndex: 0,
       from,
-      to: chain.escrow,
+      to: chain.depository!,
       amount,
       id,
     });
@@ -742,11 +837,12 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -757,13 +853,13 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
-    expect(msg.result.escrow).toEqual(chain.escrow);
+    expect(msg.result.depository).toEqual(chain.depository);
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestEscrowDeposits - single EscrowNativeDeposit event without id", async () => {
+  it("attestDepositoryDeposits - single RelayNativeDeposit event without id", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -776,7 +872,7 @@ describe("EvmAttestationService", () => {
       transactionHash,
       logIndex: 0,
       from,
-      to: chain.escrow,
+      to: chain.depository!,
       amount,
       id: zeroHash,
     });
@@ -785,11 +881,12 @@ describe("EvmAttestationService", () => {
     ]);
 
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({ input: "0x" }),
-      getTransactionReceipt: () => transactionReceipt,
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestEscrowDeposits({
+    const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
       transactionId: transactionHash,
     });
@@ -800,13 +897,13 @@ describe("EvmAttestationService", () => {
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
-    expect(msg.result.escrow).toEqual(chain.escrow);
+    expect(msg.result.depository).toEqual(chain.depository);
     expect(msg.result.currency).toEqual(zeroAddress);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
   });
 
-  it("attestEscrowWithdrawal - successful attestation", async () => {
+  it("attestDepositoryWithdrawal - successful attestation", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -833,15 +930,15 @@ describe("EvmAttestationService", () => {
       },
     }));
 
-    const message = await new AttestationService().attestEscrowWithdrawal({
+    const message = await new AttestationService().attestDepositoryWithdrawal({
       chainId: chain.id,
       withdrawal: encodeWithdrawal(decodedWithdrawal),
     });
-    expect(message.result.escrow).toEqual(chain.escrow);
-    expect(message.result.status).toEqual(EscrowWithdrawalStatus.EXECUTED);
+    expect(message.result.depository).toEqual(chain.depository);
+    expect(message.result.status).toEqual(DepositoryWithdrawalStatus.EXECUTED);
   });
 
-  it("attestEscrowWithdrawal - expired attestation", async () => {
+  it("attestDepositoryWithdrawal - expired attestation", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -873,15 +970,15 @@ describe("EvmAttestationService", () => {
       }),
     }));
 
-    const message = await new AttestationService().attestEscrowWithdrawal({
+    const message = await new AttestationService().attestDepositoryWithdrawal({
       chainId: chain.id,
       withdrawal: encodeWithdrawal(decodedWithdrawal),
     });
-    expect(message.result.escrow).toEqual(chain.escrow);
-    expect(message.result.status).toEqual(EscrowWithdrawalStatus.EXPIRED);
+    expect(message.result.depository).toEqual(chain.depository);
+    expect(message.result.status).toEqual(DepositoryWithdrawalStatus.EXPIRED);
   });
 
-  it("attestEscrowWithdrawal - pending attestation", async () => {
+  it("attestDepositoryWithdrawal - pending attestation", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -913,12 +1010,12 @@ describe("EvmAttestationService", () => {
       }),
     }));
 
-    const message = await new AttestationService().attestEscrowWithdrawal({
+    const message = await new AttestationService().attestDepositoryWithdrawal({
       chainId: chain.id,
       withdrawal: encodeWithdrawal(decodedWithdrawal),
     });
-    expect(message.result.escrow).toEqual(chain.escrow);
-    expect(message.result.status).toEqual(EscrowWithdrawalStatus.PENDING);
+    expect(message.result.depository).toEqual(chain.depository);
+    expect(message.result.status).toEqual(DepositoryWithdrawalStatus.PENDING);
   });
 
   it("attestSolverFill - validates solver fill correctly", async () => {
@@ -1042,7 +1139,7 @@ const setupTestEnvironment = async (
     depositTxReceipt = createErc20TransferTransaction({
       transactionHash: depositTxHash,
       from: testData.depositorAddress,
-      to: testData.chain.escrow,
+      to: testData.chain.depository,
       tokenAddress: testData.tokenAddress,
       amount: paymentAmount,
     });
@@ -1050,7 +1147,7 @@ const setupTestEnvironment = async (
     depositTxReceipt = createDepositTransaction({
       depositTxHash,
       depositorAddress: testData.depositorAddress,
-      escrowAddress: testData.chain.escrow,
+      depositoryAddress: testData.chain.depository,
       tokenAddress: testData.tokenAddress,
       paymentAmount,
     });
@@ -1069,7 +1166,7 @@ const setupTestEnvironment = async (
 
   // Set expired deadline if specified
   if (options.expiredDeadline) {
-    testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600; // 1 hour in the past
+    testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600;
   }
 
   const orderHash = getOrderId(testOrder, await getSdkChainsConfig());
@@ -1102,8 +1199,8 @@ const setupTestEnvironment = async (
     });
   }
 
-  // Create mock RPC data
-  const mockRpcData = createMockRpcData({
+  // Setup RPC mock
+  setupRpcMock({
     transactions: {
       [depositTxHash]: {
         input: "0x",
@@ -1114,13 +1211,7 @@ const setupTestEnvironment = async (
         receipt: actionTxReceipt,
       },
     },
-    currentTimestamp: options.expiredDeadline
-      ? Math.floor(Date.now() / 1000)
-      : testData.currentTimestamp,
   });
-
-  // Setup RPC mock
-  setupRpcMock(mockRpcData);
 
   // Create order signature
   const signerWallet = options.invalidSignature
@@ -1131,30 +1222,31 @@ const setupTestEnvironment = async (
     message: { raw: orderHash },
   });
 
-  // Get escrow deposits
-  const escrowDeposits = await new AttestationService().attestEscrowDeposits({
-    chainId: testData.chain.id,
-    transactionId: depositTxHash,
-  });
+  // Get depository deposits
+  const depositoryDeposits =
+    await new AttestationService().attestDepositoryDeposits({
+      chainId: testData.chain.id,
+      transactionId: depositTxHash,
+    });
 
   // Create inputs array
   const inputs = options.duplicateOnchainIds
     ? [
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].result.onchainId,
+          onchainId: depositoryDeposits[0].result.onchainId,
           inputIndex: 0,
         },
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].result.onchainId, // Duplicate onchainId
+          onchainId: depositoryDeposits[0].result.onchainId, // Duplicate onchainId
           inputIndex: 0,
         },
       ]
     : [
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].result.onchainId,
+          onchainId: depositoryDeposits[0].result.onchainId,
           inputIndex: 0,
         },
       ];
@@ -1165,7 +1257,7 @@ const setupTestEnvironment = async (
     actionTxHash,
     testOrder,
     orderSignature,
-    escrowDeposits,
+    depositoryDeposits,
     inputs,
     fillAmount,
     depositTxReceipt,

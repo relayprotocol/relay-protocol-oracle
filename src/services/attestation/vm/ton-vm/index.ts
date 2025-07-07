@@ -1,6 +1,6 @@
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
 } from "@reservoir0x/relay-protocol-sdk";
 import { Address, Cell, Message, CommonMessageInfoInternal } from "@ton/core";
 import { TonClient, Transaction } from "@ton/ton";
@@ -10,10 +10,10 @@ import {
 } from "@ton-community/assets-sdk";
 
 import {
-  RelayEscrow,
+  RelayDepository,
   DepositEvent,
   ADDRESS_NONE,
-} from "./wrappers/RelayEscrow";
+} from "./wrappers/RelayDepository";
 import { getOnchainId } from "../utils";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
@@ -21,10 +21,10 @@ import { httpRpc } from "../../../../common/vm/ton-vm/rpc";
 import { VmAttestor } from "../../vm/types";
 
 export class TonVmAttestor extends VmAttestor {
-  public async getEscrowDepositMessages(
+  public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<EscrowDepositMessage[]> {
+  ): Promise<DepositoryDepositMessage[]> {
     const connection = await httpRpc(chainId);
     const [address, lt, hash] = transactionId.split("::");
     const transaction = await connection.getTransaction(
@@ -45,10 +45,10 @@ export class TonVmAttestor extends VmAttestor {
     );
   }
 
-  public async getEscrowWithdrawalMessage(
+  public async getDepositoryWithdrawalMessage(
     _chainId: string,
     _withdrawal: string
-  ): Promise<EscrowWithdrawalMessage> {
+  ): Promise<DepositoryWithdrawalMessage> {
     throw internalError("Not implemented");
   }
 
@@ -180,7 +180,8 @@ export class TonVmAttestor extends VmAttestor {
   public verifySolverCalls(
     _chainId: string,
     _transactionId: string,
-    _calls: string[]
+    _calls: string[],
+    _extraData: string
   ): Promise<boolean> {
     throw internalError("Not implemented");
   }
@@ -190,8 +191,8 @@ export class TonVmAttestor extends VmAttestor {
     transactionId: string,
     events: Message[],
     connection: TonClient
-  ): Promise<EscrowDepositMessage[]> {
-    const messages: EscrowDepositMessage[] = [];
+  ): Promise<DepositoryDepositMessage[]> {
+    const messages: DepositoryDepositMessage[] = [];
 
     let messageIndex = 0;
     for (const event of events) {
@@ -216,7 +217,7 @@ export class TonVmAttestor extends VmAttestor {
     transactionId: string,
     messageIndex: number,
     connection: TonClient
-  ): Promise<EscrowDepositMessage | undefined> {
+  ): Promise<DepositoryDepositMessage | undefined> {
     const onchainId = getOnchainId(
       chainId,
       transactionId,
@@ -228,19 +229,19 @@ export class TonVmAttestor extends VmAttestor {
       transactionId,
     };
 
-    const escrowAddress = await getChain(chainId).then((chain) => chain.escrow);
-    const message = await RelayEscrow.parseOutMessage(
+    const chain = await getChain(chainId);
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
+    const message = await RelayDepository.parseOutMessage(
       event,
-      connection.provider(Address.parse(escrowAddress))
+      connection.provider(Address.parse(depository))
     );
 
     if (message?.name === "Deposit") {
-      return this.createDepositMessage(
-        message,
-        onchainId,
-        input,
-        escrowAddress
-      );
+      return this.createDepositMessage(message, onchainId, input, depository);
     } else {
       return undefined;
     }
@@ -250,13 +251,13 @@ export class TonVmAttestor extends VmAttestor {
     event: DepositEvent,
     onchainId: string,
     data: { chainId: string; transactionId: string },
-    escrow: string
-  ): EscrowDepositMessage {
+    depository: string
+  ): DepositoryDepositMessage {
     return {
       data,
       result: {
         onchainId,
-        escrow,
+        depository,
         depositId: event.data.depositId.toString(),
         depositor: event.data.depositor,
         currency:
