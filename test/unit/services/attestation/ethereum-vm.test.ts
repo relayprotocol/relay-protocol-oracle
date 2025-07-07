@@ -450,9 +450,9 @@ function setupRpcMock(mockData: any) {
 const getBlockMock = async (data?: any) => {
   const now = Math.floor(Date.now() / 1000);
   if (!data || data.blockTag === "latest") {
-    return { timestamp: now + 60 * 2 };
+    return { timestamp: BigInt(now + 60 * 2) };
   } else {
-    return { timestamp: now };
+    return { timestamp: BigInt(now) };
   }
 };
 
@@ -966,7 +966,7 @@ describe("EvmAttestationService", () => {
     }));
     (httpRpc as jest.Mock).mockImplementation(() => ({
       getBlock: async () => ({
-        timestamp: decodedWithdrawal.withdrawal.expiration + 1,
+        timestamp: BigInt(decodedWithdrawal.withdrawal.expiration + 1 + 60),
       }),
     }));
 
@@ -1006,7 +1006,7 @@ describe("EvmAttestationService", () => {
     }));
     (httpRpc as jest.Mock).mockImplementation(() => ({
       getBlock: async () => ({
-        timestamp: decodedWithdrawal.withdrawal.expiration - 1,
+        timestamp: BigInt(decodedWithdrawal.withdrawal.expiration - 1),
       }),
     }));
 

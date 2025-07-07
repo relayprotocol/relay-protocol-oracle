@@ -1,5 +1,4 @@
 export const RelayDepositoryIdl = {
-  address: "",
   metadata: {
     name: "relay_escrow",
     version: "0.1.0",

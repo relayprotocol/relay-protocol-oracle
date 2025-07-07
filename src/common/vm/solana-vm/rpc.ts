@@ -1,4 +1,4 @@
-import { Connection } from "@solana/web3.js";
+import { Commitment, Connection } from "@solana/web3.js";
 import axios, { AxiosRequestConfig } from "axios";
 
 import { getChain } from "../../chains";
@@ -56,9 +56,10 @@ const axiosFetch = async (
   return Promise.resolve(response);
 };
 
-export const httpRpc = async (chainId: string) => {
+export const httpRpc = async (chainId: string, commitment?: Commitment) => {
   const chain = await getChain(chainId);
   return new Connection(chain.httpRpcUrl, {
     fetch: (input, init) => axiosFetch(input, init),
+    commitment,
   });
 };

@@ -1,7 +1,10 @@
 import { SuiEvent } from "@mysten/sui/client";
 import {
+  decodeWithdrawal,
   DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
+  DepositoryWithdrawalStatus,
+  getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 
 import { getOnchainId } from "../utils";
@@ -9,6 +12,9 @@ import { externalError, internalError } from "../../../../common/error";
 import { getChain } from "../../../../common/chains";
 import { httpRpc } from "../../../../common/vm/sui-vm/rpc";
 import { VmAttestor } from "../../vm/types";
+import { Transaction } from "@mysten/sui/transactions";
+import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { bcs } from "@mysten/sui/bcs";
 
 interface DepositEventData {
   from: string;
@@ -51,10 +57,79 @@ export class SuiVmAttestor extends VmAttestor {
   }
 
   public async getDepositoryWithdrawalMessage(
-    _chainId: string,
-    _withdrawal: string
+    chainId: string,
+    withdrawal: string
   ): Promise<DepositoryWithdrawalMessage> {
-    throw internalError("Not implemented");
+    const rpc = await httpRpc(chainId);
+    const chain = await getChain(chainId);
+
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
+    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
+    const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
+
+    let status: DepositoryWithdrawalStatus;
+    let onChainStatus: boolean | null = null;
+    try {
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${chain.depository}::depository::check_request_executed`,
+        typeArguments: [],
+        arguments: [
+          // TODO: add EXECUTED_REQUESTS_ID
+          tx.object("EXECUTED_REQUESTS_ID"),
+          tx.pure.vector("u8", Buffer.from(withdrawalId, "hex")),
+        ],
+      });
+
+      const randomWallet = new Ed25519Keypair();
+      const response = await rpc.devInspectTransactionBlock({
+        transactionBlock: tx,
+        sender: randomWallet.toSuiAddress(),
+      });
+
+      if (!response.results?.[0]?.returnValues?.[0]?.[0]) {
+        throw internalError("Failed to cal check_request_executed");
+      }
+      const isExecuted = bcs.Bool.parse(
+        new Uint8Array(response.results[0].returnValues[0][0])
+      );
+      if (isExecuted) {
+        onChainStatus = true;
+      }
+    } catch {
+      // Skip error
+    }
+
+    if (onChainStatus) {
+      status = DepositoryWithdrawalStatus.EXECUTED;
+    } else {
+      const latestCheckpointSeq = await rpc.getLatestCheckpointSequenceNumber();
+      const checkpoint = await rpc.getCheckpoint({ id: latestCheckpointSeq });
+      if (
+        BigInt(Number(checkpoint.timestampMs) / 1000) >
+        BigInt(decodedWithdrawal.withdrawal.expiration)
+      ) {
+        status = DepositoryWithdrawalStatus.EXPIRED;
+      } else {
+        status = DepositoryWithdrawalStatus.PENDING;
+      }
+    }
+
+    return {
+      data: {
+        chainId,
+        withdrawal,
+      },
+      result: {
+        withdrawalId,
+        depository,
+        status,
+      },
+    };
   }
 
   public async getSolverPaidAmount(

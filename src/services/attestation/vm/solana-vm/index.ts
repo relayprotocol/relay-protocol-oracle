@@ -1,7 +1,11 @@
-import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
+import * as anchor from "@coral-xyz/anchor";
+import { BorshEventCoder, Idl, Program } from "@coral-xyz/anchor";
 import {
+  decodeWithdrawal,
   DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
+  DepositoryWithdrawalStatus,
+  getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
@@ -27,12 +31,10 @@ export class SolanaVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string
   ): Promise<DepositoryDepositMessage[]> {
-    const connection = await httpRpc(chainId);
+    const rpc = await httpRpc(chainId, "finalized");
 
-    const transaction = await connection.getParsedTransaction(transactionId, {
+    const transaction = await rpc.getParsedTransaction(transactionId, {
       maxSupportedTransactionVersion: 0,
-      // Ensure the transaction is finalized
-      commitment: "finalized",
     });
     if (!transaction?.meta?.logMessages) {
       return [];
@@ -53,10 +55,73 @@ export class SolanaVmAttestor extends VmAttestor {
   }
 
   public async getDepositoryWithdrawalMessage(
-    _chainId: string,
-    _withdrawal: string
+    chainId: string,
+    withdrawal: string
   ): Promise<DepositoryWithdrawalMessage> {
-    throw internalError("Not implemented");
+    const rpc = await httpRpc(chainId, "finalized");
+    const chain = await getChain(chainId);
+
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
+    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
+    const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
+
+    const program = new Program(
+      {
+        address: depository,
+        ...RelayDepositoryIdl,
+      } as Idl,
+      new anchor.AnchorProvider(
+        new anchor.web3.Connection(rpc.rpcEndpoint, "finalized"),
+        new anchor.Wallet(anchor.web3.Keypair.generate())
+      )
+    );
+
+    const [usedRequestPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("used_request"), Buffer.from(withdrawalId, "hex")],
+      program.programId
+    );
+
+    let usedRequestState: { isUsed: boolean } | undefined;
+    try {
+      usedRequestState = await (program.account as any).usedRequest.fetch(
+        usedRequestPda
+      );
+    } catch {
+      // Skip errors (`usedRequestState` will be undefined if not found)
+    }
+
+    let status: DepositoryWithdrawalStatus;
+    if (usedRequestState && usedRequestState.isUsed) {
+      status = DepositoryWithdrawalStatus.EXECUTED;
+    } else {
+      const chainTimestamp = await rpc.getBlockTime(await rpc.getSlot());
+      if (!chainTimestamp) {
+        throw internalError("Failed to fetch Solana block time");
+      }
+      if (
+        BigInt(chainTimestamp) > BigInt(decodedWithdrawal.withdrawal.expiration)
+      ) {
+        status = DepositoryWithdrawalStatus.EXPIRED;
+      } else {
+        status = DepositoryWithdrawalStatus.PENDING;
+      }
+    }
+
+    return {
+      data: {
+        chainId,
+        withdrawal,
+      },
+      result: {
+        withdrawalId,
+        depository,
+        status,
+      },
+    };
   }
 
   public async getSolverPaidAmount(
