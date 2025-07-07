@@ -1,9 +1,10 @@
 export const RelayDepositoryIdl = {
+  address: "",
   metadata: {
-    name: "relay_escrow",
+    name: "relay_depository",
     version: "0.1.0",
     spec: "0.1.0",
-    description: "Relay escrow program",
+    description: "Relay depository program",
   },
   instructions: [
     {
@@ -11,22 +12,26 @@ export const RelayDepositoryIdl = {
       discriminator: [13, 158, 13, 223, 95, 213, 28, 6],
       accounts: [
         {
-          name: "relay_escrow",
+          name: "relay_depository",
           pda: {
             seeds: [
               {
                 kind: "const",
                 value: [
-                  114, 101, 108, 97, 121, 95, 101, 115, 99, 114, 111, 119,
+                  114, 101, 108, 97, 121, 95, 100, 101, 112, 111, 115, 105, 116,
+                  111, 114, 121,
                 ],
               },
             ],
           },
         },
         {
-          name: "depositor",
+          name: "sender",
           writable: true,
           signer: true,
+        },
+        {
+          name: "depositor",
         },
         {
           name: "vault",
@@ -63,42 +68,53 @@ export const RelayDepositoryIdl = {
       discriminator: [11, 156, 96, 218, 39, 163, 180, 19],
       accounts: [
         {
-          name: "relay_escrow",
+          name: "relay_depository",
           pda: {
             seeds: [
               {
                 kind: "const",
                 value: [
-                  114, 101, 108, 97, 121, 95, 101, 115, 99, 114, 111, 119,
+                  114, 101, 108, 97, 121, 95, 100, 101, 112, 111, 115, 105, 116,
+                  111, 114, 121,
                 ],
               },
             ],
           },
         },
         {
-          name: "depositor",
+          name: "sender",
           writable: true,
           signer: true,
+        },
+        {
+          name: "depositor",
+        },
+        {
+          name: "vault",
+          pda: {
+            seeds: [
+              {
+                kind: "const",
+                value: [118, 97, 117, 108, 116],
+              },
+            ],
+          },
         },
         {
           name: "mint",
         },
         {
-          name: "depositor_token_account",
+          name: "sender_token_account",
           writable: true,
           pda: {
             seeds: [
               {
                 kind: "account",
-                path: "depositor",
+                path: "sender",
               },
               {
-                kind: "const",
-                value: [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206,
-                  235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140,
-                  245, 133, 126, 255, 0, 169,
-                ],
+                kind: "account",
+                path: "token_program",
               },
               {
                 kind: "account",
@@ -120,19 +136,7 @@ export const RelayDepositoryIdl = {
           writable: true,
         },
         {
-          name: "vault",
-          pda: {
-            seeds: [
-              {
-                kind: "const",
-                value: [118, 97, 117, 108, 116],
-              },
-            ],
-          },
-        },
-        {
           name: "token_program",
-          address: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
         },
         {
           name: "associated_token_program",
@@ -161,7 +165,18 @@ export const RelayDepositoryIdl = {
       discriminator: [233, 126, 160, 184, 235, 206, 31, 119],
       accounts: [
         {
-          name: "relay_escrow",
+          name: "relay_depository",
+          pda: {
+            seeds: [
+              {
+                kind: "const",
+                value: [
+                  114, 101, 108, 97, 121, 95, 100, 101, 112, 111, 115, 105, 116,
+                  111, 114, 121,
+                ],
+              },
+            ],
+          },
         },
         {
           name: "executor",
@@ -189,22 +204,18 @@ export const RelayDepositoryIdl = {
           optional: true,
         },
         {
-          name: "vault_token_account",
+          name: "recipient_token_account",
           writable: true,
           optional: true,
           pda: {
             seeds: [
               {
                 kind: "account",
-                path: "vault",
+                path: "recipient",
               },
               {
-                kind: "const",
-                value: [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206,
-                  235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140,
-                  245, 133, 126, 255, 0, 169,
-                ],
+                kind: "account",
+                path: "token_program",
               },
               {
                 kind: "account",
@@ -222,22 +233,18 @@ export const RelayDepositoryIdl = {
           },
         },
         {
-          name: "recipient_token_account",
+          name: "vault_token_account",
           writable: true,
           optional: true,
           pda: {
             seeds: [
               {
                 kind: "account",
-                path: "recipient",
+                path: "vault",
               },
               {
-                kind: "const",
-                value: [
-                  6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206,
-                  235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140,
-                  245, 133, 126, 255, 0, 169,
-                ],
+                kind: "account",
+                path: "token_program",
               },
               {
                 kind: "account",
@@ -259,8 +266,10 @@ export const RelayDepositoryIdl = {
           writable: true,
         },
         {
+          name: "ix_sysvar",
+        },
+        {
           name: "token_program",
-          address: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
         },
         {
           name: "associated_token_program",
@@ -269,9 +278,6 @@ export const RelayDepositoryIdl = {
         {
           name: "system_program",
           address: "11111111111111111111111111111111",
-        },
-        {
-          name: "ix_sysvar",
         },
       ],
       args: [
@@ -290,14 +296,15 @@ export const RelayDepositoryIdl = {
       discriminator: [175, 175, 109, 31, 13, 152, 155, 237],
       accounts: [
         {
-          name: "relay_escrow",
+          name: "relay_depository",
           writable: true,
           pda: {
             seeds: [
               {
                 kind: "const",
                 value: [
-                  114, 101, 108, 97, 121, 95, 101, 115, 99, 114, 111, 119,
+                  114, 101, 108, 97, 121, 95, 100, 101, 112, 111, 115, 105, 116,
+                  111, 114, 121,
                 ],
               },
             ],
@@ -335,8 +342,19 @@ export const RelayDepositoryIdl = {
       discriminator: [92, 128, 130, 234, 227, 249, 182, 17],
       accounts: [
         {
-          name: "relay_escrow",
+          name: "relay_depository",
           writable: true,
+          pda: {
+            seeds: [
+              {
+                kind: "const",
+                value: [
+                  114, 101, 108, 97, 121, 95, 100, 101, 112, 111, 115, 105, 116,
+                  111, 114, 121,
+                ],
+              },
+            ],
+          },
         },
         {
           name: "owner",
@@ -350,11 +368,42 @@ export const RelayDepositoryIdl = {
         },
       ],
     },
+    {
+      name: "set_owner",
+      discriminator: [72, 202, 120, 52, 77, 128, 96, 197],
+      accounts: [
+        {
+          name: "relay_depository",
+          writable: true,
+          pda: {
+            seeds: [
+              {
+                kind: "const",
+                value: [
+                  114, 101, 108, 97, 121, 95, 100, 101, 112, 111, 115, 105, 116,
+                  111, 114, 121,
+                ],
+              },
+            ],
+          },
+        },
+        {
+          name: "owner",
+          signer: true,
+        },
+      ],
+      args: [
+        {
+          name: "new_owner",
+          type: "pubkey",
+        },
+      ],
+    },
   ],
   accounts: [
     {
-      name: "RelayEscrow",
-      discriminator: [55, 255, 218, 7, 135, 52, 2, 146],
+      name: "RelayDepository",
+      discriminator: [128, 53, 156, 189, 243, 83, 245, 107],
     },
     {
       name: "UsedRequest",
@@ -412,6 +461,21 @@ export const RelayDepositoryIdl = {
       name: "SignatureExpired",
       msg: "Signature expired",
     },
+    {
+      code: 6008,
+      name: "InvalidRecipient",
+      msg: "Invalid recipient",
+    },
+    {
+      code: 6009,
+      name: "InvalidVaultTokenAccount",
+      msg: "Invalid vault token account",
+    },
+    {
+      code: 6010,
+      name: "InsufficientVaultBalance",
+      msg: "Vault has insufficient balance to remain rent-exempt after transfer",
+    },
   ],
   types: [
     {
@@ -443,7 +507,7 @@ export const RelayDepositoryIdl = {
       },
     },
     {
-      name: "RelayEscrow",
+      name: "RelayDepository",
       type: {
         kind: "struct",
         fields: [
