@@ -1339,10 +1339,10 @@
     is-ipfs "^0.6.0"
     path "^0.12.7"
 
-"@reservoir0x/relay-protocol-sdk@^0.0.32":
-  version "0.0.32"
-  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.32.tgz#d0ea28221174eaedddc34a56d3104068683302f1"
-  integrity sha512-P6MeRCJ0rrsWIEieoCcjBKtrzPVRLQ8XcYr6pFpV2odsiJzs1KKKKkznQslEHDZjx1d0pBqJaSpB6y4ZeQBInA==
+"@reservoir0x/relay-protocol-sdk@^0.0.33":
+  version "0.0.33"
+  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.33.tgz#7adfbccc74f898ea18ca61dc038b987619ab268e"
+  integrity sha512-r3gRt4usVboVzu7ZN+9VLeai7iWZtlp5BKc5LiN5MFknxZ7UtKPXlLS/MkxMEcUOhBD9XGmhiAoWtS2xJNJBNA==
   dependencies:
     "@coral-xyz/anchor" "^0.31.1"
     "@mysten/sui" "^1.24.0"
