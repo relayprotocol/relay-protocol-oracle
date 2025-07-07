@@ -81,7 +81,7 @@ export class SolanaVmAttestor extends VmAttestor {
     );
 
     const [usedRequestPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("used_request"), Buffer.from(withdrawalId, "hex")],
+      [Buffer.from("used_request"), Buffer.from(withdrawalId.slice(2), "hex")],
       program.programId
     );
 
