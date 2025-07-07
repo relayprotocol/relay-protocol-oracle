@@ -71,8 +71,8 @@ export class SolanaVmAttestor extends VmAttestor {
 
     const program = new Program(
       {
-        address: depository,
         ...RelayDepositoryIdl,
+        address: depository,
       } as Idl,
       new anchor.AnchorProvider(
         new anchor.web3.Connection(rpc.rpcEndpoint, "finalized"),
