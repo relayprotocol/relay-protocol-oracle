@@ -85,6 +85,12 @@ const MessageData = Type.Object({
       description: "The fill transaction",
     }),
   }),
+  force: Type.Optional(
+    Type.Boolean({
+      description:
+        "Force attestation even if the order solver fill is not valid",
+    })
+  ),
 });
 
 const Schema = {

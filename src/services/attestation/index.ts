@@ -32,8 +32,19 @@ export class AttestationService {
   }
 
   public async attestSolverFill(
-    data: SolverFillMessage["data"]
+    data: SolverFillMessage["data"] & { force?: boolean }
   ): Promise<SolverFillMessage> {
+    if (data.force) {
+      return {
+        data,
+        result: {
+          orderId: getOrderId(data.order, await getSdkChainsConfig()),
+          status: SolverFillStatus.SUCCESSFUL,
+          totalWeightedInputPaymentBpsDiff: "0",
+        },
+      };
+    }
+
     const totalWeightedInputPaymentBpsDiff =
       await this._getTotalWeightedInputPaymentBpsDiff(data);
 
@@ -100,8 +111,19 @@ export class AttestationService {
   }
 
   public async attestSolverRefund(
-    data: SolverRefundMessage["data"]
+    data: SolverRefundMessage["data"] & { force?: boolean }
   ): Promise<SolverRefundMessage> {
+    if (data.force) {
+      return {
+        data,
+        result: {
+          orderId: getOrderId(data.order, await getSdkChainsConfig()),
+          status: SolverRefundStatus.SUCCESSFUL,
+          totalWeightedInputPaymentBpsDiff: "0",
+        },
+      };
+    }
+
     const totalWeightedInputPaymentBpsDiff =
       await this._getTotalWeightedInputPaymentBpsDiff(data);
 

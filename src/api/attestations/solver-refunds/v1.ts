@@ -93,6 +93,12 @@ const MessageData = Type.Object({
       }),
     })
   ),
+  force: Type.Optional(
+    Type.Boolean({
+      description:
+        "Force attestation even if the order solver fill is not valid",
+    })
+  ),
 });
 
 const Schema = {
