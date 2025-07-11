@@ -127,11 +127,12 @@ export class EthereumVmAttestor extends VmAttestor {
       if (currentLog?.eventName === "Transfer") {
         let depositor = currentLog.args.from.toLowerCase();
 
-        // If the next event in the transaction is a matching `Erc20Deposit` event, take the id and depositor from there
+        // If any of the next 2 events in the transaction is a matching `Erc20Deposit` event, take the id and depositor from there
         let depositId: string | undefined;
         if (
           nextLog &&
-          nextLog.logIndex === currentLog.logIndex + 1 &&
+          (nextLog.logIndex === currentLog.logIndex + 1 ||
+            nextLog.logIndex === currentLog.logIndex + 2) &&
           nextLog.eventName === "RelayErc20Deposit" &&
           nextLog.args.token.toLowerCase() ===
             currentLog.address.toLowerCase() &&

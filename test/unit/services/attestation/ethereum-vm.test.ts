@@ -624,7 +624,7 @@ describe("EvmAttestationService", () => {
     };
 
     const transferLog = generateTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateErc20DepositLog({ ...params, id, logIndex: 2 });
+    const depositLog = generateErc20DepositLog({ ...params, id, logIndex: 3 });
     const transactionReceipt = generateTransactionReceipt(transactionHash, [
       transferLog,
       depositLog,
