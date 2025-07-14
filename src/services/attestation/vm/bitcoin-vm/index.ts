@@ -106,7 +106,7 @@ export class BitcoinVmAttestor extends VmAttestor {
             depository,
             depositId: depositId || zeroHash,
             depositor,
-            currency: "0x0000000000000000000000000000000000000000", // Bitcoin uses native currency
+            currency: "0x0000000000000000000000000000000000000000",
             amount: output.value.toString(),
           },
         });
