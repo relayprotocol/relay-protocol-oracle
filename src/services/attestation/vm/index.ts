@@ -7,6 +7,7 @@ import { HyperliquidVmAttestor } from "./hyperliquid-vm";
 import { SolanaVmAttestor } from "./solana-vm";
 import { SuiVmAttestor } from "./sui-vm";
 import { TonVmAttestor } from "./ton-vm";
+import { BitcoinVmAttestor } from "./bitcoin-vm";
 
 export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
   const chain = await getChain(chainId);
@@ -25,6 +26,9 @@ export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
 
     case "ton-vm":
       return new TonVmAttestor();
+
+    case "bitcoin-vm":
+      return new BitcoinVmAttestor();
 
     default:
       throw externalError("Vm type not implemented");
