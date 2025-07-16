@@ -106,7 +106,8 @@ export class BitcoinVmAttestor extends VmAttestor {
             depository,
             depositId: depositId || zeroHash,
             depositor,
-            currency: "0x0000000000000000000000000000000000000000",
+            // TODO: Testnet should be different
+            currency: "bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8",
             amount: output.value.toString(),
           },
         });
@@ -156,10 +157,55 @@ export class BitcoinVmAttestor extends VmAttestor {
   }
 
   public async getDepositoryWithdrawalMessage(
-    _chainId: string,
-    _withdrawal: string
+    chainId: string,
+    withdrawal: string
   ): Promise<DepositoryWithdrawalMessage> {
-    throw internalError("Not implemented (getDepositoryDepositMessages)");
+
+    const rpc = await httpRpc(chainId);
+    const chain = await getChain(chainId);
+
+    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
+    const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
+
+    if (decodedWithdrawal.vmType !== "bitcoin-vm") {
+      throw externalError(`Invalid VM type: ${decodedWithdrawal.vmType}`);
+    }
+
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
+    const txId = decodedWithdrawal.withdrawal.txId;
+    let transaction;
+    try {
+      transaction = await rpc.getRawTransaction(txId);
+    } catch (error) {
+      // Skip errors
+    }
+
+    // TODO: Check if the transaction has expired
+
+    let status: DepositoryWithdrawalStatus;
+    if (!transaction) {
+      status = DepositoryWithdrawalStatus.PENDING;
+    } else if (transaction.confirmations && transaction.confirmations >= 1) {
+      status = DepositoryWithdrawalStatus.EXECUTED;
+    } else {
+      status = DepositoryWithdrawalStatus.PENDING;
+    }
+
+    return {
+      data: {
+        chainId,
+        withdrawal,
+      },
+      result: {
+        withdrawalId,
+        depository,
+        status,
+      },
+    };
   }
 
   public verifySolverCalls(
