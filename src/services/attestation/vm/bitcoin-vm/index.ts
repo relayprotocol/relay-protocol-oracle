@@ -84,14 +84,16 @@ export class BitcoinVmAttestor extends VmAttestor {
     if (!depositor) {
       throw externalError("Could not determine depositor");
     }
-  
+
+    // Use `bitcoin-testnet` chain id to determine if it's testnet
+    const isTestnet = chain.id.includes("testnet");
+
     // Find outputs that are sent to the depository address
     const messages: DepositoryDepositMessage[] = [];
     for (let i = 0; i < transaction.vout.length; i++) {
       const output = transaction.vout[i];
-      
       // Check if this output is sent to the depository address
-      if (output.scriptPubKey.address?.toLowerCase() === depository.toLowerCase()) {
+      if (output.scriptPubKey?.address?.toLowerCase() === depository.toLowerCase()) {
         messages.push({
           data: {
             chainId,
@@ -101,13 +103,12 @@ export class BitcoinVmAttestor extends VmAttestor {
             onchainId: getOnchainId(
               chainId,
               transactionId,
-              output.n.toString()
+              i.toString()
             ),
             depository,
             depositId: depositId || zeroHash,
             depositor,
-            // TODO: Testnet should be different
-            currency: "bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8",
+            currency: isTestnet ? "tb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqtlc5af" : "bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8",
             amount: output.value.toString(),
           },
         });
