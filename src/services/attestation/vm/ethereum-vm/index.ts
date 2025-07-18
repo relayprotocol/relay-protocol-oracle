@@ -99,7 +99,7 @@ export class EthereumVmAttestor extends VmAttestor {
     const messages: DepositoryDepositMessage[] = [];
     for (let i = 0; i < parsedLogs.length; i++) {
       const currentLog = parsedLogs[i];
-      const nextLog = i + 1 < parsedLogs.length ? parsedLogs[i + 1] : undefined;
+      const nextLogIndex = i + 1;
 
       if (currentLog?.eventName === "RelayNativeDeposit") {
         const depositId = currentLog.args.id.toLowerCase();
@@ -127,27 +127,30 @@ export class EthereumVmAttestor extends VmAttestor {
       if (currentLog?.eventName === "Transfer") {
         let depositor = currentLog.args.from.toLowerCase();
 
-        // If any of the next 2 events in the transaction is a matching `Erc20Deposit` event, take the id and depositor from there
+        // If any of the next events in the transaction is a matching `Erc20Deposit` event, take the id and depositor from there
         let depositId: string | undefined;
-        if (
-          nextLog &&
-          (nextLog.logIndex === currentLog.logIndex + 1 ||
-            nextLog.logIndex === currentLog.logIndex + 2) &&
-          nextLog.eventName === "RelayErc20Deposit" &&
-          nextLog.args.token.toLowerCase() ===
-            currentLog.address.toLowerCase() &&
-          nextLog.args.amount === currentLog.args.amount
-        ) {
-          depositor = nextLog.args.from.toLowerCase();
+        for (let j = nextLogIndex; j < parsedLogs.length; j++) {
+          const nextLog = parsedLogs[j];
+          if (
+            nextLog.eventName === "RelayErc20Deposit" &&
+            nextLog.args.token.toLowerCase() ===
+              currentLog.address.toLowerCase() &&
+            nextLog.args.amount === currentLog.args.amount
+          ) {
+            depositor = nextLog.args.from.toLowerCase();
 
-          if (nextLog.args.id !== zeroHash) {
-            depositId = nextLog.args.id;
+            if (nextLog.args.id !== zeroHash) {
+              depositId = nextLog.args.id;
+            }
           }
         }
 
         // If the transaction involves a single `Transfer` event and the calldata matches a standard ERC20 transfer,
         // take the deposit id from the end of calldata (if the end of calldata has at least 32 bytes)
-        if (!depositId && receipt.logs.length === 1) {
+        if (
+          !depositId &&
+          parsedLogs.filter((l) => l.eventName === "Transfer").length === 1
+        ) {
           const transactionCalldata = (
             await rpc.getTransaction({ hash: transactionId as Hex })
           ).input;

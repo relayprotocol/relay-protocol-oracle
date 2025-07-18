@@ -604,7 +604,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestDepositoryDeposits - Transfer event with non-consecutive RelayErc20Deposit event", async () => {
+  it("attestDepositoryDeposits - Transfer event with non-matching RelayErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -624,7 +624,12 @@ describe("EvmAttestationService", () => {
     };
 
     const transferLog = generateTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateErc20DepositLog({ ...params, id, logIndex: 3 });
+    const depositLog = generateErc20DepositLog({
+      ...params,
+      id,
+      amount: "1",
+      logIndex: 3,
+    });
     const transactionReceipt = generateTransactionReceipt(transactionHash, [
       transferLog,
       depositLog,
