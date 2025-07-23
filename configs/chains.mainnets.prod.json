@@ -226,7 +226,7 @@
     "id": "powerloom",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-powerloom.nodes.svc.cluster.local:8545/powerloom"
+    "httpRpcUrl": "https://rpc-v2.powerloom.network"
   },
   {
     "id": "arena_z",
