@@ -109,7 +109,7 @@
   },
   {
     "id": "metis",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-metis.nodes.svc.cluster.local:8545/metis"
   },
@@ -194,7 +194,7 @@
   },
   {
     "id": "hychain",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-hychain.nodes.svc.cluster.local:8545/hychain"
   },
@@ -374,7 +374,7 @@
   },
   {
     "id": "taiko",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "https://rpc.taiko.xyz"
   },
