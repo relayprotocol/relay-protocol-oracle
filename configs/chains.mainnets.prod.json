@@ -15,7 +15,7 @@
     "id": "cronos",
     "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-cronos.nodes.svc.cluster.local:8545/cronos"
+    "httpRpcUrl": "https://evm.cronos.org"
   },
   {
     "id": "bnb",
