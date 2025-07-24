@@ -115,7 +115,7 @@
   },
   {
     "id": "polygon_zkevm",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-polygon-zkevm.nodes.svc.cluster.local:8545/polygonzkevm"
   },
@@ -443,6 +443,18 @@
     "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
     "vmType": "solana-vm",
     "httpRpcUrl": "https://api.mainnet-beta.solana.com"
+  },
+  {
+    "id": "eclipse",
+    "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
+    "vmType": "solana-vm",
+    "httpRpcUrl": "https://eclipse.helius-rpc.com"
+  },
+  {
+    "id": "soon",
+    "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
+    "vmType": "solana-vm",
+    "httpRpcUrl": "https://rpc.mainnet.soo.network/rpc"
   },
   {
     "id": "hyperliquid",
