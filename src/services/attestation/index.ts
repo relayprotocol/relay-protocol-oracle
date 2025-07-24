@@ -252,7 +252,9 @@ export class AttestationService {
           transactionId: inputInformation.transactionId,
         }).then((depositoryDeposits) =>
           depositoryDeposits.find(
-            (d) => d.result.onchainId === inputInformation.onchainId
+            (d) =>
+              d.result.depositId === orderHash &&
+              d.result.onchainId === inputInformation.onchainId
           )
         );
         if (!depositoryDeposit) {
