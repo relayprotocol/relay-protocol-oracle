@@ -442,7 +442,7 @@
     "id": "solana",
     "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
     "vmType": "solana-vm",
-    "httpRpcUrl": "https://api.mainnet-beta.solana.com"
+    "httpRpcUrl": "http://proxy-solana.nodes.svc.cluster.local:8545/solana"
   },
   {
     "id": "eclipse",
