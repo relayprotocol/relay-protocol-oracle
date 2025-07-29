@@ -146,7 +146,12 @@ export default {
     // Restrict the `force` option to specific integrators
     if (req.body.force) {
       const apiKey = req.headers["x-api-key"] as string | undefined;
-      if (!apiKey || !config.apiKeys || !config.apiKeys[apiKey]) {
+      if (
+        !apiKey ||
+        !config.apiKeys ||
+        !config.apiKeys[apiKey] ||
+        config.apiKeys[apiKey] !== "relay"
+      ) {
         return reply
           .status(400)
           .send({ message: "Unauthorized to use the `force` option" });
