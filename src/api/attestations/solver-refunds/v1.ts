@@ -7,6 +7,7 @@ import {
   FastifyRequestTypeBox,
 } from "../../utils";
 import { signSolverRefundMessage } from "../../../common/signer";
+import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -149,6 +150,16 @@ export default {
   ) => {
     const attestationService = new AttestationService();
     const message = await attestationService.attestSolverRefund(req.body);
+
+    // Restrict the `force` option to specific integrators
+    if (req.body.force) {
+      const apiKey = req.headers["x-api-key"] as string | undefined;
+      if (!apiKey || !config.apiKeys || !config.apiKeys[apiKey]) {
+        return reply
+          .status(400)
+          .send({ message: "Unauthorized to use the `force` option" });
+      }
+    }
 
     return reply.send({
       message: {
