@@ -2,4 +2,12 @@ export const config = {
   httpPort: Number(process.env.HTTP_PORT!),
   environment: process.env.ENVIRONMENT!,
   ecdsaPrivateKey: process.env.ECDSA_PRIVATE_KEY!,
+  apiKeys: process.env.API_KEYS
+    ? Object.fromEntries(
+        process.env.API_KEYS.split(";").map((apiKey) => {
+          const [key, integrator] = apiKey.split(":");
+          return [key, integrator];
+        })
+      )
+    : undefined,
 };
