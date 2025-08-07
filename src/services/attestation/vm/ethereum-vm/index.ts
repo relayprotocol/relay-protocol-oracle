@@ -46,11 +46,23 @@ export class EthereumVmAttestor extends VmAttestor {
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
-    const receipt = await rpc.getTransactionReceipt({
-      hash: transactionId as Hex,
-    });
-    if (!receipt || receipt.status !== "success") {
-      throw externalError(`Missing or reverted transaction ${transactionId}`);
+    const receipt = await rpc
+      .getTransactionReceipt({
+        hash: transactionId as Hex,
+      })
+      .catch((error) => {
+        if ((error as any).name === "TransactionReceiptNotFoundError") {
+          throw externalError(
+            `Missing transaction ${transactionId} on chain ${chainId}`
+          );
+        }
+
+        throw error;
+      });
+    if (receipt.status !== "success") {
+      throw externalError(
+        `Reverted transaction ${transactionId} on chain ${chainId}`
+      );
     }
 
     // Ensure the transaction is finalized
@@ -271,11 +283,23 @@ export class EthereumVmAttestor extends VmAttestor {
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
-    const receipt = await rpc.getTransactionReceipt({
-      hash: transactionId as Hex,
-    });
-    if (!receipt || receipt.status !== "success") {
-      throw externalError(`Missing or reverted transaction ${transactionId}`);
+    const receipt = await rpc
+      .getTransactionReceipt({
+        hash: transactionId as Hex,
+      })
+      .catch((error) => {
+        if ((error as any).name === "TransactionReceiptNotFoundError") {
+          throw externalError(
+            `Missing transaction ${transactionId} on chain ${chainId}`
+          );
+        }
+
+        throw error;
+      });
+    if (receipt.status !== "success") {
+      throw externalError(
+        `Reverted transaction ${transactionId} on chain ${chainId}`
+      );
     }
 
     // Ensure the transaction is finalized
@@ -356,11 +380,23 @@ export class EthereumVmAttestor extends VmAttestor {
     const chain = await getChain(chainId);
 
     // Ensure the transaction was successfully included
-    const receipt = await rpc.getTransactionReceipt({
-      hash: transactionId as Hex,
-    });
-    if (!receipt || receipt.status !== "success") {
-      throw externalError(`Missing or reverted transaction ${transactionId}`);
+    const receipt = await rpc
+      .getTransactionReceipt({
+        hash: transactionId as Hex,
+      })
+      .catch((error) => {
+        if ((error as any).name === "TransactionReceiptNotFoundError") {
+          throw externalError(
+            `Missing transaction ${transactionId} on chain ${chainId}`
+          );
+        }
+
+        throw error;
+      });
+    if (receipt.status !== "success") {
+      throw externalError(
+        `Reverted transaction ${transactionId} on chain ${chainId}`
+      );
     }
 
     // Ensure the transaction is finalized
