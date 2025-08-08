@@ -360,28 +360,28 @@ function setupTestData(): TestSetupParams {
 }
 
 // Create deposit transaction logs
-function createDepositTransaction(params: {
+function createNativeDepositTransaction(params: {
   depositTxHash: string;
   depositorAddress: string;
   depositoryAddress: string;
-  tokenAddress: string;
   paymentAmount: string;
+  depositId?: string;
 }) {
   const {
     depositTxHash,
     depositorAddress,
     depositoryAddress,
-    tokenAddress,
     paymentAmount,
+    depositId,
   } = params;
 
-  const depositTransferLog = generateTransferLog({
+  const depositTransferLog = generateNativeDepositLog({
     transactionHash: depositTxHash,
     logIndex: 0,
     from: depositorAddress,
     to: depositoryAddress,
-    token: tokenAddress,
     amount: paymentAmount,
+    id: depositId ?? zeroHash,
   });
 
   return generateTransactionReceipt(depositTxHash, [depositTransferLog]);
@@ -604,7 +604,7 @@ describe("EvmAttestationService", () => {
     expect(msg.result.depositId).toEqual(id);
   });
 
-  it("attestDepositoryDeposits - Transfer event with non-consecutive RelayErc20Deposit event", async () => {
+  it("attestDepositoryDeposits - Transfer event with non-matching RelayErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
@@ -624,7 +624,12 @@ describe("EvmAttestationService", () => {
     };
 
     const transferLog = generateTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateErc20DepositLog({ ...params, id, logIndex: 2 });
+    const depositLog = generateErc20DepositLog({
+      ...params,
+      id,
+      amount: "1",
+      logIndex: 3,
+    });
     const transactionReceipt = generateTransactionReceipt(transactionHash, [
       transferLog,
       depositLog,
@@ -1085,12 +1090,14 @@ const createErc20TransferTransaction = ({
   to,
   tokenAddress,
   amount,
+  depositId,
 }: {
   transactionHash: string;
   from: string;
   to: string;
   tokenAddress: string;
   amount: string;
+  depositId?: string;
 }): TransactionReceipt => {
   const transferLog = generateTransferLog({
     transactionHash,
@@ -1100,8 +1107,22 @@ const createErc20TransferTransaction = ({
     token: tokenAddress,
     amount,
   });
+  const depositLog = depositId
+    ? generateErc20DepositLog({
+        transactionHash,
+        logIndex: 0,
+        from,
+        to,
+        token: tokenAddress,
+        amount,
+        id: depositId,
+      })
+    : undefined;
 
-  return generateTransactionReceipt(transactionHash, [transferLog]);
+  return generateTransactionReceipt(transactionHash, [
+    transferLog,
+    ...(depositLog ? [depositLog] : []),
+  ]);
 };
 
 /**
@@ -1133,26 +1154,6 @@ const setupTestEnvironment = async (
     ? ((BigInt(paymentAmount) * 50n) / 100n).toString() // 50% of required amount
     : paymentAmount;
 
-  // Create deposit transaction
-  let depositTxReceipt: TransactionReceipt;
-  if (options.useErc20Token) {
-    depositTxReceipt = createErc20TransferTransaction({
-      transactionHash: depositTxHash,
-      from: testData.depositorAddress,
-      to: testData.chain.depository,
-      tokenAddress: testData.tokenAddress,
-      amount: paymentAmount,
-    });
-  } else {
-    depositTxReceipt = createDepositTransaction({
-      depositTxHash,
-      depositorAddress: testData.depositorAddress,
-      depositoryAddress: testData.chain.depository,
-      tokenAddress: testData.tokenAddress,
-      paymentAmount,
-    });
-  }
-
   // Create test order
   const testOrder = createTestOrder({
     paymentAmount,
@@ -1170,6 +1171,27 @@ const setupTestEnvironment = async (
   }
 
   const orderHash = getOrderId(testOrder, await getSdkChainsConfig());
+
+  // Create deposit transaction
+  let depositTxReceipt: TransactionReceipt;
+  if (options.useErc20Token) {
+    depositTxReceipt = createErc20TransferTransaction({
+      transactionHash: depositTxHash,
+      from: testData.depositorAddress,
+      to: testData.chain.depository,
+      tokenAddress: testData.tokenAddress,
+      amount: paymentAmount,
+      depositId: orderHash,
+    });
+  } else {
+    depositTxReceipt = createNativeDepositTransaction({
+      depositTxHash,
+      depositorAddress: testData.depositorAddress,
+      depositoryAddress: testData.chain.depository,
+      paymentAmount,
+      depositId: orderHash,
+    });
+  }
 
   // Create action transaction receipt (fill or refund)
   let actionTxReceipt: TransactionReceipt;

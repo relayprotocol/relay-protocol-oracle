@@ -64,6 +64,8 @@ export const errorWrapper = (
         url,
         JSON.stringify({
           msg: "Request failed",
+          requestUrl: req.url,
+          requestBody: req.body,
           error,
           errorMsg: error.msg,
           errorResponse: error.response?.data ?? error.response?.body,

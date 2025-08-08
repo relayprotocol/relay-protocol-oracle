@@ -72,14 +72,13 @@ export class AttestationService {
       );
 
       // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
-      if (
-        paidAmount <
+      const minimumAmount =
         BigInt(payment.minimumAmount) +
-          (BigInt(payment.minimumAmount) * totalWeightedInputPaymentBpsDiff) /
-            10n ** 18n
-      ) {
+        (BigInt(payment.minimumAmount) * totalWeightedInputPaymentBpsDiff) /
+          10n ** 18n;
+      if (paidAmount < minimumAmount) {
         throw externalError(
-          `Insufficient fill amount for order output payment ${outputPaymentIndex}`
+          `Insufficient fill amount for order output payment ${outputPaymentIndex} (paidAmount=${paidAmount}, minimumAmount=${minimumAmount})`
         );
       }
     }
@@ -253,7 +252,9 @@ export class AttestationService {
           transactionId: inputInformation.transactionId,
         }).then((depositoryDeposits) =>
           depositoryDeposits.find(
-            (d) => d.result.onchainId === inputInformation.onchainId
+            (d) =>
+              d.result.depositId === orderHash &&
+              d.result.onchainId === inputInformation.onchainId
           )
         );
         if (!depositoryDeposit) {
