@@ -1,121 +1,98 @@
-import {
-  decodeWithdrawal,
-  DepositoryDepositMessage,
-  DepositoryWithdrawalMessage,
-  DepositoryWithdrawalStatus,
-  getDecodedWithdrawalId,
-} from "@reservoir0x/relay-protocol-sdk";
-import { externalError, internalError } from "../../../../common/error";
-import { httpRpc } from "../../../../common/vm/bitcoin-vm/rpc";
-import { VmAttestor } from "../../vm/types";
-import { getOnchainId } from "../utils";
-import { getChain } from "../../../../common/chains";
 import { zeroHash } from "viem";
 
-export class BitcoinVmAttestor extends VmAttestor {
+import {
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
+} from "@reservoir0x/relay-protocol-sdk";
 
+import { getOnchainId } from "../utils";
+import { VmAttestor } from "../../vm/types";
+import { getChain } from "../../../../common/chains";
+import { externalError, internalError } from "../../../../common/error";
+import { httpRpc } from "../../../../common/vm/bitcoin-vm/rpc";
+
+const BTC_CURRENCY = "bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8";
+
+export class BitcoinVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
   ): Promise<DepositoryDepositMessage[]> {
     const rpc = await httpRpc(chainId);
-    
+
     // Get transaction details
     const transaction = await rpc.getRawTransaction(transactionId);
     if (!transaction) {
       throw externalError(`Missing transaction ${transactionId}`);
     }
-    
-    // Ensure the transaction is confirmed
-    if (!transaction.confirmations || transaction.confirmations < 1) {
-      throw externalError(`Transaction ${transactionId} is not confirmed`);
-    }
-  
+
+    // Ensure the transaction is finalized
+    this._ensureTxFinalization(transactionId, transaction);
+
     // Get chain configuration
     const chain = await getChain(chainId);
     const depository = chain.depository;
     if (!depository) {
       throw externalError("Chain has no depository configured");
     }
-  
-    // Find and decode OP_RETURN outputs for potential deposit IDs
-    const opReturnMessages = transaction.vout
-      .filter((output) => output.scriptPubKey.asm?.startsWith("OP_RETURN"))
-      .map((output) => output.scriptPubKey.hex)
-      .map((hex: string) => {
-        try {
-          if (hex.slice(2, 4) === "4c") {
-            return Buffer.from(hex.slice(6), "hex").toString("utf8");
-          } else {
-            return Buffer.from(hex.slice(4), "hex").toString("utf8");
-          }
-        } catch {
-          return "";
-        }
-      });
-  
-    // Extract potential deposit IDs from OP_RETURN data
+
+    // Get all OP_RETURN messages
+    const decodedVouts = this._decodeTxOpReturnVouts(transaction.vout);
+
+    // Extract the deposit id
     let depositId: string | undefined;
-    for (const message of opReturnMessages) {
-      if (message.startsWith("0x")) {
-        depositId = message.slice(0, 66); // Take the first 32 bytes (64 hex chars + '0x')
+    let depositIdIndex: number | undefined;
+    for (const { i, opReturn } of decodedVouts) {
+      if (opReturn && opReturn.startsWith("0x") && opReturn.length >= 66) {
+        // Take the first 32 bytes (64 hex chars + '0x')
+        depositId = opReturn.slice(0, 66);
+        depositIdIndex = i;
         break;
       }
     }
-  
-    // Determine the sender by looking up input transactions
+
+    // Get the depositor from the first transaction input
     let depositor: string | undefined;
     for (const input of transaction.vin) {
-      try {
-        if (input.txid) {
-          const inputTransaction = await rpc.getRawTransaction(input.txid);
-          const vout = inputTransaction.vout[input.vout];
-          if (vout && vout.scriptPubKey && vout.scriptPubKey.address) {
-            depositor = vout.scriptPubKey.address;
-            break;
-          }
-        }
-      } catch {
-        // Ignore errors and try next input
+      const inputTransaction = await rpc.getRawTransaction(input.txid);
+      const vout = inputTransaction.vout[input.vout];
+      if (vout && vout.scriptPubKey && vout.scriptPubKey.address) {
+        depositor = vout.scriptPubKey.address;
+        break;
       }
     }
-  
-    // If we couldn't determine the depositor, use a fallback
     if (!depositor) {
       throw externalError("Could not determine depositor");
     }
 
-    // Use `bitcoin-testnet` chain id to determine if it's testnet
-    const isTestnet = chain.id.includes("testnet");
+    // Get the total amount sent to the depository
+    const amount = transaction.vout.reduce((acc, output) => {
+      if (output.scriptPubKey?.address === depository) {
+        return acc + BigInt(output.value);
+      }
+      return acc;
+    }, 0n);
 
-    // Find outputs that are sent to the depository address
-    const messages: DepositoryDepositMessage[] = [];
-    for (let i = 0; i < transaction.vout.length; i++) {
-      const output = transaction.vout[i];
-      // Check if this output is sent to the depository address
-      if (output.scriptPubKey?.address?.toLowerCase() === depository.toLowerCase()) {
-        messages.push({
-          data: {
+    return [
+      {
+        data: {
+          chainId,
+          transactionId,
+        },
+        result: {
+          onchainId: getOnchainId(
             chainId,
             transactionId,
-          },
-          result: {
-            onchainId: getOnchainId(
-              chainId,
-              transactionId,
-              i.toString()
-            ),
-            depository,
-            depositId: depositId || zeroHash,
-            depositor,
-            currency: isTestnet ? "tb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqtlc5af" : "bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8",
-            amount: output.value.toString(),
-          },
-        });
-      }
-    }
-  
-    return messages;
+            (depositIdIndex ?? 0).toString()
+          ),
+          depository,
+          depositId: depositId ?? zeroHash,
+          depositor,
+          currency: BTC_CURRENCY,
+          amount: amount.toString(),
+        },
+      },
+    ];
   }
 
   public async getSolverPaidAmount(
@@ -130,83 +107,50 @@ export class BitcoinVmAttestor extends VmAttestor {
     }
   ): Promise<bigint> {
     const rpc = await httpRpc(chainId);
-    
+
     // Get transaction details
     const transaction = await rpc.getRawTransaction(transactionId);
     if (!transaction) {
       throw externalError(`Transaction ${transactionId} not found`);
     }
-    
-    // Ensure transaction is confirmed
-    if (!transaction.confirmations || transaction.confirmations < 1) {
-      throw externalError(`Transaction ${transactionId} is not confirmed`);
+
+    // Ensure the transaction is finalized
+    this._ensureTxFinalization(transactionId, transaction);
+
+    const transactionTimestamp = await rpc
+      .getRawTransaction(transactionId)
+      .then((tx) => rpc.getBlock(tx.blockhash))
+      .then((block) => block.time);
+    if (transactionTimestamp > payment.deadline) {
+      throw externalError(
+        `Transaction ${transactionId} executed after deadline`
+      );
     }
-    
-    // TODO: Check if the transaction has expired
-    
+
+    const decodedVouts = this._decodeTxOpReturnVouts(transaction.vout);
+    if (!decodedVouts.some(({ opReturn }) => opReturn === payment.orderHash)) {
+      throw externalError(
+        `Transaction ${transactionId} does not reference order hash`
+      );
+    }
+
     // Find the amount paid to the specified recipient in the transaction outputs
     let paidAmount = BigInt(0);
-    
     for (const output of transaction.vout) {
       // Check if the output address matches the recipient address
-      if (output.scriptPubKey.address?.toLowerCase() === payment.recipient.toLowerCase()) {
+      if (output.scriptPubKey.address === payment.recipient) {
         paidAmount += BigInt(output.value);
       }
     }
-    
+
     return paidAmount;
   }
 
   public async getDepositoryWithdrawalMessage(
-    chainId: string,
-    withdrawal: string
+    _chainId: string,
+    _withdrawal: string
   ): Promise<DepositoryWithdrawalMessage> {
-
-    const rpc = await httpRpc(chainId);
-    const chain = await getChain(chainId);
-
-    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
-    const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
-
-    if (decodedWithdrawal.vmType !== "bitcoin-vm") {
-      throw externalError(`Invalid VM type: ${decodedWithdrawal.vmType}`);
-    }
-
-    const depository = chain.depository;
-    if (!depository) {
-      throw externalError("Chain has no depository configured");
-    }
-
-    const txId = decodedWithdrawal.withdrawal.txId;
-    let transaction;
-    try {
-      transaction = await rpc.getRawTransaction(txId);
-    } catch (error) {
-      // Skip errors
-    }
-
-    // TODO: Check if the transaction has expired
-
-    let status: DepositoryWithdrawalStatus;
-    if (!transaction) {
-      status = DepositoryWithdrawalStatus.PENDING;
-    } else if (transaction.confirmations && transaction.confirmations >= 1) {
-      status = DepositoryWithdrawalStatus.EXECUTED;
-    } else {
-      status = DepositoryWithdrawalStatus.PENDING;
-    }
-
-    return {
-      data: {
-        chainId,
-        withdrawal,
-      },
-      result: {
-        withdrawalId,
-        depository,
-        status,
-      },
-    };
+    throw internalError("Not implemented");
   }
 
   public verifySolverCalls(
@@ -216,5 +160,58 @@ export class BitcoinVmAttestor extends VmAttestor {
     _extraData: string
   ): Promise<boolean> {
     throw internalError("Not implemented");
+  }
+
+  private _FINALIZATION_BLOCKS = 2;
+
+  private async _ensureTxFinalization(
+    transactionId: string,
+    tx: { confirmations?: number }
+  ) {
+    if (!tx.confirmations || tx.confirmations < this._FINALIZATION_BLOCKS) {
+      throw externalError(`Transaction ${transactionId} is not finalized`);
+    }
+  }
+
+  private _decodeTxOpReturnVouts(
+    vouts: {
+      value: number;
+      n: number;
+      scriptPubKey: {
+        asm: string;
+        desc: string;
+        hex: string;
+        type: string;
+        address?: string;
+      };
+    }[]
+  ) {
+    return vouts.map((output, i) => {
+      if (output.scriptPubKey.asm?.startsWith("OP_RETURN")) {
+        try {
+          if (output.scriptPubKey.hex.slice(2, 4) === "4c") {
+            return {
+              i,
+              opReturn: Buffer.from(
+                output.scriptPubKey.hex.slice(6),
+                "hex"
+              ).toString("utf8"),
+            };
+          } else {
+            return {
+              i,
+              opReturn: Buffer.from(
+                output.scriptPubKey.hex.slice(4),
+                "hex"
+              ).toString("utf8"),
+            };
+          }
+        } catch {
+          return { i, opReturn: undefined };
+        }
+      }
+
+      return { i, opReturn: undefined };
+    });
   }
 }

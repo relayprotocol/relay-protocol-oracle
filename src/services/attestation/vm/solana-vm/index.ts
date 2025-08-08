@@ -1,6 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { BorshEventCoder, Idl, Program } from "@coral-xyz/anchor";
 import {
+  DecodedSolanaVmWithdrawal,
   decodeWithdrawal,
   DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
@@ -13,10 +14,10 @@ import bs58 from "bs58";
 
 import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
 import { getOnchainId } from "../utils";
+import { VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
-import { VmAttestor } from "../../vm/types";
 
 export class SolanaVmAttestor extends VmAttestor {
   private readonly eventCoder: BorshEventCoder;
@@ -66,7 +67,10 @@ export class SolanaVmAttestor extends VmAttestor {
       throw externalError("Chain has no depository configured");
     }
 
-    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
+    const decodedWithdrawal = decodeWithdrawal(
+      withdrawal,
+      chain.vmType
+    ) as DecodedSolanaVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
     const program = new Program(
@@ -202,7 +206,7 @@ export class SolanaVmAttestor extends VmAttestor {
 
     if (!hasOrderHash) {
       throw externalError(
-        `Transaction does not reference order hash: ${transactionId}`
+        `Transaction ${transactionId} does not reference order hash`
       );
     }
 

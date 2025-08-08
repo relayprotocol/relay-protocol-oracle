@@ -1,4 +1,5 @@
 import {
+  DecodedEthereumVmWithdrawal,
   decodeOrderCall,
   decodeOrderExtraData,
   decodeWithdrawal,
@@ -227,7 +228,10 @@ export class EthereumVmAttestor extends VmAttestor {
       throw externalError("Chain has no depository configured");
     }
 
-    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
+    const decodedWithdrawal = decodeWithdrawal(
+      withdrawal,
+      chain.vmType
+    ) as DecodedEthereumVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
     const depositoryContract = getContract({
@@ -323,7 +327,7 @@ export class EthereumVmAttestor extends VmAttestor {
 
     if (!transaction.input.endsWith(payment.orderHash.slice(2))) {
       throw externalError(
-        `Missing order hash at the end of calldata for transaction ${transactionId}`
+        `Transaction ${transactionId} does not reference order hash`
       );
     }
 
