@@ -1,5 +1,6 @@
 import { SuiEvent } from "@mysten/sui/client";
 import {
+  DecodedSuiVmWithdrawal,
   decodeWithdrawal,
   DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
@@ -68,7 +69,10 @@ export class SuiVmAttestor extends VmAttestor {
       throw externalError("Chain has no depository configured");
     }
 
-    const decodedWithdrawal = decodeWithdrawal(withdrawal, chain.vmType);
+    const decodedWithdrawal = decodeWithdrawal(
+      withdrawal,
+      chain.vmType
+    ) as DecodedSuiVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
     let status: DepositoryWithdrawalStatus;
