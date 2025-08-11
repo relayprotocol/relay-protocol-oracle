@@ -448,7 +448,7 @@
     "id": "eclipse",
     "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
     "vmType": "solana-vm",
-    "httpRpcUrl": "https://eclipse.helius-rpc.com"
+    "httpRpcUrl": "https://mainnetbeta-rpc.eclipse.xyz"
   },
   {
     "id": "soon",
