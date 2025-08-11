@@ -460,5 +460,11 @@
     "id": "hyperliquid",
     "vmType": "hyperliquid-vm",
     "httpRpcUrl": "https://api.hyperliquid.xyz"
+  },
+  {
+    "id": "bitcoin",
+    "depository": "bc1qdqqsq6y7csd0cr3ye45h9lv8ydh777j2wehgl6",
+    "vmType": "bitcoin-vm",
+    "httpRpcUrl": "https://docs-demo.btc.quiknode.pro"
   }
 ]
