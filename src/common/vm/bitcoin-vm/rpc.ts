@@ -53,7 +53,11 @@ class RpcConnection {
     return this.rpc("getblock", [blockHash]);
   }
 
-  async getRawTransaction(txid: string): Promise<{
+  async getRawTransaction(txid: string): Promise<string> {
+    return this.rpc("getrawtransaction", [txid, 0]);
+  }
+
+  async getTransaction(txid: string): Promise<{
     txid: string;
     hash: string;
     version: number;

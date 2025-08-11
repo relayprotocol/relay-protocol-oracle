@@ -9,6 +9,7 @@ export type Chain = {
   vmType: VmType;
   httpRpcUrl: string;
   depository?: string;
+  additionalData?: any;
 };
 
 let _chains: { [id: string]: Chain } | undefined;
@@ -23,6 +24,7 @@ export const getChains = async () => {
         vmType: readConfigValue(chain.vmType),
         httpRpcUrl: readConfigValue(chain.httpRpcUrl),
         depository: readConfigValue(chain.depository),
+        additionalData: readConfigValue(chain.additionalData),
       };
     }
 
