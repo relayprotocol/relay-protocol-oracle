@@ -78,6 +78,9 @@ export class BitcoinVmAttestor extends VmAttestor {
       }
       return acc;
     }, 0n);
+    if (amount === 0n) {
+      throw externalError("No value sent to the depository");
+    }
 
     return [
       {
