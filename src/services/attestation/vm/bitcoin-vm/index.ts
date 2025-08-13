@@ -123,28 +123,22 @@ export class BitcoinVmAttestor extends VmAttestor {
 
     const psbt = bitcoin.Psbt.fromHex(decodedWithdrawal.withdrawal.psbt);
 
-    // Get all allocator UTXOs part of the PSBT
+    // Decode all PSBT inputs
     const allocatorScript = bitcoin.address
       .toOutputScript(depository, bitcoin.networks.bitcoin)
       .toString("hex");
-    const allocatorInputs = psbt.data.inputs
-      .map((input, i) => {
-        if (input.witnessUtxo?.script.toString("hex") === allocatorScript) {
-          const txid = Buffer.from(psbt.txInputs[i].hash)
-            .reverse()
-            .toString("hex");
-          const vout = psbt.txInputs[i].index;
+    const psbtInputs = psbt.data.inputs.map((input, i) => {
+      const txid = Buffer.from(psbt.txInputs[i].hash).reverse().toString("hex");
+      const vout = psbt.txInputs[i].index;
 
-          return {
-            txid,
-            vout,
-          };
-        }
-
-        return undefined;
-      })
-      .filter(Boolean) as { txid: string; vout: number }[];
-    if (!allocatorInputs.length) {
+      return {
+        ownedByAllocator:
+          input.witnessUtxo?.script.toString("hex") === allocatorScript,
+        txid,
+        vout,
+      };
+    });
+    if (!psbtInputs.filter((input) => input.ownedByAllocator).length) {
       throw externalError(
         "No allocator UTXOs detected as part of the withdrawal request"
       );
@@ -156,44 +150,41 @@ export class BitcoinVmAttestor extends VmAttestor {
       throw externalError("No Esplora-compatible API URL configured for chain");
     }
 
-    // For every allocator input, get the transaction that spent it
-    const txidsSpendingPsbtInputs: string[] = [];
-    for (const input of allocatorInputs) {
-      const outspends: {
+    // For every PSBT input, get the transaction that spent it
+    const txidsSpendingPsbtInputs = new Set<string>();
+    for (const input of psbtInputs) {
+      const outspend: {
         spent: boolean;
         txid?: string;
         vin?: number;
         status?: {
           confirmed: boolean;
         };
-      }[] = await axios
-        .get(`${esploraCompatibleApiUrl}/tx/${input.txid}/outspends`)
+      } = await axios
+        .get(
+          `${esploraCompatibleApiUrl}/tx/${input.txid}/outspend/${input.vout}`
+        )
         .then((response) => response.data);
-      for (const outspend of outspends) {
-        if (
-          outspend.spent &&
-          outspend.txid &&
-          outspend.status?.confirmed &&
-          outspend.vin === input.vout
-        ) {
-          txidsSpendingPsbtInputs.push(outspend.txid);
-        }
+      if (outspend.spent && outspend.txid && outspend.status?.confirmed) {
+        txidsSpendingPsbtInputs.add(outspend.txid);
       }
     }
 
     let status: DepositoryWithdrawalStatus;
 
-    if (!txidsSpendingPsbtInputs.length) {
+    if (!txidsSpendingPsbtInputs.size) {
       // If we have no tx spending the allocator inputs, the PSBT is considered as pending
       status = DepositoryWithdrawalStatus.PENDING;
-    } else if (txidsSpendingPsbtInputs.length > 1) {
+    } else if (txidsSpendingPsbtInputs.size > 1) {
       // If we have more than one tx spending the allocator inputs, the PSBT was never included onchain
       status = DepositoryWithdrawalStatus.EXPIRED;
     } else {
       // If we have exactly one tx spending the allocator inputs, confirm whether the PSBT matches that unique tx
 
       const tx = bitcoin.Transaction.fromHex(
-        await rpc.getRawTransaction(txidsSpendingPsbtInputs[0])
+        await rpc.getRawTransaction(
+          txidsSpendingPsbtInputs.values().next().value
+        )
       );
       const psbtMatchesSpendingTx = psbt.data.inputs.every((input, i) => {
         if (input.witnessUtxo?.script.toString("hex") === allocatorScript) {
