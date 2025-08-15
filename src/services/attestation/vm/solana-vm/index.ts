@@ -1,5 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
-import { BorshEventCoder, BorshInstructionCoder, Idl, Program } from "@coral-xyz/anchor";
+import { BorshInstructionCoder, Idl, Program } from "@coral-xyz/anchor";
 import {
   DecodedSolanaVmWithdrawal,
   decodeWithdrawal,
@@ -9,7 +9,13 @@ import {
   getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
-import { PublicKey, SystemProgram, Connection, VersionedTransactionResponse } from "@solana/web3.js";
+import {
+  PublicKey,
+  SystemProgram,
+  Connection,
+  VersionedTransactionResponse,
+  MessageCompiledInstruction,
+} from "@solana/web3.js";
 import bs58 from "bs58";
 
 import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
@@ -20,24 +26,22 @@ import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 
 export class SolanaVmAttestor extends VmAttestor {
-  private readonly eventCoder: BorshEventCoder;
   private readonly instructionCoder: BorshInstructionCoder;
-  private enableLogs: boolean;
 
   constructor() {
     super();
 
-    this.eventCoder = new BorshEventCoder(RelayDepositoryIdl as Idl);
-    this.instructionCoder = new BorshInstructionCoder(RelayDepositoryIdl as Idl);
-    this.enableLogs = false;
+    this.instructionCoder = new BorshInstructionCoder(
+      RelayDepositoryIdl as Idl
+    );
   }
 
   /**
    * Get depository deposit messages from a transaction.
-   * 
-   * This function first tries to parse events from logs. If log parsing fails or logs are truncated, 
+   *
+   * This function first tries to parse events from logs. If log parsing fails or logs are truncated,
    * it tries parsing from instructions.
-   * 
+   *
    * @param chainId The ID of the chain.
    * @param transactionId The ID of the transaction.
    * @returns A list of depository deposit messages.
@@ -63,32 +67,98 @@ export class SolanaVmAttestor extends VmAttestor {
       throw externalError("Chain has no depository configured");
     }
 
-    if (this.enableLogs && transaction.meta?.logMessages) {
-      const messagesFromLogs = this._parseTransactionLogs(
-        chainId,
-        transactionId,
-        transaction.meta.logMessages,
-        depository
-      );
-      
-      if (messagesFromLogs.length > 0) {
-        return messagesFromLogs;
+    const messages: DepositoryDepositMessage[] = [];
+
+    const { instructions, accountKeys } =
+      await this._extractInstructionsAndKeys(transaction, rpc);
+    if (!instructions.length) {
+      return messages;
+    }
+
+    // Iterate through all instructions, looking for calls to the depository contract
+    for (let i = 0; i < instructions.length; i++) {
+      const instruction = instructions[i];
+      const programId = accountKeys[instruction.programIdIndex];
+
+      // Check if this is a call to the depository contract
+      if (programId.toBase58() === depository) {
+        const data = Buffer.from(instruction.data);
+
+        const decodedInstruction = this.instructionCoder.decode(data);
+        if (!decodedInstruction) {
+          continue;
+        }
+
+        if (decodedInstruction.name === "deposit_native") {
+          // Handle "deposit_native" instruction
+
+          const { amount, id } = decodedInstruction.data as {
+            amount: anchor.BN;
+            id: number[];
+          };
+
+          // Get relevant accounts
+          const depositorIndex = instruction.accountKeyIndexes[2];
+          // Third account in "DepositToken" struct is the depositor
+          const depositor = accountKeys[depositorIndex].toBase58();
+
+          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          messages.push({
+            data: {
+              chainId,
+              transactionId,
+            },
+            result: {
+              onchainId,
+              depositId: "0x" + Buffer.from(id).toString("hex"),
+              depository,
+              depositor,
+              currency: SystemProgram.programId.toBase58(),
+              amount: amount.toString(),
+            },
+          });
+        } else if (decodedInstruction.name === "deposit_token") {
+          // Handle "deposit_token" instruction
+
+          const { amount, id } = decodedInstruction.data as {
+            amount: anchor.BN;
+            id: number[];
+          };
+
+          // Get relevant accounts
+          // Third account in "DepositToken" struct is the depositor
+          const depositorIndex = instruction.accountKeyIndexes[2];
+          // Fifth account in "DepositToken" struct is the mint
+          const mintIndex = instruction.accountKeyIndexes[4];
+
+          const depositor = accountKeys[depositorIndex].toBase58();
+          const mint = accountKeys[mintIndex].toBase58();
+
+          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          messages.push({
+            data: {
+              chainId,
+              transactionId,
+            },
+            result: {
+              onchainId,
+              depositId: "0x" + Buffer.from(id).toString("hex"),
+              depository,
+              depositor,
+              currency: mint,
+              amount: amount.toString(),
+            },
+          });
+        }
       }
     }
 
-    // Parsing from instructions
-    return await this._parseTransactionInstructions(
-      chainId,
-      transactionId,
-      transaction,
-      depository,
-      rpc
-    );
+    return messages;
   }
 
   /**
    * Get depository withdrawal message from a withdrawal.
-   * 
+   *
    * @param chainId The ID of the chain.
    * @param withdrawal The withdrawal.
    * @returns A depository withdrawal message.
@@ -168,7 +238,7 @@ export class SolanaVmAttestor extends VmAttestor {
 
   /**
    * Get solver paid amount from a transaction.
-   * 
+   *
    * @param chainId The ID of the chain.
    * @param transactionId The ID of the transaction.
    * @param payment The payment.
@@ -207,7 +277,8 @@ export class SolanaVmAttestor extends VmAttestor {
       );
     }
 
-    const { instructions, accountKeys } = await this._extractInstructionsAndKeys(transaction, connection);
+    const { instructions, accountKeys } =
+      await this._extractInstructionsAndKeys(transaction, connection);
 
     let hasOrderHash = false;
     for (const instruction of instructions) {
@@ -275,7 +346,7 @@ export class SolanaVmAttestor extends VmAttestor {
 
   /**
    * Verify solver calls.
-   * 
+   *
    * @param _chainId The ID of the chain.
    * @param _transactionId The ID of the transaction.
    * @param _calls The calls.
@@ -291,20 +362,20 @@ export class SolanaVmAttestor extends VmAttestor {
     throw internalError("Not implemented");
   }
 
-  /**
-   * Extract all instructions and account keys from a transaction
-   * 
-   * @param transaction The transaction object
-   * @returns Object containing instructions and account keys
-   */
-  private async _extractInstructionsAndKeys(transaction: VersionedTransactionResponse, connection: Connection): Promise<{ 
-    instructions: any[],
-    accountKeys: any[]
+  private async _extractInstructionsAndKeys(
+    transaction: VersionedTransactionResponse,
+    rpc: Connection
+  ): Promise<{
+    instructions: MessageCompiledInstruction[];
+    accountKeys: PublicKey[];
   }> {
     if (!transaction.transaction?.message || !transaction.meta) {
-      return { instructions: [], accountKeys: [] };
+      return {
+        instructions: [],
+        accountKeys: [],
+      };
     }
-    
+
     const message = transaction.transaction.message;
     const instructions = [
       ...message.compiledInstructions,
@@ -324,7 +395,7 @@ export class SolanaVmAttestor extends VmAttestor {
         addressLookupTableAccounts: await Promise.all(
           (transaction.transaction.message.addressTableLookups ?? []).map(
             async ({ accountKey }) =>
-              await connection
+              await rpc
                 .getAddressLookupTable(accountKey)
                 .then((res) => res.value!)
           )
@@ -336,168 +407,5 @@ export class SolanaVmAttestor extends VmAttestor {
     ];
 
     return { instructions, accountKeys };
-  }
-
-  /**
-   * Parse transaction logs to get depository deposit messages.
-   * 
-   * @param chainId The ID of the chain.
-   * @param transactionId The ID of the transaction.
-   * @param logs The transaction logs.
-   * @param depository The depository.
-   * @returns A list of depository deposit messages.
-   */
-  private _parseTransactionLogs(
-    chainId: string,
-    transactionId: string,
-    logs: string[],
-    depository: string
-  ): DepositoryDepositMessage[] {
-    const messages: DepositoryDepositMessage[] = [];
-
-    for (let i = 0; i < logs.length; i++) {
-      const log = logs[i];
-      if (!log.startsWith("Program data: ")) {
-        continue;
-      }
-
-      try {
-        const event = this.eventCoder.decode(
-          log.slice("Program data: ".length)
-        );
-        if (!event) {
-          continue;
-        }
-
-        if (event.name === "DepositEvent") {
-          const eventData = event.data as {
-            depositor: PublicKey;
-            token: PublicKey | null;
-            amount: bigint;
-            id: number[];
-          };
-
-          const onchainId = getOnchainId(chainId, transactionId, i.toString());
-          messages.push({
-            data: {
-              chainId,
-              transactionId,
-            },
-            result: {
-              onchainId,
-              depositId: "0x" + Buffer.from(eventData.id).toString("hex"),
-              depository,
-              depositor: eventData.depositor.toBase58(),
-              currency: eventData.token
-                ? eventData.token.toBase58()
-                : SystemProgram.programId.toBase58(),
-              amount: eventData.amount.toString(),
-            },
-          });
-        }
-      } catch {
-        // Skip errors
-      }
-    }
-
-    return messages;
-  }
-
-  /**
-   * Parse transaction instructions to get depository deposit messages.
-   * 
-   * @param chainId The ID of the chain.
-   * @param transactionId The ID of the transaction.
-   * @param transaction The transaction.
-   * @param depository The depository.
-   * @returns A list of depository deposit messages.
-   */
-  private async _parseTransactionInstructions(
-    chainId: string,
-    transactionId: string,
-    transaction: VersionedTransactionResponse,
-    depository: string,
-    connection: Connection,
-  ): Promise<DepositoryDepositMessage[]> {
-    const messages: DepositoryDepositMessage[] = [];
-    const { instructions, accountKeys } = await this._extractInstructionsAndKeys(transaction, connection);
-    
-    if (instructions.length === 0) {
-      return messages;
-    }
-
-    // Iterate through all instructions, looking for calls to the depository contract
-    for (let i = 0; i < instructions.length; i++) {
-      const instruction = instructions[i];
-      const programId = accountKeys[instruction.programIdIndex];
-      
-      // Check if this is a call to the depository contract
-      if (programId.toBase58() === depository) {
-        try {
-          const data = Buffer.from(instruction.data);
-          const decodedInstruction = this.instructionCoder.decode(data);
-          
-          if (!decodedInstruction) {
-            continue;
-          }
-
-          // Handle deposit_native instruction
-          if (decodedInstruction.name === 'deposit_native') {
-            const { amount, id } = decodedInstruction.data as { amount: anchor.BN, id: number[] };
-            
-            // Get relevant accounts
-            const depositorIndex = instruction.accountKeyIndexes[2]; // Third account in DepositNative struct is depositor
-            const depositor = accountKeys[depositorIndex].toBase58();
-            
-            const onchainId = getOnchainId(chainId, transactionId, i.toString());
-            messages.push({
-              data: {
-                chainId,
-                transactionId,
-              },
-              result: {
-                onchainId,
-                depositId: "0x" + Buffer.from(id).toString("hex"),
-                depository,
-                depositor,
-                currency: SystemProgram.programId.toBase58(), // Native SOL currency is the system program ID
-                amount: amount.toString(),
-              },
-            });
-          } 
-          // Handle deposit_token instruction
-          else if (decodedInstruction.name === 'deposit_token') {
-            const { amount, id } = decodedInstruction.data as { amount: anchor.BN, id: number[] };
-            
-            // Get relevant accounts
-            const depositorIndex = instruction.accountKeyIndexes[2]; // Third account in DepositToken struct is depositor
-            const mintIndex = instruction.accountKeyIndexes[4]; // Fifth account in DepositToken struct is mint
-            
-            const depositor = accountKeys[depositorIndex].toBase58();
-            const mint = accountKeys[mintIndex].toBase58();
-            
-            const onchainId = getOnchainId(chainId, transactionId, i.toString());
-            messages.push({
-              data: {
-                chainId,
-                transactionId,
-              },
-              result: {
-                onchainId,
-                depositId: "0x" + Buffer.from(id).toString("hex"),
-                depository,
-                depositor,
-                currency: mint,
-                amount: amount.toString(),
-              },
-            });
-          }
-        } catch (e) {
-          // Skip parsing errors
-        }
-      }
-    }
-
-    return messages;
   }
 }
