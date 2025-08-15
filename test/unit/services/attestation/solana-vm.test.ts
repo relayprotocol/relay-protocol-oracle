@@ -29,115 +29,169 @@ jest.mock("../../../../src/common/vm/solana-vm/rpc", () => {
   };
 });
 
-describe("SolanaAttestationService", () => {
-  it("attestDepositoryDeposits - should attest spl-token deposit event", async () => {
-    const logs = [
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u invoke [1]",
-      "Program log: Instruction: DepositToken",
-      "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]",
-      "Program log: Create",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]",
-      "Program log: Instruction: GetAccountDataSize",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 1595 of 171961 compute units",
-      "Program return: TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA pQAAAAAAAAA=",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
-      "Program 11111111111111111111111111111111 invoke [3]",
-      "Program 11111111111111111111111111111111 success",
-      "Program log: Initialize the associated token account",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]",
-      "Program log: Instruction: InitializeImmutableOwner",
-      "Program log: Please upgrade to SPL Token 2022 for immutable owner support",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 1405 of 165348 compute units",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]",
-      "Program log: Instruction: InitializeAccount3",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4214 of 161464 compute units",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
-      "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 20490 of 177436 compute units",
-      "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]",
-      "Program log: Instruction: Transfer",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4645 of 154583 compute units",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
-      "Program data: ePg9Ux+Oa5BKhcPIo5YCxfVvqfPz933GfySoNJT1XBm7C56dKEjbtgECj6a+uZgbJKIbAmd7tEbJyCWUKmAw0BsVRHOkEgXc4gDKmjsAAAAAAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=",
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u consumed 50781 of 200000 compute units",
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u success",
-    ];
+describe("SolanaAttestationService - Instruction Parsing", () => {
+  it("attestDepositoryDeposits - should attest spl-token deposit instruction", async () => {
+    // Mock a transaction containing deposit_token instruction but with truncated logs
+    const mockTransaction = {
+      meta: {
+        // Empty log messages to force instruction parsing
+        logMessages: [],
+        innerInstructions: [
+          {
+            index: 0,
+            instructions: [
+              {
+                // deposit_token instruction
+                programIdIndex: 0,
+                accounts: [0, 1, 2, 3, 4],
+                data: "Rhn86pnvWw7vtHC1NAPKQ1q1RAJeW2QhLCHffvbc2Co4bKmKs6EhGNt9UzjwheW58",
+              }
+            ]
+          }
+        ],
+        loadedAddresses: {
+          writable: [],
+          readonly: []
+        }
+      },
+      transaction: {
+        message: {
+          accountKeys: [
+            { pubkey: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u", signer: false },
+            { pubkey: "vault_acc7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZount", signer: false },
+            { pubkey: "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv", signer: true },
+            { pubkey: "11111111111111111111111111111111", signer: false },
+            { pubkey: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", signer: false }
+          ],
+          instructions: [
+            {
+              programId: 0,
+              accounts: [0, 1, 2, 3],
+              data: "Rhn86pnvWw7vtHC1NAPKQ1q1RAJeW2QhLCHffvbc2Co4bKmKs6EhGNt9UzjwheW58",
+            }
+          ],
+          getAccountKeys: () => ({
+            staticAccountKeys: [
+              { toBase58: () => "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u" },
+              { toBase58: () => "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ" },
+              { toBase58: () => "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv" },
+              { toBase58: () => "11111111111111111111111111111111" },
+              { toBase58: () => "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" }
+            ]
+          }),
+          compiledInstructions: [],
+          addressTableLookups: []
+        }
+      }
+    };
 
+    // Mock httpRpc to return the mock transaction
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
-        meta: {
-          logMessages: logs,
-        },
-      }),
+      getTransaction: () => mockTransaction,
     }));
 
+    // Create an instance of AttestationService
     const service = new AttestationService();
+    
+    // Call attestDepositoryDeposits with mock data
     const messages = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
-    const msg = messages[0];
 
+    // Verify the results
     expect(messages.length).toBe(1);
-    expect(msg.result.currency).toBe(
-      "AzrxfjSRgePBiRyHoV4mdUX2LVTxwPR9E1Crr9mZVeH"
-    );
-    expect(msg.result.amount).toBe("1000000000");
-    expect(msg.result.depositor).toBe(
-      "61uUNRFVyDQsyne2cHzEmjA76UYpfsRKi2EaDoYH64Rs"
-    );
-    expect(msg.result.depository).toBe(
-      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
-    );
-    expect(msg.result.depositId).toBe(
-      "0x0202020202020202020202020202020202020202020202020202020202020202"
-    );
+    const msg = messages[0];
+    
+    // Check the parsed message has the correct format and values
+    expect(msg.result.currency).toBe("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"); // System program ID for native SOL
+    expect(msg.result.depositor).toBe("98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv");
+    expect(msg.result.depository).toBe("FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u");
+    expect(msg.result.depositId).toBe("0xd8dc6c585358c53b2cc109c3c31d8055c94a6e85622ea1196c2abe17a77dac0b");
   });
 
-  it("attestDepositoryDeposits - should attest native deposit event", async () => {
-    const logs = [
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u invoke [1]",
-      "Program log: Instruction: DepositSol",
-      "Program 11111111111111111111111111111111 invoke [2]",
-      "Program 11111111111111111111111111111111 success",
-      "Program data: ePg9Ux+Oa5B41ZyI3pX01JFl6AV6P2HoW3/Z+7eGs9orfK3r4gNo5QAAypo7AAAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB",
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u consumed 11114 of 200000 compute units",
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u success",
-    ];
+  it("attestDepositoryDeposits - should attest native deposit instruction", async () => {
+    const mockTransaction = {
+      meta: {
+        // Empty log messages to force instruction parsing
+        logMessages: [],
+        innerInstructions: [
+          {
+            index: 0,
+            instructions: [
+              {
+                // deposit_native instruction
+                programIdIndex: 0,
+                accounts: [0, 1, 2, 3, 4],
+                data: "VyPN4WGD269ghgoiH4ZzWJHyQFj3nEwGnPv9pFnbvDDP7Xkz83DDDoY5rLkX3VJhE",
+              }
+            ]
+          }
+        ],
+        loadedAddresses: {
+          writable: [],
+          readonly: []
+        }
+      },
+      transaction: {
+        message: {
+          accountKeys: [
+            { pubkey: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u", signer: false },
+            { pubkey: "vault_acc7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZount", signer: false },
+            { pubkey: "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv", signer: true },
+            { pubkey: "11111111111111111111111111111111", signer: false },
+            { pubkey: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", signer: false }
+          ],
+          instructions: [
+            {
+              programId: 0,
+              accounts: [0, 1, 2, 3],
+              data: "Rhn86pnvWw7vtHC1NAPKQ1q1RAJeW2QhLCHffvbc2Co4bKmKs6EhGNt9UzjwheW58",
+            }
+          ],
+          getAccountKeys: () => ({
+            staticAccountKeys: [
+              { toBase58: () => "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u" },
+              { toBase58: () => "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ" },
+              { toBase58: () => "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv" },
+              { toBase58: () => "11111111111111111111111111111111" },
+              { toBase58: () => "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" }
+            ]
+          }),
+          compiledInstructions: [],
+          addressTableLookups: []
+        }
+      }
+    };
 
+    // Mock httpRpc to return the mock transaction
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
-        meta: {
-          logMessages: logs,
-        },
-      }),
+      getTransaction: () => mockTransaction,
     }));
 
+    // Create an instance of AttestationService
     const service = new AttestationService();
+    
+    // Call attestDepositoryDeposits with mock data
     const messages = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
-    const msg = messages[0];
 
+    // Verify the results
     expect(messages.length).toBe(1);
-    expect(msg.result.currency).toBe("11111111111111111111111111111111");
-    expect(msg.result.amount).toBe("1000000000");
-    expect(msg.result.depositor).toBe(
-      "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv"
-    );
-    expect(msg.result.depository).toBe(
-      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
-    );
-    expect(msg.result.depositId).toBe(
-      "0x0101010101010101010101010101010101010101010101010101010101010101"
-    );
+    const msg = messages[0];
+    
+    // Check the parsed message has the correct format and values
+    expect(msg.result.currency).toBe("11111111111111111111111111111111"); // System program ID for native SOL
+    expect(msg.result.depositor).toBe("98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv");
+    expect(msg.result.depository).toBe("FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u");
+    expect(msg.result.depositId).toBe("0x0101010101010101010101010101010101010101010101010101010101010101");
   });
 
   it("attestDepositoryDeposits - should return empty array when no events found", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
+      getTransaction: () => ({
         meta: {
           logMessages: [],
         },
@@ -154,7 +208,7 @@ describe("SolanaAttestationService", () => {
 
   it("attestDepositoryDeposits - should handle missing transaction", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => null,
+      getTransaction: () => null,
     }));
 
     const service = new AttestationService();

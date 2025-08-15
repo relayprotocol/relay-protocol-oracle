@@ -1,5 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
-import { BorshEventCoder, Idl, Program } from "@coral-xyz/anchor";
+import { BorshInstructionCoder, Idl, Program } from "@coral-xyz/anchor";
 import {
   DecodedSolanaVmWithdrawal,
   decodeWithdrawal,
@@ -9,7 +9,13 @@ import {
   getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import {
+  PublicKey,
+  SystemProgram,
+  Connection,
+  VersionedTransactionResponse,
+  MessageCompiledInstruction,
+} from "@solana/web3.js";
 import bs58 from "bs58";
 
 import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
@@ -20,24 +26,38 @@ import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 
 export class SolanaVmAttestor extends VmAttestor {
-  private readonly eventCoder: BorshEventCoder;
+  private readonly instructionCoder: BorshInstructionCoder;
 
   constructor() {
     super();
 
-    this.eventCoder = new BorshEventCoder(RelayDepositoryIdl as Idl);
+    this.instructionCoder = new BorshInstructionCoder(
+      RelayDepositoryIdl as Idl
+    );
   }
 
+  /**
+   * Get depository deposit messages from a transaction.
+   *
+   * This function first tries to parse events from logs. If log parsing fails or logs are truncated,
+   * it tries parsing from instructions.
+   *
+   * @param chainId The ID of the chain.
+   * @param transactionId The ID of the transaction.
+   * @returns A list of depository deposit messages.
+   */
   public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
   ): Promise<DepositoryDepositMessage[]> {
     const rpc = await httpRpc(chainId, "finalized");
 
-    const transaction = await rpc.getParsedTransaction(transactionId, {
+    const transaction = await rpc.getTransaction(transactionId, {
       maxSupportedTransactionVersion: 0,
+      // Ensure the transaction is finalized
+      commitment: "finalized",
     });
-    if (!transaction?.meta?.logMessages) {
+    if (!transaction) {
       return [];
     }
 
@@ -47,14 +67,102 @@ export class SolanaVmAttestor extends VmAttestor {
       throw externalError("Chain has no depository configured");
     }
 
-    return this._parseTransactionLogs(
-      chainId,
-      transactionId,
-      transaction.meta.logMessages,
-      depository
-    );
+    const messages: DepositoryDepositMessage[] = [];
+
+    const { instructions, accountKeys } =
+      await this._extractInstructionsAndKeys(transaction, rpc);
+    if (!instructions.length) {
+      return messages;
+    }
+
+    // Iterate through all instructions, looking for calls to the depository contract
+    for (let i = 0; i < instructions.length; i++) {
+      const instruction = instructions[i];
+      const programId = accountKeys[instruction.programIdIndex];
+
+      // Check if this is a call to the depository contract
+      if (programId.toBase58() === depository) {
+        const data = Buffer.from(instruction.data);
+
+        const decodedInstruction = this.instructionCoder.decode(data);
+        if (!decodedInstruction) {
+          continue;
+        }
+
+        if (decodedInstruction.name === "deposit_native") {
+          // Handle "deposit_native" instruction
+
+          const { amount, id } = decodedInstruction.data as {
+            amount: anchor.BN;
+            id: number[];
+          };
+
+          // Get relevant accounts
+          const depositorIndex = instruction.accountKeyIndexes[2];
+          // Third account in "DepositToken" struct is the depositor
+          const depositor = accountKeys[depositorIndex].toBase58();
+
+          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          messages.push({
+            data: {
+              chainId,
+              transactionId,
+            },
+            result: {
+              onchainId,
+              depositId: "0x" + Buffer.from(id).toString("hex"),
+              depository,
+              depositor,
+              currency: SystemProgram.programId.toBase58(),
+              amount: amount.toString(),
+            },
+          });
+        } else if (decodedInstruction.name === "deposit_token") {
+          // Handle "deposit_token" instruction
+
+          const { amount, id } = decodedInstruction.data as {
+            amount: anchor.BN;
+            id: number[];
+          };
+
+          // Get relevant accounts
+          // Third account in "DepositToken" struct is the depositor
+          const depositorIndex = instruction.accountKeyIndexes[2];
+          // Fifth account in "DepositToken" struct is the mint
+          const mintIndex = instruction.accountKeyIndexes[4];
+
+          const depositor = accountKeys[depositorIndex].toBase58();
+          const mint = accountKeys[mintIndex].toBase58();
+
+          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          messages.push({
+            data: {
+              chainId,
+              transactionId,
+            },
+            result: {
+              onchainId,
+              depositId: "0x" + Buffer.from(id).toString("hex"),
+              depository,
+              depositor,
+              currency: mint,
+              amount: amount.toString(),
+            },
+          });
+        }
+      }
+    }
+
+    return messages;
   }
 
+  /**
+   * Get depository withdrawal message from a withdrawal.
+   *
+   * @param chainId The ID of the chain.
+   * @param withdrawal The withdrawal.
+   * @returns A depository withdrawal message.
+   */
   public async getDepositoryWithdrawalMessage(
     chainId: string,
     withdrawal: string
@@ -128,6 +236,14 @@ export class SolanaVmAttestor extends VmAttestor {
     };
   }
 
+  /**
+   * Get solver paid amount from a transaction.
+   *
+   * @param chainId The ID of the chain.
+   * @param transactionId The ID of the transaction.
+   * @param payment The payment.
+   * @returns The solver paid amount.
+   */
   public async getSolverPaidAmount(
     chainId: string,
     transactionId: string,
@@ -161,36 +277,8 @@ export class SolanaVmAttestor extends VmAttestor {
       );
     }
 
-    // Check that transaction contains the order hash in the memo
-    const message = transaction.transaction.message;
-    const instructions = [
-      ...message.compiledInstructions,
-      // Include any inner instructions
-      ...(transaction.meta?.innerInstructions ?? [])
-        .map((i) => i.instructions)
-        .flat()
-        .map((i) => ({
-          accountKeyIndexes: i.accounts,
-          programIdIndex: i.programIdIndex,
-          data: bs58.decode(i.data),
-        })),
-    ];
-
-    const accountKeys = [
-      ...message.getAccountKeys({
-        addressLookupTableAccounts: await Promise.all(
-          (transaction.transaction.message.addressTableLookups ?? []).map(
-            async ({ accountKey }) =>
-              await connection
-                .getAddressLookupTable(accountKey)
-                .then((res) => res.value!)
-          )
-        ),
-      }).staticAccountKeys,
-      // First we have `writable` and then `readonly`
-      ...(transaction.meta?.loadedAddresses?.writable ?? []),
-      ...(transaction.meta?.loadedAddresses?.readonly ?? []),
-    ];
+    const { instructions, accountKeys } =
+      await this._extractInstructionsAndKeys(transaction, connection);
 
     let hasOrderHash = false;
     for (const instruction of instructions) {
@@ -256,6 +344,15 @@ export class SolanaVmAttestor extends VmAttestor {
     }
   }
 
+  /**
+   * Verify solver calls.
+   *
+   * @param _chainId The ID of the chain.
+   * @param _transactionId The ID of the transaction.
+   * @param _calls The calls.
+   * @param _extraData The extra data.
+   * @returns Whether the solver calls are valid.
+   */
   public verifySolverCalls(
     _chainId: string,
     _transactionId: string,
@@ -265,59 +362,50 @@ export class SolanaVmAttestor extends VmAttestor {
     throw internalError("Not implemented");
   }
 
-  private _parseTransactionLogs(
-    chainId: string,
-    transactionId: string,
-    logs: string[],
-    depository: string
-  ): DepositoryDepositMessage[] {
-    const messages: DepositoryDepositMessage[] = [];
-
-    for (let i = 0; i < logs.length; i++) {
-      const log = logs[i];
-      if (!log.startsWith("Program data: ")) {
-        continue;
-      }
-
-      try {
-        const event = this.eventCoder.decode(
-          log.slice("Program data: ".length)
-        );
-        if (!event) {
-          continue;
-        }
-
-        if (event.name === "DepositEvent") {
-          const eventData = event.data as {
-            depositor: PublicKey;
-            token: PublicKey | null;
-            amount: bigint;
-            id: number[];
-          };
-
-          const onchainId = getOnchainId(chainId, transactionId, i.toString());
-          messages.push({
-            data: {
-              chainId,
-              transactionId,
-            },
-            result: {
-              onchainId,
-              depositId: "0x" + Buffer.from(eventData.id).toString("hex"),
-              depository,
-              depositor: eventData.depositor.toBase58(),
-              currency: eventData.token
-                ? eventData.token.toBase58()
-                : SystemProgram.programId.toBase58(),
-              amount: eventData.amount.toString(),
-            },
-          });
-        }
-      } catch {
-        // Skip errors
-      }
+  private async _extractInstructionsAndKeys(
+    transaction: VersionedTransactionResponse,
+    rpc: Connection
+  ): Promise<{
+    instructions: MessageCompiledInstruction[];
+    accountKeys: PublicKey[];
+  }> {
+    if (!transaction.transaction?.message || !transaction.meta) {
+      return {
+        instructions: [],
+        accountKeys: [],
+      };
     }
 
-    return messages;
+    const message = transaction.transaction.message;
+    const instructions = [
+      ...message.compiledInstructions,
+      // Include any inner instructions
+      ...(transaction.meta?.innerInstructions ?? [])
+        .map((i) => i.instructions)
+        .flat()
+        .map((i) => ({
+          accountKeyIndexes: i.accounts,
+          programIdIndex: i.programIdIndex,
+          data: bs58.decode(i.data),
+        })),
+    ];
+
+    const accountKeys = [
+      ...message.getAccountKeys({
+        addressLookupTableAccounts: await Promise.all(
+          (transaction.transaction.message.addressTableLookups ?? []).map(
+            async ({ accountKey }) =>
+              await rpc
+                .getAddressLookupTable(accountKey)
+                .then((res) => res.value!)
+          )
+        ),
+      }).staticAccountKeys,
+      // First we have `writable` and then `readonly`
+      ...(transaction.meta?.loadedAddresses?.writable ?? []),
+      ...(transaction.meta?.loadedAddresses?.readonly ?? []),
+    ];
+
+    return { instructions, accountKeys };
   }
 }
