@@ -9,7 +9,7 @@ import {
   getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { PublicKey, SystemProgram, Connection, VersionedTransactionResponse } from "@solana/web3.js";
 import bs58 from "bs58";
 
 import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
@@ -77,11 +77,12 @@ export class SolanaVmAttestor extends VmAttestor {
     }
 
     // Parsing from instructions
-    return this._parseTransactionInstructions(
+    return await this._parseTransactionInstructions(
       chainId,
       transactionId,
       transaction,
-      depository
+      depository,
+      rpc
     );
   }
 
@@ -206,7 +207,7 @@ export class SolanaVmAttestor extends VmAttestor {
       );
     }
 
-    const { instructions, accountKeys } = this._extractInstructionsAndKeys(transaction);
+    const { instructions, accountKeys } = await this._extractInstructionsAndKeys(transaction, connection);
 
     let hasOrderHash = false;
     for (const instruction of instructions) {
@@ -296,37 +297,42 @@ export class SolanaVmAttestor extends VmAttestor {
    * @param transaction The transaction object
    * @returns Object containing instructions and account keys
    */
-  private _extractInstructionsAndKeys(transaction: any): { 
+  private async _extractInstructionsAndKeys(transaction: VersionedTransactionResponse, connection: Connection): Promise<{ 
     instructions: any[],
     accountKeys: any[]
-  } {
+  }> {
     if (!transaction.transaction?.message || !transaction.meta) {
       return { instructions: [], accountKeys: [] };
     }
     
     const message = transaction.transaction.message;
-    const accountKeys = [
-      ...message.getAccountKeys({
-        addressLookupTableAccounts: transaction.transaction.message.addressTableLookups?.map(
-          (lookup: any) => lookup.accountKey
-        ) || [],
-      }).staticAccountKeys,
-      // First we have `writable` and then `readonly`
-      ...(transaction.meta?.loadedAddresses?.writable || []),
-      ...(transaction.meta?.loadedAddresses?.readonly || []),
-    ];
-
     const instructions = [
       ...message.compiledInstructions,
-      // Include all inner instructions
-      ...(transaction.meta?.innerInstructions || [])
-        .map((i: any) => i.instructions)
+      // Include any inner instructions
+      ...(transaction.meta?.innerInstructions ?? [])
+        .map((i) => i.instructions)
         .flat()
-        .map((i: any) => ({
+        .map((i) => ({
           accountKeyIndexes: i.accounts,
           programIdIndex: i.programIdIndex,
           data: bs58.decode(i.data),
         })),
+    ];
+
+    const accountKeys = [
+      ...message.getAccountKeys({
+        addressLookupTableAccounts: await Promise.all(
+          (transaction.transaction.message.addressTableLookups ?? []).map(
+            async ({ accountKey }) =>
+              await connection
+                .getAddressLookupTable(accountKey)
+                .then((res) => res.value!)
+          )
+        ),
+      }).staticAccountKeys,
+      // First we have `writable` and then `readonly`
+      ...(transaction.meta?.loadedAddresses?.writable ?? []),
+      ...(transaction.meta?.loadedAddresses?.readonly ?? []),
     ];
 
     return { instructions, accountKeys };
@@ -406,14 +412,15 @@ export class SolanaVmAttestor extends VmAttestor {
    * @param depository The depository.
    * @returns A list of depository deposit messages.
    */
-  private _parseTransactionInstructions(
+  private async _parseTransactionInstructions(
     chainId: string,
     transactionId: string,
-    transaction: any,
-    depository: string
-  ): DepositoryDepositMessage[] {
+    transaction: VersionedTransactionResponse,
+    depository: string,
+    connection: Connection,
+  ): Promise<DepositoryDepositMessage[]> {
     const messages: DepositoryDepositMessage[] = [];
-    const { instructions, accountKeys } = this._extractInstructionsAndKeys(transaction);
+    const { instructions, accountKeys } = await this._extractInstructionsAndKeys(transaction, connection);
     
     if (instructions.length === 0) {
       return messages;

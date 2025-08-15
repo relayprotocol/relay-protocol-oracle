@@ -87,7 +87,7 @@ describe("SolanaAttestationService - Instruction Parsing", () => {
 
     // Mock httpRpc to return the mock transaction
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => mockTransaction,
+      getTransaction: () => mockTransaction,
     }));
 
     // Create an instance of AttestationService
@@ -166,7 +166,7 @@ describe("SolanaAttestationService - Instruction Parsing", () => {
 
     // Mock httpRpc to return the mock transaction
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => mockTransaction,
+      getTransaction: () => mockTransaction,
     }));
 
     // Create an instance of AttestationService
@@ -191,7 +191,7 @@ describe("SolanaAttestationService - Instruction Parsing", () => {
 
   it("attestDepositoryDeposits - should return empty array when no events found", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
+      getTransaction: () => ({
         meta: {
           logMessages: [],
         },
@@ -208,7 +208,7 @@ describe("SolanaAttestationService - Instruction Parsing", () => {
 
   it("attestDepositoryDeposits - should handle missing transaction", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => null,
+      getTransaction: () => null,
     }));
 
     const service = new AttestationService();
