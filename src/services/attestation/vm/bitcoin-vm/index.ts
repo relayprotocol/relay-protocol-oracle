@@ -33,7 +33,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     }
 
     // Ensure the transaction is finalized
-    this._ensureTxFinalization(transactionId, transaction);
+    await this._ensureTxFinalization(transactionId, transaction);
 
     // Get chain configuration
     const chain = await getChain(chainId);
@@ -255,7 +255,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     }
 
     // Ensure the transaction is finalized
-    this._ensureTxFinalization(transactionId, transaction);
+    await this._ensureTxFinalization(transactionId, transaction);
 
     const transactionTimestamp = await rpc
       .getBlock(transaction.blockhash)
