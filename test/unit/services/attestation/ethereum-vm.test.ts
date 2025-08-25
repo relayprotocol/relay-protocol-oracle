@@ -456,7 +456,7 @@ const getBlockMock = async (data?: any) => {
   }
 };
 
-describe("EvmAttestationService", () => {
+describe("EthereumVmAttestor", () => {
   it("attestDepositoryDeposits - single Transfer event", async () => {
     const chains = Object.values(await getChains());
 
