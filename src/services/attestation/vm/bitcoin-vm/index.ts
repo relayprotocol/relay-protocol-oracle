@@ -296,7 +296,7 @@ export class BitcoinVmAttestor extends VmAttestor {
 
   private _FINALIZATION_BLOCKS = 2;
 
-  private async _ensureTxFinalization(
+  private _ensureTxFinalization(
     transactionId: string,
     tx: { confirmations?: number }
   ) {

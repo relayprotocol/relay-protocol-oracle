@@ -30,7 +30,7 @@ jest.mock("../../../../src/common/vm/sui-vm/rpc", () => {
   };
 });
 
-describe("SuiAttestationService", () => {
+describe("SuiVmAttestor", () => {
   it("attestDepositoryDeposits - should attest deposit event", async () => {
     const events = [
       {
