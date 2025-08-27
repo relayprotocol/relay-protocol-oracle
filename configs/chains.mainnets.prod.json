@@ -467,7 +467,7 @@
     "vmType": "bitcoin-vm",
     "httpRpcUrl": "https://docs-demo.btc.quiknode.pro",
     "additionalData": {
-      "esploraCompatibleApiUrl": "https://mempool.space/api"
+      "esploraCompatibleApiUrl": "https://blockstream.info/api"
     }
   }
 ]
