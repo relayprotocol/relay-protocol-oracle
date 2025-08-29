@@ -8,7 +8,7 @@ import {
   getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 
-import { getOnchainId } from "../utils";
+import { getDeterministicId } from "../utils";
 import { externalError, internalError } from "../../../../common/error";
 import { getChain } from "../../../../common/chains";
 import { httpRpc } from "../../../../common/vm/sui-vm/rpc";
@@ -262,7 +262,7 @@ export class SuiVmAttestor extends VmAttestor {
     messageIndex: number,
     depository: string
   ): DepositoryDepositMessage | undefined {
-    const onchainId = getOnchainId(
+    const onchainId = getDeterministicId(
       chainId,
       transactionId,
       messageIndex.toString()

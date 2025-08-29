@@ -7,6 +7,7 @@ import {
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
+  VmType,
 } from "@reservoir0x/relay-protocol-sdk";
 
 import {
@@ -21,7 +22,7 @@ import {
   zeroHash,
 } from "viem";
 
-import { getOnchainId } from "../utils";
+import { getDeterministicId } from "../utils";
 import { getChain } from "../../../../common/chains";
 import { externalError } from "../../../../common/error";
 import { undefinedOnThrow } from "../../../../common/utils";
@@ -38,6 +39,8 @@ export const ABI = parseAbi([
   "function transferFrom(address from, address to, uint256 amount)",
   "function callRequests(bytes32 withdrawalId) view returns (bool)",
 ]);
+
+const VM_TYPE: VmType = "ethereum-vm";
 
 export class EthereumVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
@@ -123,7 +126,7 @@ export class EthereumVmAttestor extends VmAttestor {
             transactionId,
           },
           result: {
-            onchainId: getOnchainId(
+            onchainId: getDeterministicId(
               chainId,
               transactionId,
               currentLog.logIndex.toString()
@@ -198,7 +201,7 @@ export class EthereumVmAttestor extends VmAttestor {
             transactionId,
           },
           result: {
-            onchainId: getOnchainId(
+            onchainId: getDeterministicId(
               chainId,
               transactionId,
               currentLog.logIndex.toString()
@@ -341,10 +344,8 @@ export class EthereumVmAttestor extends VmAttestor {
       }
 
       // Otherwise, check for any native transfer events emitted via the fill contract specified by the order
-      const fillContract = decodeOrderExtraData(
-        payment.extraData,
-        "ethereum-vm"
-      ).extraData.fillContract;
+      const fillContract = decodeOrderExtraData(payment.extraData, VM_TYPE)
+        .extraData.fillContract;
       return parseEventLogs({
         abi: ABI,
         logs: receipt.logs,
@@ -406,8 +407,8 @@ export class EthereumVmAttestor extends VmAttestor {
     // Ensure the transaction is finalized
     await this._ensureTxFinalization(chainId, receipt);
 
-    const fillContract = decodeOrderExtraData(extraData, "ethereum-vm")
-      .extraData.fillContract;
+    const fillContract = decodeOrderExtraData(extraData, VM_TYPE).extraData
+      .fillContract;
 
     // Parse and filter the logs we're interested in
     const parsedLogs = parseEventLogs({

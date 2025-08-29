@@ -11,7 +11,7 @@ import {
   getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 
-import { getOnchainId } from "../utils";
+import { getDeterministicId } from "../utils";
 import { VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
@@ -89,7 +89,7 @@ export class BitcoinVmAttestor extends VmAttestor {
           transactionId,
         },
         result: {
-          onchainId: getOnchainId(
+          onchainId: getDeterministicId(
             chainId,
             transactionId,
             (depositIdIndex ?? 0).toString()

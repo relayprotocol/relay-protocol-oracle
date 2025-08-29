@@ -1,26 +1,92 @@
 import {
+  ActionType,
   DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
+  encodeAction,
+  ExecutionMessage,
   getOrderId,
   Order,
   SolverFillMessage,
   SolverFillStatus,
   SolverRefundMessage,
   SolverRefundStatus,
+  VmType,
 } from "@reservoir0x/relay-protocol-sdk";
-import { Address, Hex, verifyMessage } from "viem";
+import { Address, Hex, verifyMessage, zeroHash } from "viem";
 
 import { getVmAttestor } from "./vm";
-import { getSdkChainsConfig } from "../../common/chains";
+import { getDeterministicId } from "./vm/utils";
+import { getChain, getSdkChainsConfig } from "../../common/chains";
 import { externalError } from "../../common/error";
 
 export class AttestationService {
   public async attestDepositoryDeposits(
     data: DepositoryDepositMessage["data"]
-  ): Promise<DepositoryDepositMessage[]> {
-    return getVmAttestor(data.chainId).then((attestor) =>
+  ): Promise<{
+    messages: DepositoryDepositMessage[];
+    execution?: ExecutionMessage;
+  }> {
+    const messages = await getVmAttestor(data.chainId).then((attestor) =>
       attestor.getDepositoryDepositMessages(data.chainId, data.transactionId)
     );
+
+    return {
+      messages,
+      execution: !messages.length
+        ? undefined
+        : {
+            idempotencyKey: getDeterministicId(
+              data.chainId,
+              data.transactionId
+            ),
+            actions: await Promise.all(
+              messages.map(async (m) => {
+                const vmType = await getChain(m.data.chainId).then(
+                  (c) => c.vmType
+                );
+
+                // Mint to depositor
+                const results = [
+                  encodeAction({
+                    type: ActionType.MINT,
+                    data: {
+                      currencyVmType: vmType,
+                      currencyChainId: m.data.chainId,
+                      currency: m.result.currency,
+                      toVmType: vmType,
+                      toChainId: m.data.chainId,
+                      to: m.result.depositor,
+                      amount: m.result.amount,
+                    },
+                  }),
+                ];
+
+                // Transfer from depositor to order
+                if (m.result.depositId !== zeroHash) {
+                  results.push(
+                    encodeAction({
+                      type: ActionType.TRANSFER,
+                      data: {
+                        currencyVmType: vmType,
+                        currencyChainId: m.data.chainId,
+                        currency: m.result.currency,
+                        fromVmType: vmType,
+                        fromChainId: m.data.chainId,
+                        from: m.result.depositor,
+                        toVmType: "hub-vm" as any as VmType,
+                        toChainId: "hub",
+                        to: `order:${m.result.depositId}`,
+                        amount: m.result.amount,
+                      },
+                    })
+                  );
+                }
+
+                return results;
+              })
+            ).then((r) => r.flat()),
+          },
+    };
   }
 
   public async attestDepositoryWithdrawal(
@@ -251,7 +317,7 @@ export class AttestationService {
           chainId: orderInput.payment.chainId,
           transactionId: inputInformation.transactionId,
         }).then((depositoryDeposits) =>
-          depositoryDeposits.find(
+          depositoryDeposits.messages.find(
             (d) =>
               d.result.depositId === orderHash &&
               d.result.onchainId === inputInformation.onchainId

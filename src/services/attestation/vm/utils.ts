@@ -1,12 +1,8 @@
 import crypto from "crypto";
 
-export const getOnchainId = (
-  chainId: string,
-  transactionId: string,
-  entryId: string
-) =>
+export const getDeterministicId = (...values: string[]) =>
   "0x" +
   crypto
     .createHash("sha256")
-    .update(`${chainId}:${transactionId}:${entryId}`.toLowerCase())
+    .update(values.join(":").toLowerCase())
     .digest("hex");

@@ -19,7 +19,7 @@ import {
 import bs58 from "bs58";
 
 import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
-import { getOnchainId } from "../utils";
+import { getDeterministicId } from "../utils";
 import { VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
@@ -67,13 +67,13 @@ export class SolanaVmAttestor extends VmAttestor {
       throw externalError("Chain has no depository configured");
     }
 
-    const messages: DepositoryDepositMessage[] = [];
-
     const { instructions, accountKeys } =
       await this._extractInstructionsAndKeys(transaction, rpc);
     if (!instructions.length) {
-      return messages;
+      return [];
     }
+
+    const messages: DepositoryDepositMessage[] = [];
 
     // Iterate through all instructions, looking for calls to the depository contract
     for (let i = 0; i < instructions.length; i++) {
@@ -102,7 +102,11 @@ export class SolanaVmAttestor extends VmAttestor {
           // Third account in "DepositToken" struct is the depositor
           const depositor = accountKeys[depositorIndex].toBase58();
 
-          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          const onchainId = getDeterministicId(
+            chainId,
+            transactionId,
+            i.toString()
+          );
           messages.push({
             data: {
               chainId,
@@ -134,7 +138,11 @@ export class SolanaVmAttestor extends VmAttestor {
           const depositor = accountKeys[depositorIndex].toBase58();
           const mint = accountKeys[mintIndex].toBase58();
 
-          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          const onchainId = getDeterministicId(
+            chainId,
+            transactionId,
+            i.toString()
+          );
           messages.push({
             data: {
               chainId,

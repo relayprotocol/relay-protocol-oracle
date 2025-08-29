@@ -77,3 +77,27 @@ export const errorWrapper = (
     }
   };
 };
+
+// Shared schemas
+
+export const signatureSchema = Type.Object({
+  oracle: Type.String({
+    description: "The address of the signing oracle",
+  }),
+  signature: Type.String({
+    description: "The message signature",
+  }),
+});
+
+export const executionSchema = Type.Optional(
+  Type.Object(
+    {
+      idempotencyKey: Type.String(),
+      actions: Type.Array(Type.String(), { minItems: 1 }),
+      signature: signatureSchema,
+    },
+    {
+      description: "The 'execution' message to be relayed on the Hub",
+    }
+  )
+);

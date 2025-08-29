@@ -3,10 +3,15 @@ import { Type } from "@fastify/type-provider-typebox";
 import {
   Endpoint,
   ErrorResponses,
+  executionSchema,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
+  signatureSchema,
 } from "../../utils";
-import { signDepositoryDepositMessage } from "../../../common/signer";
+import {
+  signDepositoryDepositMessage,
+  signExecutionMessage,
+} from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -44,20 +49,14 @@ const Schema = {
             }),
             amount: Type.String({ description: "The deposited amount" }),
           }),
-          signature: Type.Object({
-            oracle: Type.String({
-              description: "The address of the signing oracle",
-            }),
-            signature: Type.String({
-              description: "The message signature",
-            }),
-          }),
+          signature: signatureSchema,
         }),
         {
           description:
             "A list of 'depository-deposit' messages that occured in the requested transaction",
         }
       ),
+      execution: executionSchema,
     }),
   },
 };
@@ -71,9 +70,8 @@ export default {
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
     const attestationService = new AttestationService();
-    const messages = await attestationService.attestDepositoryDeposits(
-      req.body
-    );
+    const { messages, execution } =
+      await attestationService.attestDepositoryDeposits(req.body);
 
     return reply.send({
       messages: await Promise.all(
@@ -82,6 +80,12 @@ export default {
           signature: await signDepositoryDepositMessage(message),
         }))
       ),
+      execution: execution
+        ? {
+            ...execution,
+            signature: await signExecutionMessage(execution),
+          }
+        : undefined,
     });
   },
 } as Endpoint;
