@@ -142,7 +142,7 @@ export class SuiVmAttestor extends VmAttestor {
     payment: {
       currency: string;
       recipient: string;
-      orderHash: string;
+      orderId: string;
       extraData: string;
       deadline: number;
     }
@@ -174,21 +174,21 @@ export class SuiVmAttestor extends VmAttestor {
 
     // Verify order hash is included in the transaction
     // This could be in a memo event or somewhere in the transaction data
-    let orderHashFound = false;
+    let orderIdFound = false;
     if (transaction.events) {
       for (const event of transaction.events) {
         // TODO: validate package Id
         if (event.type.includes("::memo::MemoEvent")) {
           const memo = (event.parsedJson as any).message;
-          if (memo === payment.orderHash) {
-            orderHashFound = true;
+          if (memo === payment.orderId) {
+            orderIdFound = true;
             break;
           }
         }
       }
     }
 
-    if (!orderHashFound) {
+    if (!orderIdFound) {
       throw externalError(
         `Order hash not found in transaction: ${transactionId}`
       );

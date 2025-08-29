@@ -43,6 +43,9 @@ export const getChain = async (chainId: string) => {
   return chains[chainId];
 };
 
+export const getChainVmType = async (chainId: string) =>
+  getChain(chainId).then((c) => c.vmType);
+
 export const getSdkChainsConfig = async () => {
   return Object.fromEntries(
     Object.values(await getChains()).map((c) => [c.id, c.vmType])

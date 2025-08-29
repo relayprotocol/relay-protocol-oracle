@@ -258,7 +258,7 @@ export class SolanaVmAttestor extends VmAttestor {
     payment: {
       currency: string;
       recipient: string;
-      orderHash: string;
+      orderId: string;
       extraData: string;
       deadline: number;
     }
@@ -288,19 +288,19 @@ export class SolanaVmAttestor extends VmAttestor {
     const { instructions, accountKeys } =
       await this._extractInstructionsAndKeys(transaction, connection);
 
-    let hasOrderHash = false;
+    let hasorderId = false;
     for (const instruction of instructions) {
       const programId = accountKeys[instruction.programIdIndex];
       if (programId.toBase58() === MEMO_PROGRAM_ID.toBase58()) {
         const ixData = Buffer.from(instruction.data).toString();
-        if (ixData.includes(payment.orderHash)) {
-          hasOrderHash = true;
+        if (ixData.includes(payment.orderId)) {
+          hasorderId = true;
           break;
         }
       }
     }
 
-    if (!hasOrderHash) {
+    if (!hasorderId) {
       throw externalError(
         `Transaction ${transactionId} does not reference order hash`
       );

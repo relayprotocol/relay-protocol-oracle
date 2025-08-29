@@ -1170,7 +1170,7 @@ const setupTestEnvironment = async (
     testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600;
   }
 
-  const orderHash = getOrderId(testOrder, await getSdkChainsConfig());
+  const orderId = getOrderId(testOrder, await getSdkChainsConfig());
 
   // Create deposit transaction
   let depositTxReceipt: TransactionReceipt;
@@ -1181,7 +1181,7 @@ const setupTestEnvironment = async (
       to: testData.chain.depository,
       tokenAddress: testData.tokenAddress,
       amount: paymentAmount,
-      depositId: orderHash,
+      depositId: orderId,
     });
   } else {
     depositTxReceipt = createNativeDepositTransaction({
@@ -1189,7 +1189,7 @@ const setupTestEnvironment = async (
       depositorAddress: testData.depositorAddress,
       depositoryAddress: testData.chain.depository,
       paymentAmount,
-      depositId: orderHash,
+      depositId: orderId,
     });
   }
 
@@ -1229,7 +1229,7 @@ const setupTestEnvironment = async (
         receipt: depositTxReceipt,
       },
       [actionTxHash]: {
-        input: orderHash,
+        input: orderId,
         receipt: actionTxReceipt,
       },
     },
@@ -1241,7 +1241,7 @@ const setupTestEnvironment = async (
     : solverWallet;
 
   const orderSignature = await signerWallet.signMessage({
-    message: { raw: orderHash },
+    message: { raw: orderId },
   });
 
   // Get depository deposits
