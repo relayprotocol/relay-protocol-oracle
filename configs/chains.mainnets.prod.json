@@ -184,7 +184,7 @@
     "id": "abstract",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-abstract.nodes.svc.cluster.local:8545/abstract"
+    "httpRpcUrl": "https://api.mainnet.abs.xyz"
   },
   {
     "id": "morph",
