@@ -5,6 +5,7 @@ import {
   ErrorResponses,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
+  signatureSchema,
 } from "../../utils";
 import { signDepositoryWithdrawalMessage } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
@@ -38,14 +39,7 @@ const Schema = {
                 "The status of the withdrawal (0 = pending, 1 = executed, 2 = expired)",
             }),
           }),
-          signature: Type.Object({
-            oracle: Type.String({
-              description: "The address of the signing oracle",
-            }),
-            signature: Type.String({
-              description: "The message signature",
-            }),
-          }),
+          signature: signatureSchema,
         },
         {
           description: "The resulting 'depository-withdrawal' message",

@@ -3,10 +3,15 @@ import { Type } from "@fastify/type-provider-typebox";
 import {
   Endpoint,
   ErrorResponses,
+  executionSchema,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
+  signatureSchema,
 } from "../../utils";
-import { signSolverRefundMessage } from "../../../common/signer";
+import {
+  signExecutionMessage,
+  signSolverRefundMessage,
+} from "../../../common/signer";
 import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
@@ -123,19 +128,13 @@ const Schema = {
                 "The bps difference between the quoted amount and the deposited amount",
             }),
           }),
-          signature: Type.Object({
-            oracle: Type.String({
-              description: "The address of the signing oracle",
-            }),
-            signature: Type.String({
-              description: "The message signature",
-            }),
-          }),
+          signature: signatureSchema,
         },
         {
           description: "The resulting 'solver-refund' message",
         }
       ),
+      execution: executionSchema,
     }),
   },
 };
@@ -149,7 +148,9 @@ export default {
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
     const attestationService = new AttestationService();
-    const message = await attestationService.attestSolverRefund(req.body);
+    const { message, execution } = await attestationService.attestSolverRefund(
+      req.body
+    );
 
     // Restrict the `force` option to specific integrators
     if (req.body.force) {
@@ -172,6 +173,12 @@ export default {
         result: message.result,
         signature: await signSolverRefundMessage(message),
       },
+      execution: execution
+        ? {
+            ...execution,
+            signature: await signExecutionMessage(execution),
+          }
+        : undefined,
     });
   },
 } as Endpoint;

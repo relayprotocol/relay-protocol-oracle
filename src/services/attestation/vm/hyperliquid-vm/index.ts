@@ -6,11 +6,10 @@ import {
 
 import { Hex, parseUnits } from "viem";
 
+import { VmAttestor } from "../../vm/types";
+import { getChainNativeCurrency } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/hyperliquid-vm/rpc";
-import { VmAttestor } from "../../vm/types";
-
-const USDC_PERPS_CURRENCY = "0x00000000000000000000000000000000";
 
 export class HyperliquidVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
@@ -55,7 +54,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
       );
     }
 
-    if (payment.currency === USDC_PERPS_CURRENCY) {
+    if (payment.currency === (await getChainNativeCurrency(chainId))) {
       if (txDetails.action.type === "usdSend") {
         const txParameters =
           txDetails.action as unknown as hl.UsdSendParameters;

@@ -13,11 +13,9 @@ import {
 
 import { getDeterministicId } from "../utils";
 import { VmAttestor } from "../../vm/types";
-import { getChain } from "../../../../common/chains";
+import { getChain, getChainNativeCurrency } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/bitcoin-vm/rpc";
-
-const BTC_CURRENCY = "bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8";
 
 export class BitcoinVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
@@ -97,7 +95,7 @@ export class BitcoinVmAttestor extends VmAttestor {
           depository,
           depositId: depositId ?? zeroHash,
           depositor,
-          currency: BTC_CURRENCY,
+          currency: await getChainNativeCurrency(chainId),
           amount: amount.toString(),
         },
       },

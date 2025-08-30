@@ -18,12 +18,11 @@ import {
   parseAbi,
   parseEventLogs,
   TransactionReceipt,
-  zeroAddress,
   zeroHash,
 } from "viem";
 
 import { getDeterministicId } from "../utils";
-import { getChain } from "../../../../common/chains";
+import { getChain, getChainNativeCurrency } from "../../../../common/chains";
 import { externalError } from "../../../../common/error";
 import { undefinedOnThrow } from "../../../../common/utils";
 import { httpRpc } from "../../../../common/vm/ethereum-vm/rpc";
@@ -134,7 +133,7 @@ export class EthereumVmAttestor extends VmAttestor {
             depository,
             depositId,
             depositor: currentLog.args.from.toLowerCase(),
-            currency: zeroAddress,
+            currency: await getChainNativeCurrency(chainId),
             amount: currentLog.args.amount.toString(),
           },
         });
@@ -334,7 +333,7 @@ export class EthereumVmAttestor extends VmAttestor {
       );
     }
 
-    if (payment.currency === zeroAddress) {
+    if (payment.currency === (await getChainNativeCurrency(chainId))) {
       // If the payment involves native currency, we first try to see if this is a direct transfer
       if (
         transaction.to?.toLowerCase() === payment.recipient.toLowerCase() &&
