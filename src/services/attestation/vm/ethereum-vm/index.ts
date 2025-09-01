@@ -247,11 +247,11 @@ export class EthereumVmAttestor extends VmAttestor {
     if (isExecuted) {
       status = DepositoryWithdrawalStatus.EXECUTED;
     } else {
-      const finalizedBlockTimestamp = await rpc
-        .getBlock({ blockTag: "finalized" })
+      const chainTimestamp = await rpc
+        .getBlock()
         .then((block) => block.timestamp);
       if (
-        finalizedBlockTimestamp >
+        chainTimestamp - this._FINALIZATION_TIME >
         BigInt(decodedWithdrawal.withdrawal.expiration)
       ) {
         status = DepositoryWithdrawalStatus.EXPIRED;
@@ -446,12 +446,16 @@ export class EthereumVmAttestor extends VmAttestor {
     return true;
   }
 
+  private _FINALIZATION_TIME = 60n;
+
   private async _ensureTxFinalization(chainId: string, tx: TransactionReceipt) {
     const rpc = await httpRpc(chainId);
 
-    const finalizedBlock = await rpc.getBlock({ blockTag: "finalized" });
-    const txBlock = await rpc.getBlock({ blockNumber: tx.blockNumber });
-    if (finalizedBlock.number < txBlock.number) {
+    const latestBlockTimestamp = await rpc.getBlock().then((b) => b.timestamp);
+    const txTimestamp = await rpc
+      .getBlock({ blockNumber: tx.blockNumber })
+      .then((b) => b.timestamp);
+    if (latestBlockTimestamp - txTimestamp < this._FINALIZATION_TIME) {
       throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
     }
   }
