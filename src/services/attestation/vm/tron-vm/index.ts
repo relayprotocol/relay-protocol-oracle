@@ -8,7 +8,6 @@ import {
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
-import { getVmTypeNativeCurrency } from "@reservoir0x/relay-protocol-sdk/src/utils";
 
 import {
   zeroHash,
@@ -35,7 +34,7 @@ export const ABI = [
   "function callRequests(bytes32 withdrawalId) view returns (bool)",
 ];
 
-const zeroAddress = getVmTypeNativeCurrency('tron-vm');
+const zeroAddress = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 
 export const toTronAddressFromHexAddress = (address: string) => {
   return tronweb.utils.address.fromHex(address.replace("0x", tronweb.utils.address.ADDRESS_PREFIX));
