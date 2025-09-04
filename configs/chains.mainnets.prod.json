@@ -105,7 +105,7 @@
     "id": "hyperevm",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "https://rpc.hyperliquid.xyz/evm"
+    "httpRpcUrl": "http://proxy-hyperliquid.nodes.svc.cluster.local:8545/hyperliquid"
   },
   {
     "id": "metis",
@@ -184,7 +184,7 @@
     "id": "abstract",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-abstract.nodes.svc.cluster.local:8545/abstract"
+    "httpRpcUrl": "https://api.mainnet.abs.xyz"
   },
   {
     "id": "morph",
@@ -448,7 +448,7 @@
     "id": "eclipse",
     "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
     "vmType": "solana-vm",
-    "httpRpcUrl": "https://mainnetbeta-rpc.eclipse.xyz"
+    "httpRpcUrl": "https://acv-resevoir.eclipserpc.xyz/token/resevoir-U4MjA4NDc0NDU5NmIwNjYwYzk4ZWU4MTQ1OTg1ZWU5ZjQyZWIyNDdiMWQxYTBmOT-acv"
   },
   {
     "id": "soon",
@@ -467,7 +467,7 @@
     "vmType": "bitcoin-vm",
     "httpRpcUrl": "https://docs-demo.btc.quiknode.pro",
     "additionalData": {
-      "esploraCompatibleApiUrl": "https://mempool.space/api"
+      "esploraCompatibleApiUrl": "https://blockstream.info/api"
     }
   }
 ]
