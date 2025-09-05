@@ -1003,7 +1003,7 @@ describe("TronVmAttestor", () => {
         getBlock: async () => ({
           block_header: {
             raw_data: {
-              timestamp: decodedWithdrawal.withdrawal.expiration + 61000, // Past expiration + finalization time
+              timestamp: decodedWithdrawal.withdrawal.expiration + 181000, // Past expiration + finalization time
             },
           },
         }),

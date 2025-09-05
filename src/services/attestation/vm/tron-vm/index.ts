@@ -77,7 +77,7 @@ const parseEventLogs = (options: {
       if (eventNames.includes(parsedLog.name)) {
         parsedLogs.push({
           eventName: parsedLog.name,
-          address: log.address,
+          address: "0x" + log.address,
           args: parsedLog.args,
           logIndex,
         });
@@ -191,7 +191,8 @@ export class TronVmAttestor extends VmAttestor {
           const nextLog = parsedLogs[j];
           if (
             nextLog.eventName === "RelayErc20Deposit" &&
-            fromHexAddress(nextLog.args.token) === currentLog.address &&
+            fromHexAddress(nextLog.args.token) ===
+              fromHexAddress(currentLog.address) &&
             nextLog.args.amount.toString() === currentLog.args.amount.toString()
           ) {
             depositor = fromHexAddress(nextLog.args.from);
@@ -397,7 +398,7 @@ export class TronVmAttestor extends VmAttestor {
       })
         .filter(
           (log) =>
-            fromHexAddress(fillContract) === log.address &&
+            fromHexAddress(fillContract) === fromHexAddress(log.address) &&
             fromHexAddress(log.args.to) === payment.recipient
         )
         .map((log) => log.args.amount)
@@ -411,7 +412,7 @@ export class TronVmAttestor extends VmAttestor {
       })
         .filter(
           (log) =>
-            log.address === fromHexAddress(payment.currency) &&
+            fromHexAddress(log.address) === payment.currency &&
             fromHexAddress(log.args.to) === payment.recipient
         )
         .map((log) => log.args.amount)
