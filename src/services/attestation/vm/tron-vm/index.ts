@@ -258,7 +258,7 @@ export class TronVmAttestor extends VmAttestor {
             depository,
             depositId: depositId ?? zeroHash,
             depositor,
-            currency: currentLog.address,
+            currency: fromHexAddress(currentLog.address),
             amount: currentLog.args.amount.toString(),
           },
         });

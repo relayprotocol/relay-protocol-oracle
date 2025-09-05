@@ -9,6 +9,7 @@ import {
   SolverFillStatus,
   SolverRefundStatus,
 } from "@reservoir0x/relay-protocol-sdk";
+import * as tronweb from "tronweb";
 import { Hex, zeroHash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -20,11 +21,8 @@ import {
 import { httpRpc } from "../../../../src/common/vm/tron-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { ABI } from "../../../../src/services/attestation/vm/tron-vm";
-import * as tronweb from "tronweb";
 
 import { ONE_BILLION, randomHex, randomNumber } from "../../../common/utils";
-
-const zeroAddress = getVmTypeNativeCurrency("tron-vm");
 
 // Helper function to generate valid Tron address
 const generateTronAddress = (): string => {
@@ -325,8 +323,8 @@ function createTestOrder({
   refundRecipient,
   solverContractAddress,
   solverAddress,
-  inputCurrency = zeroAddress,
-  outputCurrency = zeroAddress,
+  inputCurrency = getVmTypeNativeCurrency("tron-vm"),
+  outputCurrency = getVmTypeNativeCurrency("tron-vm"),
 }: {
   paymentAmount: string;
   outputRecipient: string;
@@ -554,7 +552,7 @@ const getTronBlockMock = async (data?: any) => {
   }
 };
 
-describe("TronVmAttestationService", () => {
+describe("TronVmAttestor", () => {
   it("attestDepositoryDeposits - single Transfer event", async () => {
     const chains = Object.values(await getChains());
 
@@ -934,7 +932,7 @@ describe("TronVmAttestationService", () => {
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(zeroAddress);
+    expect(msg.result.currency).toEqual(getVmTypeNativeCurrency("tron-vm"));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
   });
@@ -993,12 +991,6 @@ describe("TronVmAttestationService", () => {
         expiration: randomNumber(ONE_BILLION) * 1000, // Convert to milliseconds
       },
     };
-
-    console.log("to", to);
-    console.log(
-      "decodedWithdrawal",
-      JSON.stringify(decodedWithdrawal, null, 2)
-    );
 
     setupTronRpcMock({
       transactions: {},
@@ -1223,8 +1215,12 @@ const setupTronTestEnvironment = async (
     refundRecipient: testData.refundRecipient,
     solverContractAddress: testData.solverContractAddress,
     solverAddress: solverWallet.address,
-    inputCurrency: options.useErc20Token ? testData.tokenAddress : zeroAddress,
-    outputCurrency: options.useErc20Token ? testData.tokenAddress : zeroAddress,
+    inputCurrency: options.useErc20Token
+      ? testData.tokenAddress
+      : getVmTypeNativeCurrency("tron-vm"),
+    outputCurrency: options.useErc20Token
+      ? testData.tokenAddress
+      : getVmTypeNativeCurrency("tron-vm"),
   });
 
   if (options.expiredDeadline) {
