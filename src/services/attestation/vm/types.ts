@@ -20,7 +20,7 @@ export abstract class VmAttestor {
     payment: {
       currency: string;
       recipient: string;
-      orderHash: string;
+      orderId: string;
       extraData: string;
       deadline: number;
     }

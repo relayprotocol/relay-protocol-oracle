@@ -48,7 +48,7 @@ export class AttestationService {
     const totalWeightedInputPaymentBpsDiff =
       await this._getTotalWeightedInputPaymentBpsDiff(data);
 
-    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the fill
     for (
@@ -65,7 +65,7 @@ export class AttestationService {
         {
           currency: payment.currency,
           recipient: payment.recipient,
-          orderHash,
+          orderId,
           extraData: data.order.output.extraData,
           deadline: data.order.output.deadline,
         }
@@ -126,7 +126,7 @@ export class AttestationService {
     const totalWeightedInputPaymentBpsDiff =
       await this._getTotalWeightedInputPaymentBpsDiff(data);
 
-    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the refunds
     for (
@@ -162,7 +162,7 @@ export class AttestationService {
             {
               currency: orderRefund.currency,
               recipient: orderRefund.recipient,
-              orderHash,
+              orderId,
               extraData: orderRefund.extraData,
               deadline: orderRefund.deadline,
             }
@@ -212,13 +212,13 @@ export class AttestationService {
     }
 
     // Get the order hash
-    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the order signature
     const isSignatureValid = await verifyMessage({
       address: data.order.solver as Address,
       message: {
-        raw: orderHash,
+        raw: orderId,
       },
       signature: data.orderSignature as Hex,
     }).catch(() => false);
@@ -253,7 +253,7 @@ export class AttestationService {
         }).then((depositoryDeposits) =>
           depositoryDeposits.find(
             (d) =>
-              d.result.depositId === orderHash &&
+              d.result.depositId === orderId &&
               d.result.onchainId === inputInformation.onchainId
           )
         );

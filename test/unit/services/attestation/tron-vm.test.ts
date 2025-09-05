@@ -4,21 +4,13 @@ import {
   encodeWithdrawal,
   DepositoryWithdrawalStatus,
   getOrderId,
+  getVmTypeNativeCurrency,
   Order,
   SolverFillStatus,
   SolverRefundStatus,
 } from "@reservoir0x/relay-protocol-sdk";
-import {
-  Hex,
-  Log,
-  TransactionReceipt,
-  encodeAbiParameters,
-  encodeEventTopics,
-  encodeFunctionData,
-  getContract,
-  zeroAddress,
-  zeroHash,
-} from "viem";
+import * as tronweb from "tronweb";
+import { Hex, zeroHash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import {
@@ -26,11 +18,84 @@ import {
   getChains,
   getSdkChainsConfig,
 } from "../../../../src/common/chains";
-import { httpRpc } from "../../../../src/common/vm/ethereum-vm/rpc";
+import { httpRpc } from "../../../../src/common/vm/tron-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
-import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
+import { ABI } from "../../../../src/services/attestation/vm/tron-vm";
 
 import { ONE_BILLION, randomHex, randomNumber } from "../../../common/utils";
+
+// Helper function to generate valid Tron address
+const generateTronAddress = (): string => {
+  const hexAddress = randomHex(20); // Generate 20-byte hex address
+  return tronweb.utils.address.fromHex(`41${hexAddress.slice(2)}`);
+};
+
+const encodeAbiParameters = (
+  _types: { name: string; type: string }[],
+  _values: any[]
+): string => {
+  return tronweb.utils.abi.encodeParams(
+    _types.map((c) => c.type),
+    _values.map((c, index) =>
+      _types[index].type === "address"
+        ? tronweb.utils.address
+            .toHex(c)
+            .replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, "0x")
+        : c
+    )
+  );
+};
+
+const encodeEventTopics = (_options: {
+  abi: any;
+  eventName: string;
+  args?: Record<string, any>;
+}): string[] => {
+  const iface = new tronweb.utils.ethersUtils.Interface(_options.abi);
+  const event = iface.getEvent(_options.eventName);
+  const topics = [event!.topicHash.slice(2)]; // Remove 0x prefix for Tron format
+
+  // For indexed parameters, add them to topics (simplified for stub)
+  if (_options.args) {
+    const indexedParams = event!.inputs.filter((input: any) => input.indexed);
+    for (const param of indexedParams) {
+      if (_options.args[param.name]) {
+        // Convert address to hex format for topics
+        if (param.type === "address") {
+          const hexAddr = tronweb.utils.address.isAddress(
+            _options.args[param.name]
+          )
+            ? tronweb.utils.address
+                .toHex(_options.args[param.name])
+                .replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, "0x")
+            : _options.args[param.name];
+          topics.push(hexAddr.replace("0x", "").padStart(64, "0"));
+        }
+      }
+    }
+  }
+
+  return topics;
+};
+
+const encodeFunctionData = (_options: {
+  abi: any;
+  functionName: string;
+  args: any[];
+}): string => {
+  const iface = new tronweb.utils.ethersUtils.Interface(_options.abi);
+  const functionData = iface.encodeFunctionData(
+    _options.functionName,
+    _options.args.map((c) =>
+      tronweb.utils.address.isAddress(c)
+        ? tronweb.utils.address
+            .toHex(c)
+            .replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, "0x")
+        : c
+    )
+  );
+  return functionData;
+};
 
 const testSolverPrivateKey =
   "0x1234567890123456789012345678901234567890123456789012345678901234";
@@ -38,11 +103,11 @@ const solverWallet = privateKeyToAccount(testSolverPrivateKey);
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<string, Chain> = {
-    ethereum: {
-      id: "ethereum",
-      vmType: "ethereum-vm",
-      httpRpcUrl: "http://127.0.0.1:8545",
-      depository: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
+    tron: {
+      id: "tron",
+      vmType: "tron-vm",
+      httpRpcUrl: "http://127.0.0.1:8090",
+      depository: "TLyqzVGLV1srkB7dToTAEqgDSfPtXRJZYH",
     },
   };
   return {
@@ -54,75 +119,67 @@ jest.mock("../../../../src/common/chains", () => {
       ),
   };
 });
-jest.mock("../../../../src/common/vm/ethereum-vm/rpc", () => {
+
+jest.mock("../../../../src/common/vm/tron-vm/rpc", () => {
   return {
     httpRpc: jest.fn(),
   };
 });
-jest.mock("viem", () => {
-  return {
-    ...(jest.requireActual("viem") as typeof import("viem")),
-    getContract: jest.fn(),
-  };
-});
 
-const generateTransactionReceipt = (
-  transactionHash: string,
-  logs: Log<bigint, number, false>[]
-): TransactionReceipt => {
+const generateTronTransactionReceipt = (
+  transactionId: string,
+  logs: any[]
+): any => {
   return {
-    blockHash: randomHex(32) as Hex,
-    blockNumber: BigInt(randomNumber(1e10)),
-    cumulativeGasUsed: 0n,
-    effectiveGasPrice: 0n,
-    contractAddress: randomHex(20) as Hex,
-    from: randomHex(20) as Hex,
-    to: randomHex(20) as Hex,
-    gasUsed: 0n,
-    logs,
-    logsBloom: randomHex(32) as Hex,
-    status: "success",
-    transactionHash: transactionHash as Hex,
-    transactionIndex: 0,
-    type: "eip1559",
+    id: transactionId,
+    fee: randomNumber(10000000),
+    blockNumber: randomNumber(10000),
+    blockTimeStamp: Date.now(),
+    contractResult: [""],
+    contract_address: `41${randomHex(20).slice(2)}`,
+    receipt: {
+      energy_fee: randomNumber(1000000),
+      energy_usage_total: randomNumber(100000),
+      net_fee: randomNumber(10000),
+      result: "SUCCESS",
+    },
+    log: logs,
+    internal_transactions: [],
   };
 };
 
-const generateTransactionLog = ({
-  transactionHash,
-  logIndex,
+const generateTronTransactionLog = ({
+  // transactionId,
+  // logIndex,
   address,
   data,
   topics,
 }: {
-  transactionHash: string;
+  transactionId: string;
   logIndex: number;
   address: string;
   data: string;
   topics: string[];
-}): Log<bigint, number, false> => {
+}): any => {
+  // Convert to Tron format - remove 0x prefix and ensure address is in hex format without 41 prefix
   return {
-    address: address as Hex,
-    blockHash: randomHex(32) as Hex,
-    blockNumber: BigInt(randomNumber(1e10)),
-    data: data as Hex,
-    logIndex,
-    transactionHash: transactionHash as Hex,
-    transactionIndex: 0,
-    removed: false,
-    topics: topics as [Hex, ...Hex[]],
+    address: tronweb.utils.address.isAddress(address)
+      ? tronweb.utils.address.toHex(address).slice(2) // Remove 41 prefix
+      : address.replace("0x", ""),
+    topics,
+    data: data.replace("0x", ""),
   };
 };
 
-const generateTransferLog = ({
-  transactionHash,
+const generateTronTransferLog = ({
+  transactionId,
   logIndex,
   from,
   to,
   token,
   amount,
 }: {
-  transactionHash: string;
+  transactionId: string;
   logIndex: number;
   from: string;
   to: string;
@@ -139,8 +196,8 @@ const generateTransferLog = ({
     [BigInt(amount)]
   );
 
-  return generateTransactionLog({
-    transactionHash,
+  return generateTronTransactionLog({
+    transactionId,
     logIndex,
     address: token,
     data,
@@ -148,15 +205,15 @@ const generateTransferLog = ({
   });
 };
 
-const generateNativeDepositLog = ({
-  transactionHash,
+const generateTronNativeDepositLog = ({
+  transactionId,
   logIndex,
   from,
   to,
   amount,
   id,
 }: {
-  transactionHash: string;
+  transactionId: string;
   logIndex: number;
   from: string;
   to: string;
@@ -176,8 +233,8 @@ const generateNativeDepositLog = ({
     [from as Hex, BigInt(amount), id as Hex]
   );
 
-  return generateTransactionLog({
-    transactionHash,
+  return generateTronTransactionLog({
+    transactionId,
     logIndex,
     address: to,
     data,
@@ -185,8 +242,8 @@ const generateNativeDepositLog = ({
   });
 };
 
-const generateErc20DepositLog = ({
-  transactionHash,
+const generateTronErc20DepositLog = ({
+  transactionId,
   logIndex,
   from,
   to,
@@ -194,7 +251,7 @@ const generateErc20DepositLog = ({
   amount,
   id,
 }: {
-  transactionHash: string;
+  transactionId: string;
   logIndex: number;
   from: string;
   to: string;
@@ -216,8 +273,8 @@ const generateErc20DepositLog = ({
     [from as Hex, token as Hex, BigInt(amount), id as Hex]
   );
 
-  return generateTransactionLog({
-    transactionHash,
+  return generateTronTransactionLog({
+    transactionId,
     logIndex,
     address: to,
     data,
@@ -225,14 +282,14 @@ const generateErc20DepositLog = ({
   });
 };
 
-const generateSolverNativeTransferLog = ({
-  transactionHash,
+const generateTronSolverNativeTransferLog = ({
+  transactionId,
   logIndex,
   from,
   to: solverContract,
   amount,
 }: {
-  transactionHash: string;
+  transactionId: string;
   logIndex: number;
   from: string;
   to: string;
@@ -250,8 +307,8 @@ const generateSolverNativeTransferLog = ({
     [from as Hex, BigInt(amount)]
   );
 
-  return generateTransactionLog({
-    transactionHash,
+  return generateTronTransactionLog({
+    transactionId,
     logIndex,
     address: solverContract,
     data,
@@ -266,8 +323,8 @@ function createTestOrder({
   refundRecipient,
   solverContractAddress,
   solverAddress,
-  inputCurrency = zeroAddress,
-  outputCurrency = zeroAddress,
+  inputCurrency = getVmTypeNativeCurrency("tron-vm"),
+  outputCurrency = getVmTypeNativeCurrency("tron-vm"),
 }: {
   paymentAmount: string;
   outputRecipient: string;
@@ -280,33 +337,33 @@ function createTestOrder({
   return {
     version: "v1",
     salt: "0x1",
-    solverChainId: "ethereum",
+    solverChainId: "tron",
     solver: solverAddress,
     inputs: [
       {
         payment: {
-          chainId: "ethereum",
+          chainId: "tron",
           currency: inputCurrency,
           amount: paymentAmount,
           weight: "1",
         },
         refunds: [
           {
-            chainId: "ethereum",
+            chainId: "tron",
             recipient: refundRecipient,
             currency: inputCurrency,
             minimumAmount: paymentAmount,
             deadline: Math.floor(Date.now() / 1000) + 36000,
             extraData: encodeAbiParameters(
-              [{ type: "address" }],
-              [solverContractAddress as Hex]
+              [{ name: "fillContract", type: "address" }],
+              [solverContractAddress]
             ),
           },
         ],
       },
     ],
     output: {
-      chainId: "ethereum",
+      chainId: "tron",
       payments: [
         {
           recipient: outputRecipient,
@@ -317,8 +374,8 @@ function createTestOrder({
       ],
       calls: [],
       extraData: encodeAbiParameters(
-        [{ type: "address" }],
-        [solverContractAddress as Hex]
+        [{ name: "fillContract", type: "address" }],
+        [solverContractAddress]
       ),
       deadline: Math.floor(Date.now() / 1000) + 36000,
     },
@@ -340,12 +397,12 @@ interface TestSetupParams {
 
 function setupTestData(): TestSetupParams {
   const currentTimestamp = Math.floor(Date.now() / 1000);
-  const depositorAddress = randomHex(20);
-  const tokenAddress = randomHex(20);
+  const depositorAddress = generateTronAddress();
+  const tokenAddress = generateTronAddress();
   const paymentAmount = randomNumber(1e10).toString();
-  const outputRecipient = randomHex(20);
-  const refundRecipient = randomHex(20);
-  const solverContractAddress = randomHex(20);
+  const outputRecipient = generateTronAddress();
+  const refundRecipient = generateTronAddress();
+  const solverContractAddress = generateTronAddress();
 
   return {
     chain: null, // Will be set at call site
@@ -360,7 +417,7 @@ function setupTestData(): TestSetupParams {
 }
 
 // Create deposit transaction logs
-function createNativeDepositTransaction(params: {
+function createTronNativeDepositTransaction(params: {
   depositTxHash: string;
   depositorAddress: string;
   depositoryAddress: string;
@@ -375,8 +432,8 @@ function createNativeDepositTransaction(params: {
     depositId,
   } = params;
 
-  const depositTransferLog = generateNativeDepositLog({
-    transactionHash: depositTxHash,
+  const depositTransferLog = generateTronNativeDepositLog({
+    transactionId: depositTxHash,
     logIndex: 0,
     from: depositorAddress,
     to: depositoryAddress,
@@ -384,11 +441,11 @@ function createNativeDepositTransaction(params: {
     id: depositId ?? zeroHash,
   });
 
-  return generateTransactionReceipt(depositTxHash, [depositTransferLog]);
+  return generateTronTransactionReceipt(depositTxHash, [depositTransferLog]);
 }
 
 // Create fill transaction logs
-function createFillTransaction(params: {
+function createTronFillTransaction(params: {
   fillTxHash: string;
   outputRecipient: string;
   solverContractAddress: string;
@@ -397,19 +454,19 @@ function createFillTransaction(params: {
   const { fillTxHash, outputRecipient, solverContractAddress, paymentAmount } =
     params;
 
-  const fillNativeTransferLog = generateSolverNativeTransferLog({
-    transactionHash: fillTxHash,
+  const fillNativeTransferLog = generateTronSolverNativeTransferLog({
+    transactionId: fillTxHash,
     logIndex: 0,
     from: outputRecipient,
     to: solverContractAddress,
     amount: paymentAmount,
   });
 
-  return generateTransactionReceipt(fillTxHash, [fillNativeTransferLog]);
+  return generateTronTransactionReceipt(fillTxHash, [fillNativeTransferLog]);
 }
 
 // Create refund transaction logs
-function createRefundTransaction(params: {
+function createTronRefundTransaction(params: {
   refundTxHash: string;
   refundRecipient: string;
   solverContractAddress: string;
@@ -422,68 +479,110 @@ function createRefundTransaction(params: {
     paymentAmount,
   } = params;
 
-  const refundNativeTransferLog = generateSolverNativeTransferLog({
-    transactionHash: refundTxHash,
+  const refundNativeTransferLog = generateTronSolverNativeTransferLog({
+    transactionId: refundTxHash,
     logIndex: 0,
     from: refundRecipient,
     to: solverContractAddress,
     amount: paymentAmount,
   });
 
-  return generateTransactionReceipt(refundTxHash, [refundNativeTransferLog]);
+  return generateTronTransactionReceipt(refundTxHash, [
+    refundNativeTransferLog,
+  ]);
 }
 
-function setupRpcMock(mockData: any) {
+function setupTronRpcMock(mockData: any) {
   (httpRpc as jest.Mock).mockImplementation(() => ({
-    getTransaction: async ({ hash }: { hash: string }) => {
-      const txData = mockData.transactions[hash];
-      return { input: txData.input };
+    trx: {
+      getTransaction: async (hash: string) => {
+        const txData = mockData.transactions[hash];
+        const data = txData.input.replace("0x", ""); // Remove 0x prefix for Tron format
+        return {
+          raw_data: {
+            contract: [
+              {
+                type: "TriggerSmartContract",
+                parameter: {
+                  value: {
+                    data,
+                  },
+                },
+              },
+            ],
+          },
+        };
+      },
+      getTransactionInfo: async (hash: string) => {
+        const txData = mockData.transactions[hash];
+        return txData.receipt;
+      },
+      getBlock: getTronBlockMock,
     },
-    getTransactionReceipt: async ({ hash }: { hash: string }) => {
-      const txData = mockData.transactions[hash];
-      return txData.receipt;
-    },
-    getBlock: getBlockMock,
+    contract: () => ({
+      at: async (_address: string) => ({
+        methods: {
+          callRequests: (_withdrawalId: string) => ({
+            call: async () => mockData.isExecuted || false,
+          }),
+        },
+      }),
+    }),
   }));
 }
 
-const getBlockMock = async (data?: any) => {
-  const now = Math.floor(Date.now() / 1000);
+const getTronBlockMock = async (data?: any) => {
+  const now = Math.floor(Date.now());
   if (!data || data.blockTag === "latest") {
-    return { timestamp: BigInt(now + 60 * 2) };
+    return {
+      block_header: {
+        raw_data: {
+          timestamp: now + 181000, // 181 seconds to ensure finalization
+        },
+      },
+    };
   } else {
-    return { timestamp: BigInt(now) };
+    return {
+      block_header: {
+        raw_data: {
+          timestamp: now,
+        },
+      },
+    };
   }
 };
 
-describe("EthereumVmAttestor", () => {
+describe("TronVmAttestor", () => {
   it("attestDepositoryDeposits - single Transfer event", async () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
     const transactionHash = randomHex(32);
 
-    const from = randomHex(20);
-    const token = randomHex(20);
+    const from = generateTronAddress();
+    const token = generateTronAddress();
     const amount = randomNumber(1e10).toString();
 
-    const transferLog = generateTransferLog({
-      transactionHash,
+    const transferLog = generateTronTransferLog({
+      transactionId: transactionHash,
       logIndex: 0,
       from,
       to: chain.depository!,
       token,
       amount,
     });
-    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+    const transactionReceipt = generateTronTransactionReceipt(transactionHash, [
       transferLog,
     ]);
 
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: getBlockMock,
-      getTransaction: async () => ({ input: "0x" }),
-      getTransactionReceipt: async () => transactionReceipt,
-    }));
+    setupTronRpcMock({
+      transactions: {
+        [transactionHash]: {
+          input: "0x",
+          receipt: transactionReceipt,
+        },
+      },
+    });
 
     const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
@@ -508,35 +607,36 @@ describe("EthereumVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
     const transactionHash = randomHex(32);
 
-    const from = randomHex(20);
-    const token = randomHex(20);
+    const from = generateTronAddress();
+    const token = generateTronAddress();
     const amount = randomNumber(1e10).toString();
     const id = randomHex(32);
 
-    const transferLog = generateTransferLog({
-      transactionHash,
+    const transferLog = generateTronTransferLog({
+      transactionId: transactionHash,
       logIndex: 0,
       from,
       to: chain.depository!,
       token,
       amount,
     });
-    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+    const transactionReceipt = generateTronTransactionReceipt(transactionHash, [
       transferLog,
     ]);
 
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: getBlockMock,
-      getTransaction: async () => ({
-        input:
-          encodeFunctionData({
-            abi: ABI,
-            functionName: "transfer",
-            args: [chain.depository as Hex, BigInt(amount)],
-          }) + id.slice(2),
-      }),
-      getTransactionReceipt: async () => transactionReceipt,
-    }));
+    setupTronRpcMock({
+      transactions: {
+        [transactionHash]: {
+          input:
+            encodeFunctionData({
+              abi: ABI,
+              functionName: "transfer",
+              args: [chain.depository as Hex, BigInt(amount)],
+            }) + id.slice(2),
+          receipt: transactionReceipt,
+        },
+      },
+    });
 
     const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
@@ -561,31 +661,38 @@ describe("EthereumVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
     const transactionHash = randomHex(32);
 
-    const from = randomHex(20);
-    const token = randomHex(20);
+    const from = generateTronAddress();
+    const token = generateTronAddress();
     const amount = randomNumber(1e10).toString();
     const id = randomHex(32);
 
     const params = {
-      transactionHash,
+      transactionId: transactionHash,
       from,
       to: chain.depository!,
       token,
       amount,
     };
 
-    const transferLog = generateTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateErc20DepositLog({ ...params, id, logIndex: 1 });
-    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+    const transferLog = generateTronTransferLog({ ...params, logIndex: 0 });
+    const depositLog = generateTronErc20DepositLog({
+      ...params,
+      id,
+      logIndex: 1,
+    });
+    const transactionReceipt = generateTronTransactionReceipt(transactionHash, [
       transferLog,
       depositLog,
     ]);
 
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: getBlockMock,
-      getTransaction: async () => ({ input: "0x" }),
-      getTransactionReceipt: async () => transactionReceipt,
-    }));
+    setupTronRpcMock({
+      transactions: {
+        [transactionHash]: {
+          input: "0x",
+          receipt: transactionReceipt,
+        },
+      },
+    });
 
     const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
@@ -602,6 +709,125 @@ describe("EthereumVmAttestor", () => {
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
+  });
+
+  it("attestDepositoryDeposits - Transfer event with RelayErc20Deposit event with zero id", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const from = generateTronAddress();
+    const token = generateTronAddress();
+    const amount = randomNumber(1e10).toString();
+
+    const params = {
+      transactionId: transactionHash,
+      from,
+      to: chain.depository!,
+      token,
+      amount,
+    };
+
+    const transferLog = generateTronTransferLog({ ...params, logIndex: 0 });
+    const depositLog = generateTronErc20DepositLog({
+      ...params,
+      id: zeroHash,
+      logIndex: 1,
+    });
+    const transactionReceipt = generateTronTransactionReceipt(transactionHash, [
+      transferLog,
+      depositLog,
+    ]);
+
+    setupTronRpcMock({
+      transactions: {
+        [transactionHash]: {
+          input: "0x",
+          receipt: transactionReceipt,
+        },
+      },
+    });
+
+    const messages = await new AttestationService().attestDepositoryDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
+    expect(messages.length === 1).toBeTruthy();
+
+    const msg = messages[0];
+
+    expect(msg.data.chainId).toEqual(chain.id);
+    expect(msg.data.transactionId).toEqual(transactionHash);
+    expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.depository).toEqual(chain.depository);
+    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.amount).toEqual(amount);
+    expect(msg.result.depositId).toEqual(zeroHash); // Should be zeroHash since RelayErc20Deposit has zero id
+  });
+
+  it("attestDepositoryDeposits - multiple Transfer events (no calldata parsing)", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const from1 = generateTronAddress();
+    const from2 = generateTronAddress();
+    const token1 = generateTronAddress();
+    const token2 = generateTronAddress();
+    const amount1 = randomNumber(1e10).toString();
+    const amount2 = randomNumber(1e10).toString();
+
+    const transferLog1 = generateTronTransferLog({
+      transactionId: transactionHash,
+      logIndex: 0,
+      from: from1,
+      to: chain.depository!,
+      token: token1,
+      amount: amount1,
+    });
+
+    const transferLog2 = generateTronTransferLog({
+      transactionId: transactionHash,
+      logIndex: 1,
+      from: from2,
+      to: chain.depository!,
+      token: token2,
+      amount: amount2,
+    });
+
+    const transactionReceipt = generateTronTransactionReceipt(transactionHash, [
+      transferLog1,
+      transferLog2,
+    ]);
+
+    setupTronRpcMock({
+      transactions: {
+        [transactionHash]: {
+          input: "0x",
+          receipt: transactionReceipt,
+        },
+      },
+    });
+
+    const messages = await new AttestationService().attestDepositoryDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+    });
+    expect(messages.length === 2).toBeTruthy();
+
+    // First message
+    expect(messages[0].result.depositor).toEqual(from1);
+    expect(messages[0].result.currency).toEqual(token1);
+    expect(messages[0].result.amount).toEqual(amount1);
+    expect(messages[0].result.depositId).toEqual(zeroHash); // Multiple Transfer events, no calldata parsing
+
+    // Second message
+    expect(messages[1].result.depositor).toEqual(from2);
+    expect(messages[1].result.currency).toEqual(token2);
+    expect(messages[1].result.amount).toEqual(amount2);
+    expect(messages[1].result.depositId).toEqual(zeroHash); // Multiple Transfer events, no calldata parsing
   });
 
   it("attestDepositoryDeposits - Transfer event with non-matching RelayErc20Deposit event", async () => {
@@ -610,143 +836,45 @@ describe("EthereumVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
     const transactionHash = randomHex(32);
 
-    const from = randomHex(20);
-    const token = randomHex(20);
+    const from = generateTronAddress();
+    const token = generateTronAddress();
+    const differentToken = generateTronAddress(); // Different token for non-matching
     const amount = randomNumber(1e10).toString();
     const id = randomHex(32);
 
-    const params = {
-      transactionHash,
-      from,
-      to: chain.depository!,
-      token,
-      amount,
-    };
-
-    const transferLog = generateTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateErc20DepositLog({
-      ...params,
-      id,
-      amount: "1",
-      logIndex: 3,
-    });
-    const transactionReceipt = generateTransactionReceipt(transactionHash, [
-      transferLog,
-      depositLog,
-    ]);
-
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: getBlockMock,
-      getTransaction: async () => ({ input: "0x" }),
-      getTransactionReceipt: async () => transactionReceipt,
-    }));
-
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
+    const transferLog = generateTronTransferLog({
       transactionId: transactionHash,
-    });
-    expect(messages.length === 1).toBeTruthy();
-
-    const msg = messages[0];
-
-    expect(msg.data.chainId).toEqual(chain.id);
-    expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(from);
-    expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(token);
-    expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.depositId).toEqual(zeroHash);
-  });
-
-  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit event but without id", async () => {
-    const chains = Object.values(await getChains());
-
-    const chain = chains[randomNumber(chains.length)];
-    const transactionHash = randomHex(32);
-
-    const from = randomHex(20);
-    const token = randomHex(20);
-    const amount = randomNumber(1e10).toString();
-
-    const params = {
-      transactionHash,
+      logIndex: 0,
       from,
       to: chain.depository!,
       token,
       amount,
-    };
-
-    const transferLog = generateTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateErc20DepositLog({
-      ...params,
-      id: zeroHash,
-      logIndex: 1,
     });
-    const transactionReceipt = generateTransactionReceipt(transactionHash, [
-      transferLog,
-      depositLog,
-    ]);
 
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: getBlockMock,
-      getTransaction: async () => ({ input: "0x" }),
-      getTransactionReceipt: async () => transactionReceipt,
-    }));
-
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
+    // Create RelayErc20Deposit log with different token (non-matching)
+    const depositLog = generateTronErc20DepositLog({
       transactionId: transactionHash,
-    });
-    expect(messages.length === 1).toBeTruthy();
-
-    const msg = messages[0];
-
-    expect(msg.data.chainId).toEqual(chain.id);
-    expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(from);
-    expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(token);
-    expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.depositId).toEqual(zeroHash);
-  });
-
-  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit and different depositor", async () => {
-    const chains = Object.values(await getChains());
-
-    const chain = chains[randomNumber(chains.length)];
-    const transactionHash = randomHex(32);
-
-    const from = randomHex(20);
-    const depositor = randomHex(20);
-    const token = randomHex(20);
-    const amount = randomNumber(1e10).toString();
-    const id = randomHex(32);
-
-    const params = {
-      transactionHash,
       from,
       to: chain.depository!,
-      token,
+      token: differentToken, // Different token, should not match
       amount,
-    };
-
-    const transferLog = generateTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateErc20DepositLog({
-      ...params,
-      from: depositor,
       id,
       logIndex: 1,
     });
-    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+
+    const transactionReceipt = generateTronTransactionReceipt(transactionHash, [
       transferLog,
       depositLog,
     ]);
 
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: getBlockMock,
-      getTransaction: async () => ({ input: "0x" }),
-      getTransactionReceipt: async () => transactionReceipt,
-    }));
+    setupTronRpcMock({
+      transactions: {
+        [transactionHash]: {
+          input: "0x",
+          receipt: transactionReceipt,
+        },
+      },
+    });
 
     const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
@@ -755,68 +883,10 @@ describe("EthereumVmAttestor", () => {
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0];
-
-    expect(msg.data.chainId).toEqual(chain.id);
-    expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(depositor);
-    expect(msg.result.depository).toEqual(chain.depository);
+    expect(msg.result.depositor).toEqual(from);
     expect(msg.result.currency).toEqual(token);
     expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.depositId).toEqual(id);
-  });
-
-  it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit and different depositor and without id", async () => {
-    const chains = Object.values(await getChains());
-
-    const chain = chains[randomNumber(chains.length)];
-    const transactionHash = randomHex(32);
-
-    const from = randomHex(20);
-    const depositor = randomHex(20);
-    const token = randomHex(20);
-    const amount = randomNumber(1e10).toString();
-
-    const params = {
-      transactionHash,
-      from,
-      to: chain.depository!,
-      token,
-      amount,
-    };
-
-    const transferLog = generateTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateErc20DepositLog({
-      ...params,
-      from: depositor,
-      id: zeroHash,
-      logIndex: 1,
-    });
-    const transactionReceipt = generateTransactionReceipt(transactionHash, [
-      transferLog,
-      depositLog,
-    ]);
-
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: getBlockMock,
-      getTransaction: async () => ({ input: "0x" }),
-      getTransactionReceipt: async () => transactionReceipt,
-    }));
-
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
-    expect(messages.length === 1).toBeTruthy();
-
-    const msg = messages[0];
-
-    expect(msg.data.chainId).toEqual(chain.id);
-    expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(depositor);
-    expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(token);
-    expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.depositId).toEqual(zeroHash);
+    expect(msg.result.depositId).toEqual(zeroHash); // Should be zeroHash since RelayErc20Deposit doesn't match
   });
 
   it("attestDepositoryDeposits - single RelayNativeDeposit event", async () => {
@@ -825,27 +895,30 @@ describe("EthereumVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
     const transactionHash = randomHex(32);
 
-    const from = randomHex(20);
+    const from = generateTronAddress();
     const amount = randomNumber(1e10).toString();
     const id = randomHex(32);
 
-    const depositLog = generateNativeDepositLog({
-      transactionHash,
+    const depositLog = generateTronNativeDepositLog({
+      transactionId: transactionHash,
       logIndex: 0,
       from,
       to: chain.depository!,
       amount,
       id,
     });
-    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+    const transactionReceipt = generateTronTransactionReceipt(transactionHash, [
       depositLog,
     ]);
 
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: getBlockMock,
-      getTransaction: async () => ({ input: "0x" }),
-      getTransactionReceipt: async () => transactionReceipt,
-    }));
+    setupTronRpcMock({
+      transactions: {
+        [transactionHash]: {
+          input: "0x",
+          receipt: transactionReceipt,
+        },
+      },
+    });
 
     const messages = await new AttestationService().attestDepositoryDeposits({
       chainId: chain.id,
@@ -859,53 +932,9 @@ describe("EthereumVmAttestor", () => {
     expect(msg.data.transactionId).toEqual(transactionHash);
     expect(msg.result.depositor).toEqual(from);
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(zeroAddress);
+    expect(msg.result.currency).toEqual(getVmTypeNativeCurrency("tron-vm"));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
-  });
-
-  it("attestDepositoryDeposits - single RelayNativeDeposit event without id", async () => {
-    const chains = Object.values(await getChains());
-
-    const chain = chains[randomNumber(chains.length)];
-    const transactionHash = randomHex(32);
-
-    const from = randomHex(20);
-    const amount = randomNumber(1e10).toString();
-
-    const depositLog = generateNativeDepositLog({
-      transactionHash,
-      logIndex: 0,
-      from,
-      to: chain.depository!,
-      amount,
-      id: zeroHash,
-    });
-    const transactionReceipt = generateTransactionReceipt(transactionHash, [
-      depositLog,
-    ]);
-
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: getBlockMock,
-      getTransaction: async () => ({ input: "0x" }),
-      getTransactionReceipt: async () => transactionReceipt,
-    }));
-
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
-    expect(messages.length === 1).toBeTruthy();
-
-    const msg = messages[0];
-
-    expect(msg.data.chainId).toEqual(chain.id);
-    expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(from);
-    expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(zeroAddress);
-    expect(msg.result.amount).toEqual(amount);
-    expect(msg.result.depositId).toEqual(zeroHash);
   });
 
   it("attestDepositoryWithdrawal - successful attestation", async () => {
@@ -914,26 +943,25 @@ describe("EthereumVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
-      vmType: "ethereum-vm",
+      vmType: "tron-vm",
       withdrawal: {
         calls: [
           {
-            to: randomHex(20),
+            to: randomHex(20), // Use hex address instead of Tron address for encoding
             data: randomHex(64),
             value: randomNumber(ONE_BILLION).toString(),
             allowFailure: false,
           },
         ],
         nonce: randomNumber(ONE_BILLION).toString(),
-        expiration: randomNumber(ONE_BILLION),
+        expiration: randomNumber(ONE_BILLION) * 1000, // Convert to milliseconds
       },
     };
 
-    (getContract as jest.Mock).mockImplementation(() => ({
-      read: {
-        callRequests: () => true,
-      },
-    }));
+    setupTronRpcMock({
+      transactions: {},
+      isExecuted: true,
+    });
 
     const message = await new AttestationService().attestDepositoryWithdrawal({
       chainId: chain.id,
@@ -947,31 +975,47 @@ describe("EthereumVmAttestor", () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
-
+    const to = randomHex(20); // Use hex address instead of Tron address for encoding
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
-      vmType: "ethereum-vm",
+      vmType: "tron-vm",
       withdrawal: {
         calls: [
           {
-            to: randomHex(20),
+            to,
             data: randomHex(64),
             value: randomNumber(ONE_BILLION).toString(),
             allowFailure: false,
           },
         ],
         nonce: randomNumber(ONE_BILLION).toString(),
-        expiration: randomNumber(ONE_BILLION),
+        expiration: randomNumber(ONE_BILLION) * 1000, // Convert to milliseconds
       },
     };
 
-    (getContract as jest.Mock).mockImplementation(() => ({
-      read: {
-        callRequests: () => false,
-      },
-    }));
+    setupTronRpcMock({
+      transactions: {},
+      isExecuted: false,
+    });
+
+    // Override the block mock to return a timestamp past expiration
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: async () => ({
-        timestamp: BigInt(decodedWithdrawal.withdrawal.expiration + 1 + 60),
+      trx: {
+        getBlock: async () => ({
+          block_header: {
+            raw_data: {
+              timestamp: decodedWithdrawal.withdrawal.expiration + 181000, // Past expiration + finalization time
+            },
+          },
+        }),
+      },
+      contract: () => ({
+        at: async (_address: string) => ({
+          methods: {
+            callRequests: (_withdrawalId: string) => ({
+              call: async () => false,
+            }),
+          },
+        }),
       }),
     }));
 
@@ -989,29 +1033,45 @@ describe("EthereumVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
-      vmType: "ethereum-vm",
+      vmType: "tron-vm",
       withdrawal: {
         calls: [
           {
-            to: randomHex(20),
+            to: randomHex(20), // Use hex address instead of Tron address for encoding
             data: randomHex(64),
             value: randomNumber(ONE_BILLION).toString(),
             allowFailure: false,
           },
         ],
         nonce: randomNumber(ONE_BILLION).toString(),
-        expiration: randomNumber(ONE_BILLION),
+        expiration: randomNumber(ONE_BILLION) * 1000, // Convert to milliseconds
       },
     };
 
-    (getContract as jest.Mock).mockImplementation(() => ({
-      read: {
-        callRequests: () => false,
-      },
-    }));
+    setupTronRpcMock({
+      transactions: {},
+      isExecuted: false,
+    });
+
+    // Override the block mock to return a timestamp before expiration
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getBlock: async () => ({
-        timestamp: BigInt(decodedWithdrawal.withdrawal.expiration - 1),
+      trx: {
+        getBlock: async () => ({
+          block_header: {
+            raw_data: {
+              timestamp: decodedWithdrawal.withdrawal.expiration - 61000, // Before expiration but after finalization time
+            },
+          },
+        }),
+      },
+      contract: () => ({
+        at: async (_address: string) => ({
+          methods: {
+            callRequests: (_withdrawalId: string) => ({
+              call: async () => false,
+            }),
+          },
+        }),
       }),
     }));
 
@@ -1024,67 +1084,65 @@ describe("EthereumVmAttestor", () => {
   });
 
   it("attestSolverFill - validates solver fill correctly", async () => {
-    await testAttestSolverFill({});
+    await testAttestTronSolverFill({});
   });
 
   it("attestSolverFill - fails with invalid order signature", async () => {
-    await testAttestSolverFill({
+    await testAttestTronSolverFill({
       invalidSignature: true,
       expectError: "Invalid order signature",
     });
   });
 
   it("attestSolverFill - fails with non-unique onchain ids", async () => {
-    await testAttestSolverFill({
+    await testAttestTronSolverFill({
       duplicateOnchainIds: true,
       expectError: "Input information contains non-unique onchain ids",
     });
   });
 
   it("attestSolverFill - fails with insufficient fill amount", async () => {
-    await testAttestSolverFill({
+    await testAttestTronSolverFill({
       insufficientPayment: true,
       expectError: "Insufficient fill amount for order output payment",
     });
   });
 
   it("attestSolverFill - fails with expired output deadline", async () => {
-    await testAttestSolverFill({
+    await testAttestTronSolverFill({
       expiredDeadline: true,
       expectError: "deadline",
     });
   });
 
-  it("attestSolverFill - validates with ERC20 token payments", async () => {
-    await testAttestSolverFill({
+  it("attestSolverFill - validates with TRC20 token payments", async () => {
+    await testAttestTronSolverFill({
       useErc20Token: true,
     });
   });
 
   it("attestSolverRefund - validates solver refund correctly", async () => {
-    await testAttestSolverRefund({});
+    await testAttestTronSolverRefund({});
   });
 
   it("attestSolverRefund - fails with invalid order signature", async () => {
-    await testAttestSolverRefund({
+    await testAttestTronSolverRefund({
       invalidSignature: true,
       expectError: "Invalid order signature",
     });
   });
 
-  it("attestSolverRefund - validates with ERC20 token payments", async () => {
-    await testAttestSolverRefund({
+  it("attestSolverRefund - validates with TRC20 token payments", async () => {
+    await testAttestTronSolverRefund({
       useErc20Token: true,
     });
   });
 });
 
 /**
- * Create ERC20 transfer transaction logs and receipt
- * @param params Parameters for creating ERC20 transfer transaction
- * @returns Transaction receipt with ERC20 transfer logs
+ * Create TRC20 transfer transaction logs and receipt
  */
-const createErc20TransferTransaction = ({
+const createTronErc20TransferTransaction = ({
   transactionHash,
   from,
   to,
@@ -1098,9 +1156,9 @@ const createErc20TransferTransaction = ({
   tokenAddress: string;
   amount: string;
   depositId?: string;
-}): TransactionReceipt => {
-  const transferLog = generateTransferLog({
-    transactionHash,
+}): any => {
+  const transferLog = generateTronTransferLog({
+    transactionId: transactionHash,
     logIndex: 0,
     from,
     to,
@@ -1108,8 +1166,8 @@ const createErc20TransferTransaction = ({
     amount,
   });
   const depositLog = depositId
-    ? generateErc20DepositLog({
-        transactionHash,
+    ? generateTronErc20DepositLog({
+        transactionId: transactionHash,
         logIndex: 0,
         from,
         to,
@@ -1119,18 +1177,16 @@ const createErc20TransferTransaction = ({
       })
     : undefined;
 
-  return generateTransactionReceipt(transactionHash, [
+  return generateTronTransactionReceipt(transactionHash, [
     transferLog,
     ...(depositLog ? [depositLog] : []),
   ]);
 };
 
 /**
- * Setup a unified test environment for both attestSolverFill and attestSolverRefund tests
- * @param options Configuration options for the test environment
- * @returns Test environment with all necessary data for testing
+ * Setup a unified test environment for both attestSolverFill and attestSolverRefund tests for Tron
  */
-const setupTestEnvironment = async (
+const setupTronTestEnvironment = async (
   options: {
     useErc20Token?: boolean;
     invalidSignature?: boolean;
@@ -1146,36 +1202,36 @@ const setupTestEnvironment = async (
   testData.chain = chains[randomNumber(chains.length)];
 
   const depositTxHash = randomHex(32);
-  const actionTxHash = randomHex(32); // Can be either fill or refund transaction hash
+  const actionTxHash = randomHex(32);
 
-  // Adjust payment amount if specified
   const paymentAmount = options.customPaymentAmount || testData.paymentAmount;
   const fillAmount = options.insufficientPayment
-    ? ((BigInt(paymentAmount) * 50n) / 100n).toString() // 50% of required amount
+    ? ((BigInt(paymentAmount) * 50n) / 100n).toString()
     : paymentAmount;
 
-  // Create test order
   const testOrder = createTestOrder({
     paymentAmount,
     outputRecipient: testData.outputRecipient,
     refundRecipient: testData.refundRecipient,
     solverContractAddress: testData.solverContractAddress,
     solverAddress: solverWallet.address,
-    inputCurrency: options.useErc20Token ? testData.tokenAddress : zeroAddress,
-    outputCurrency: options.useErc20Token ? testData.tokenAddress : zeroAddress,
+    inputCurrency: options.useErc20Token
+      ? testData.tokenAddress
+      : getVmTypeNativeCurrency("tron-vm"),
+    outputCurrency: options.useErc20Token
+      ? testData.tokenAddress
+      : getVmTypeNativeCurrency("tron-vm"),
   });
 
-  // Set expired deadline if specified
   if (options.expiredDeadline) {
     testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600;
   }
 
   const orderId = getOrderId(testOrder, await getSdkChainsConfig());
 
-  // Create deposit transaction
-  let depositTxReceipt: TransactionReceipt;
+  let depositTxReceipt: any;
   if (options.useErc20Token) {
-    depositTxReceipt = createErc20TransferTransaction({
+    depositTxReceipt = createTronErc20TransferTransaction({
       transactionHash: depositTxHash,
       from: testData.depositorAddress,
       to: testData.chain.depository,
@@ -1184,7 +1240,7 @@ const setupTestEnvironment = async (
       depositId: orderId,
     });
   } else {
-    depositTxReceipt = createNativeDepositTransaction({
+    depositTxReceipt = createTronNativeDepositTransaction({
       depositTxHash,
       depositorAddress: testData.depositorAddress,
       depositoryAddress: testData.chain.depository,
@@ -1193,12 +1249,11 @@ const setupTestEnvironment = async (
     });
   }
 
-  // Create action transaction receipt (fill or refund)
-  let actionTxReceipt: TransactionReceipt;
+  let actionTxReceipt: any;
   const isRefund = options.actionType === "refund";
 
   if (options.useErc20Token) {
-    actionTxReceipt = createErc20TransferTransaction({
+    actionTxReceipt = createTronErc20TransferTransaction({
       transactionHash: actionTxHash,
       from: testData.solverContractAddress,
       to: isRefund ? testData.refundRecipient : testData.outputRecipient,
@@ -1206,14 +1261,14 @@ const setupTestEnvironment = async (
       amount: fillAmount,
     });
   } else if (isRefund) {
-    actionTxReceipt = createRefundTransaction({
+    actionTxReceipt = createTronRefundTransaction({
       refundTxHash: actionTxHash,
       refundRecipient: testData.refundRecipient,
       solverContractAddress: testData.solverContractAddress,
       paymentAmount: fillAmount,
     });
   } else {
-    actionTxReceipt = createFillTransaction({
+    actionTxReceipt = createTronFillTransaction({
       fillTxHash: actionTxHash,
       outputRecipient: testData.outputRecipient,
       solverContractAddress: testData.solverContractAddress,
@@ -1221,8 +1276,7 @@ const setupTestEnvironment = async (
     });
   }
 
-  // Setup RPC mock
-  setupRpcMock({
+  setupTronRpcMock({
     transactions: {
       [depositTxHash]: {
         input: "0x",
@@ -1235,23 +1289,20 @@ const setupTestEnvironment = async (
     },
   });
 
-  // Create order signature
   const signerWallet = options.invalidSignature
-    ? privateKeyToAccount(randomHex(32) as Hex) // Random wallet for invalid signature
+    ? privateKeyToAccount(randomHex(32) as Hex)
     : solverWallet;
 
   const orderSignature = await signerWallet.signMessage({
     message: { raw: orderId },
   });
 
-  // Get depository deposits
   const depositoryDeposits =
     await new AttestationService().attestDepositoryDeposits({
       chainId: testData.chain.id,
       transactionId: depositTxHash,
     });
 
-  // Create inputs array
   const inputs = options.duplicateOnchainIds
     ? [
         {
@@ -1261,7 +1312,7 @@ const setupTestEnvironment = async (
         },
         {
           transactionId: depositTxHash,
-          onchainId: depositoryDeposits[0].result.onchainId, // Duplicate onchainId
+          onchainId: depositoryDeposits[0].result.onchainId,
           inputIndex: 0,
         },
       ]
@@ -1288,11 +1339,9 @@ const setupTestEnvironment = async (
 };
 
 /**
- * Test attestSolverFill with various configurations
- * @param options Configuration options for the fill test
- * @returns Test result or error
+ * Test attestSolverFill with various configurations for Tron
  */
-const testAttestSolverFill = async (options: {
+const testAttestTronSolverFill = async (options: {
   useErc20Token?: boolean;
   invalidSignature?: boolean;
   expiredDeadline?: boolean;
@@ -1301,10 +1350,11 @@ const testAttestSolverFill = async (options: {
   customPaymentAmount?: string;
   expectError?: string;
 }) => {
-  // Setup test environment with fill action type
-  const env = await setupTestEnvironment({ ...options, actionType: "fill" });
+  const env = await setupTronTestEnvironment({
+    ...options,
+    actionType: "fill",
+  });
 
-  // Execute or expect error
   if (options.expectError) {
     await expect(
       new AttestationService().attestSolverFill({
@@ -1334,11 +1384,9 @@ const testAttestSolverFill = async (options: {
 };
 
 /**
- * Test attestSolverRefund with various configurations
- * @param options Configuration options for the refund test
- * @returns Test result or error
+ * Test attestSolverRefund with various configurations for Tron
  */
-const testAttestSolverRefund = async (options: {
+const testAttestTronSolverRefund = async (options: {
   useErc20Token?: boolean;
   invalidSignature?: boolean;
   expiredDeadline?: boolean;
@@ -1347,10 +1395,11 @@ const testAttestSolverRefund = async (options: {
   customPaymentAmount?: string;
   expectError?: string;
 }) => {
-  // Setup test environment with refund action type
-  const env = await setupTestEnvironment({ ...options, actionType: "refund" });
+  const env = await setupTronTestEnvironment({
+    ...options,
+    actionType: "refund",
+  });
 
-  // Execute or expect error
   if (options.expectError) {
     await expect(
       new AttestationService().attestSolverRefund({
