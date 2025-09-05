@@ -1231,7 +1231,7 @@ const setupTronTestEnvironment = async (
     testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600;
   }
 
-  const orderHash = getOrderId(testOrder, await getSdkChainsConfig());
+  const orderId = getOrderId(testOrder, await getSdkChainsConfig());
 
   let depositTxReceipt: any;
   if (options.useErc20Token) {
@@ -1241,7 +1241,7 @@ const setupTronTestEnvironment = async (
       to: testData.chain.depository,
       tokenAddress: testData.tokenAddress,
       amount: paymentAmount,
-      depositId: orderHash,
+      depositId: orderId,
     });
   } else {
     depositTxReceipt = createTronNativeDepositTransaction({
@@ -1249,7 +1249,7 @@ const setupTronTestEnvironment = async (
       depositorAddress: testData.depositorAddress,
       depositoryAddress: testData.chain.depository,
       paymentAmount,
-      depositId: orderHash,
+      depositId: orderId,
     });
   }
 
@@ -1287,7 +1287,7 @@ const setupTronTestEnvironment = async (
         receipt: depositTxReceipt,
       },
       [actionTxHash]: {
-        input: orderHash,
+        input: orderId,
         receipt: actionTxReceipt,
       },
     },
@@ -1298,7 +1298,7 @@ const setupTronTestEnvironment = async (
     : solverWallet;
 
   const orderSignature = await signerWallet.signMessage({
-    message: { raw: orderHash },
+    message: { raw: orderId },
   });
 
   const depositoryDeposits =

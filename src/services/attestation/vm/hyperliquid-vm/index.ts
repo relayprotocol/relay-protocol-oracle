@@ -33,7 +33,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
     payment: {
       currency: string;
       recipient: string;
-      orderHash: string;
+      orderId: string;
       extraData: string;
       deadline: number;
     }

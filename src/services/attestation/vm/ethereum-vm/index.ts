@@ -280,7 +280,7 @@ export class EthereumVmAttestor extends VmAttestor {
     payment: {
       currency: string;
       recipient: string;
-      orderHash: string;
+      orderId: string;
       extraData: string;
       deadline: number;
     }
@@ -326,7 +326,7 @@ export class EthereumVmAttestor extends VmAttestor {
       throw externalError(`Missing transaction ${transactionId}`);
     }
 
-    if (!transaction.input.endsWith(payment.orderHash.slice(2))) {
+    if (!transaction.input.endsWith(payment.orderId.slice(2))) {
       throw externalError(
         `Transaction ${transactionId} does not reference order id`
       );
@@ -336,7 +336,7 @@ export class EthereumVmAttestor extends VmAttestor {
       // If the payment involves native currency, we first try to see if this is a direct transfer
       if (
         transaction.to?.toLowerCase() === payment.recipient.toLowerCase() &&
-        transaction.input.startsWith(payment.orderHash)
+        transaction.input.startsWith(payment.orderId)
       ) {
         return transaction.value;
       }

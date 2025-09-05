@@ -330,7 +330,7 @@ export class TronVmAttestor extends VmAttestor {
     payment: {
       currency: string;
       recipient: string;
-      orderHash: string;
+      orderId: string;
       extraData: string;
       deadline: number;
     }
@@ -370,7 +370,7 @@ export class TronVmAttestor extends VmAttestor {
     const contractCall = transaction.raw_data.contract[0];
     if (contractCall.type === "TriggerSmartContract") {
       const input = (contractCall.parameter.value as any).data;
-      if (!input.endsWith(payment.orderHash.slice(2))) {
+      if (!input.endsWith(payment.orderId.slice(2))) {
         throw externalError(
           `Transaction ${transactionId} does not reference order id`
         );
