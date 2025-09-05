@@ -4,16 +4,13 @@ import {
   encodeWithdrawal,
   DepositoryWithdrawalStatus,
   getOrderId,
+  getVmTypeNativeCurrency,
   Order,
   SolverFillStatus,
   SolverRefundStatus,
 } from "@reservoir0x/relay-protocol-sdk";
-import {
-  Hex,
-  zeroHash,
-} from "viem";
+import { Hex, zeroHash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { getVmTypeNativeCurrency } from "@reservoir0x/relay-protocol-sdk/src/utils";
 
 import {
   Chain,
@@ -27,7 +24,7 @@ import * as tronweb from "tronweb";
 
 import { ONE_BILLION, randomHex, randomNumber } from "../../../common/utils";
 
-const zeroAddress = getVmTypeNativeCurrency('tron-vm');
+const zeroAddress = getVmTypeNativeCurrency("tron-vm");
 
 // Helper function to generate valid Tron address
 const generateTronAddress = (): string => {
@@ -39,9 +36,16 @@ const encodeAbiParameters = (
   _types: { name: string; type: string }[],
   _values: any[]
 ): string => {
-  return tronweb.utils.abi.encodeParams(_types.map(c => c.type), _values.map((c, index) =>
-    _types[index].type === 'address' ? tronweb.utils.address.toHex(c).replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, "0x") : c
-  ));
+  return tronweb.utils.abi.encodeParams(
+    _types.map((c) => c.type),
+    _values.map((c, index) =>
+      _types[index].type === "address"
+        ? tronweb.utils.address
+            .toHex(c)
+            .replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, "0x")
+        : c
+    )
+  );
 };
 
 const encodeEventTopics = (_options: {
@@ -52,23 +56,27 @@ const encodeEventTopics = (_options: {
   const iface = new tronweb.utils.ethersUtils.Interface(_options.abi);
   const event = iface.getEvent(_options.eventName);
   const topics = [event!.topicHash.slice(2)]; // Remove 0x prefix for Tron format
-  
+
   // For indexed parameters, add them to topics (simplified for stub)
   if (_options.args) {
     const indexedParams = event!.inputs.filter((input: any) => input.indexed);
     for (const param of indexedParams) {
       if (_options.args[param.name]) {
         // Convert address to hex format for topics
-        if (param.type === 'address') {
-          const hexAddr = tronweb.utils.address.isAddress(_options.args[param.name])
-            ? tronweb.utils.address.toHex(_options.args[param.name]).replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, '0x')
+        if (param.type === "address") {
+          const hexAddr = tronweb.utils.address.isAddress(
+            _options.args[param.name]
+          )
+            ? tronweb.utils.address
+                .toHex(_options.args[param.name])
+                .replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, "0x")
             : _options.args[param.name];
-          topics.push(hexAddr.replace('0x', '').padStart(64, '0'));
+          topics.push(hexAddr.replace("0x", "").padStart(64, "0"));
         }
       }
     }
   }
-  
+
   return topics;
 };
 
@@ -78,9 +86,14 @@ const encodeFunctionData = (_options: {
   args: any[];
 }): string => {
   const iface = new tronweb.utils.ethersUtils.Interface(_options.abi);
-  const functionData = iface.encodeFunctionData(_options.functionName,
-    _options.args.map(c =>
-      tronweb.utils.address.isAddress(c) ? tronweb.utils.address.toHex(c).replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, "0x") : c
+  const functionData = iface.encodeFunctionData(
+    _options.functionName,
+    _options.args.map((c) =>
+      tronweb.utils.address.isAddress(c)
+        ? tronweb.utils.address
+            .toHex(c)
+            .replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, "0x")
+        : c
     )
   );
   return functionData;
@@ -152,7 +165,7 @@ const generateTronTransactionLog = ({
 }): any => {
   // Convert to Tron format - remove 0x prefix and ensure address is in hex format without 41 prefix
   return {
-    address: tronweb.utils.address.isAddress(address) 
+    address: tronweb.utils.address.isAddress(address)
       ? tronweb.utils.address.toHex(address).slice(2) // Remove 41 prefix
       : address.replace("0x", ""),
     topics,
@@ -476,7 +489,9 @@ function createTronRefundTransaction(params: {
     amount: paymentAmount,
   });
 
-  return generateTronTransactionReceipt(refundTxHash, [refundNativeTransferLog]);
+  return generateTronTransactionReceipt(refundTxHash, [
+    refundNativeTransferLog,
+  ]);
 }
 
 function setupTronRpcMock(mockData: any) {
@@ -484,7 +499,7 @@ function setupTronRpcMock(mockData: any) {
     trx: {
       getTransaction: async (hash: string) => {
         const txData = mockData.transactions[hash];
-        const data = txData.input.replace('0x', ''); // Remove 0x prefix for Tron format
+        const data = txData.input.replace("0x", ""); // Remove 0x prefix for Tron format
         return {
           raw_data: {
             contract: [
@@ -521,20 +536,20 @@ function setupTronRpcMock(mockData: any) {
 const getTronBlockMock = async (data?: any) => {
   const now = Math.floor(Date.now());
   if (!data || data.blockTag === "latest") {
-    return { 
-      block_header: { 
-        raw_data: { 
-          timestamp: now + 61000 // 61 seconds to ensure finalization
-        } 
-      } 
+    return {
+      block_header: {
+        raw_data: {
+          timestamp: now + 181000, // 181 seconds to ensure finalization
+        },
+      },
     };
   } else {
-    return { 
-      block_header: { 
-        raw_data: { 
-          timestamp: now 
-        } 
-      } 
+    return {
+      block_header: {
+        raw_data: {
+          timestamp: now,
+        },
+      },
     };
   }
 };
@@ -662,7 +677,11 @@ describe("TronVmAttestationService", () => {
     };
 
     const transferLog = generateTronTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateTronErc20DepositLog({ ...params, id, logIndex: 1 });
+    const depositLog = generateTronErc20DepositLog({
+      ...params,
+      id,
+      logIndex: 1,
+    });
     const transactionReceipt = generateTronTransactionReceipt(transactionHash, [
       transferLog,
       depositLog,
@@ -713,7 +732,11 @@ describe("TronVmAttestationService", () => {
     };
 
     const transferLog = generateTronTransferLog({ ...params, logIndex: 0 });
-    const depositLog = generateTronErc20DepositLog({ ...params, id: zeroHash, logIndex: 1 });
+    const depositLog = generateTronErc20DepositLog({
+      ...params,
+      id: zeroHash,
+      logIndex: 1,
+    });
     const transactionReceipt = generateTronTransactionReceipt(transactionHash, [
       transferLog,
       depositLog,
@@ -920,7 +943,7 @@ describe("TronVmAttestationService", () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
-    
+
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
       vmType: "tron-vm",
       withdrawal: {
@@ -954,7 +977,7 @@ describe("TronVmAttestationService", () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
-    const to = randomHex(20);  // Use hex address instead of Tron address for encoding
+    const to = randomHex(20); // Use hex address instead of Tron address for encoding
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
       vmType: "tron-vm",
       withdrawal: {
@@ -971,8 +994,11 @@ describe("TronVmAttestationService", () => {
       },
     };
 
-    console.log('to', to)
-    console.log('decodedWithdrawal', JSON.stringify(decodedWithdrawal, null, 2))
+    console.log("to", to);
+    console.log(
+      "decodedWithdrawal",
+      JSON.stringify(decodedWithdrawal, null, 2)
+    );
 
     setupTronRpcMock({
       transactions: {},
@@ -983,11 +1009,11 @@ describe("TronVmAttestationService", () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
       trx: {
         getBlock: async () => ({
-          block_header: { 
-            raw_data: { 
-              timestamp: decodedWithdrawal.withdrawal.expiration + 61000 // Past expiration + finalization time
-            } 
-          }
+          block_header: {
+            raw_data: {
+              timestamp: decodedWithdrawal.withdrawal.expiration + 61000, // Past expiration + finalization time
+            },
+          },
         }),
       },
       contract: () => ({
@@ -1039,11 +1065,11 @@ describe("TronVmAttestationService", () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
       trx: {
         getBlock: async () => ({
-          block_header: { 
-            raw_data: { 
-              timestamp: decodedWithdrawal.withdrawal.expiration - 61000 // Before expiration but after finalization time
-            } 
-          }
+          block_header: {
+            raw_data: {
+              timestamp: decodedWithdrawal.withdrawal.expiration - 61000, // Before expiration but after finalization time
+            },
+          },
         }),
       },
       contract: () => ({
@@ -1141,7 +1167,7 @@ const createTronErc20TransferTransaction = ({
 }): any => {
   const transferLog = generateTronTransferLog({
     transactionId: transactionHash,
-    logIndex: 0,  
+    logIndex: 0,
     from,
     to,
     token: tokenAddress,
@@ -1328,7 +1354,10 @@ const testAttestTronSolverFill = async (options: {
   customPaymentAmount?: string;
   expectError?: string;
 }) => {
-  const env = await setupTronTestEnvironment({ ...options, actionType: "fill" });
+  const env = await setupTronTestEnvironment({
+    ...options,
+    actionType: "fill",
+  });
 
   if (options.expectError) {
     await expect(
@@ -1370,7 +1399,10 @@ const testAttestTronSolverRefund = async (options: {
   customPaymentAmount?: string;
   expectError?: string;
 }) => {
-  const env = await setupTronTestEnvironment({ ...options, actionType: "refund" });
+  const env = await setupTronTestEnvironment({
+    ...options,
+    actionType: "refund",
+  });
 
   if (options.expectError) {
     await expect(

@@ -269,7 +269,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     const decodedVouts = this._decodeTxOpReturnVouts(transaction.vout);
     if (!decodedVouts.some(({ opReturn }) => opReturn === payment.orderHash)) {
       throw externalError(
-        `Transaction ${transactionId} does not reference order hash`
+        `Transaction ${transactionId} does not reference order id`
       );
     }
 

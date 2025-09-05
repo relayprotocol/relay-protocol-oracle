@@ -7,8 +7,8 @@ import {
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
+  getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
-
 import {
   Address,
   decodeFunctionData,
@@ -17,16 +17,15 @@ import {
   parseAbi,
   parseEventLogs,
   TransactionReceipt,
-  zeroAddress,
   zeroHash,
 } from "viem";
 
 import { getOnchainId } from "../utils";
+import { VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError } from "../../../../common/error";
 import { undefinedOnThrow } from "../../../../common/utils";
 import { httpRpc } from "../../../../common/vm/ethereum-vm/rpc";
-import { VmAttestor } from "../../vm/types";
 
 export const ABI = parseAbi([
   "event RelayNativeDeposit(address from, uint256 amount, bytes32 id)",
@@ -38,6 +37,8 @@ export const ABI = parseAbi([
   "function transferFrom(address from, address to, uint256 amount)",
   "function callRequests(bytes32 withdrawalId) view returns (bool)",
 ]);
+
+const VM_TYPE = "ethereum-vm";
 
 export class EthereumVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
@@ -131,7 +132,7 @@ export class EthereumVmAttestor extends VmAttestor {
             depository,
             depositId,
             depositor: currentLog.args.from.toLowerCase(),
-            currency: zeroAddress,
+            currency: getVmTypeNativeCurrency(VM_TYPE),
             amount: currentLog.args.amount.toString(),
           },
         });
@@ -327,11 +328,11 @@ export class EthereumVmAttestor extends VmAttestor {
 
     if (!transaction.input.endsWith(payment.orderHash.slice(2))) {
       throw externalError(
-        `Transaction ${transactionId} does not reference order hash`
+        `Transaction ${transactionId} does not reference order id`
       );
     }
 
-    if (payment.currency === zeroAddress) {
+    if (payment.currency === getVmTypeNativeCurrency(VM_TYPE)) {
       // If the payment involves native currency, we first try to see if this is a direct transfer
       if (
         transaction.to?.toLowerCase() === payment.recipient.toLowerCase() &&
@@ -341,10 +342,8 @@ export class EthereumVmAttestor extends VmAttestor {
       }
 
       // Otherwise, check for any native transfer events emitted via the fill contract specified by the order
-      const fillContract = decodeOrderExtraData(
-        payment.extraData,
-        "ethereum-vm"
-      ).extraData.fillContract;
+      const fillContract = decodeOrderExtraData(payment.extraData, VM_TYPE)
+        .extraData.fillContract;
       return parseEventLogs({
         abi: ABI,
         logs: receipt.logs,
@@ -406,8 +405,8 @@ export class EthereumVmAttestor extends VmAttestor {
     // Ensure the transaction is finalized
     await this._ensureTxFinalization(chainId, receipt);
 
-    const fillContract = decodeOrderExtraData(extraData, "ethereum-vm")
-      .extraData.fillContract;
+    const fillContract = decodeOrderExtraData(extraData, VM_TYPE).extraData
+      .fillContract;
 
     // Parse and filter the logs we're interested in
     const parsedLogs = parseEventLogs({
