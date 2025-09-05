@@ -282,19 +282,19 @@ export class SolanaVmAttestor extends VmAttestor {
     const { instructions, accountKeys } =
       await this._extractInstructionsAndKeys(transaction, connection);
 
-    let hasorderId = false;
+    let hasOrderId = false;
     for (const instruction of instructions) {
       const programId = accountKeys[instruction.programIdIndex];
       if (programId.toBase58() === MEMO_PROGRAM_ID.toBase58()) {
         const ixData = Buffer.from(instruction.data).toString();
         if (ixData.includes(payment.orderId)) {
-          hasorderId = true;
+          hasOrderId = true;
           break;
         }
       }
     }
 
-    if (!hasorderId) {
+    if (!hasOrderId) {
       throw externalError(
         `Transaction ${transactionId} does not reference order id`
       );
