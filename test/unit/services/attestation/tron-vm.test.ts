@@ -954,7 +954,7 @@ describe("TronVmAttestor", () => {
           },
         ],
         nonce: randomNumber(ONE_BILLION).toString(),
-        expiration: randomNumber(ONE_BILLION) * 1000, // Convert to milliseconds
+        expiration: randomNumber(ONE_BILLION),
       },
     };
 
@@ -988,7 +988,7 @@ describe("TronVmAttestor", () => {
           },
         ],
         nonce: randomNumber(ONE_BILLION).toString(),
-        expiration: randomNumber(ONE_BILLION) * 1000, // Convert to milliseconds
+        expiration: randomNumber(ONE_BILLION),
       },
     };
 
@@ -1003,7 +1003,7 @@ describe("TronVmAttestor", () => {
         getBlock: async () => ({
           block_header: {
             raw_data: {
-              timestamp: decodedWithdrawal.withdrawal.expiration + 181000, // Past expiration + finalization time
+              timestamp: (decodedWithdrawal.withdrawal.expiration + 181000) * 1000, // Past expiration + finalization time
             },
           },
         }),
@@ -1044,7 +1044,7 @@ describe("TronVmAttestor", () => {
           },
         ],
         nonce: randomNumber(ONE_BILLION).toString(),
-        expiration: randomNumber(ONE_BILLION) * 1000, // Convert to milliseconds
+        expiration: randomNumber(ONE_BILLION),
       },
     };
 

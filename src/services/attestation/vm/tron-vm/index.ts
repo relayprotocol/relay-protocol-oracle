@@ -304,7 +304,7 @@ export class TronVmAttestor extends VmAttestor {
         .then((b) => b.block_header.raw_data.timestamp);
       if (
         BigInt(chainTimestamp) - this._FINALIZATION_TIME >
-        BigInt(decodedWithdrawal.withdrawal.expiration)
+        (BigInt(decodedWithdrawal.withdrawal.expiration) * 1000n)   // expiration is in seconds
       ) {
         status = DepositoryWithdrawalStatus.EXPIRED;
       } else {
