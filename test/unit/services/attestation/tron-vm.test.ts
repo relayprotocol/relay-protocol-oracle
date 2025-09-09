@@ -29,7 +29,11 @@ import {
 import { httpRpc } from "../../../../src/common/vm/tron-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
-import { fromHexAddress, toHexAddress } from "../../../../src/services/attestation/vm/tron-vm";
+import {
+  fromHexAddress,
+  toHexAddress,
+} from "../../../../src/services/attestation/vm/tron-vm";
+
 import { ONE_BILLION, randomHex, randomNumber } from "../../../common/utils";
 
 const testSolverPrivateKey =

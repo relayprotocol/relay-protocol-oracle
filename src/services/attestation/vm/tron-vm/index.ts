@@ -9,15 +9,6 @@ import {
   getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
 import * as tronweb from "tronweb";
-import { zeroHash } from "viem";
-
-import { getOnchainId } from "../utils";
-import { VmAttestor } from "../../vm/types";
-import { getChain } from "../../../../common/chains";
-import { externalError, internalError } from "../../../../common/error";
-import { undefinedOnThrow } from "../../../../common/utils";
-import { httpRpc } from "../../../../common/vm/tron-vm/rpc";
-import { ABI } from "../ethereum-vm/index";
 import {
   Address,
   decodeFunctionData,
@@ -25,7 +16,16 @@ import {
   Hex,
   parseEventLogs,
   TransactionReceipt,
+  zeroHash,
 } from "viem";
+
+import { ABI } from "../ethereum-vm/index";
+import { getOnchainId } from "../utils";
+import { VmAttestor } from "../../vm/types";
+import { getChain } from "../../../../common/chains";
+import { externalError, internalError } from "../../../../common/error";
+import { undefinedOnThrow } from "../../../../common/utils";
+import { httpRpc } from "../../../../common/vm/tron-vm/rpc";
 
 const VM_TYPE = "tron-vm";
 
@@ -36,11 +36,9 @@ export const fromHexAddress = (address: string) => {
 };
 
 export const toHexAddress = (address: string) => {
-  return tronweb.utils.address.toHex(address)
-    .replace(
-      tronweb.utils.address.ADDRESS_PREFIX_REGEX,
-      "0x"
-    )
+  return tronweb.utils.address
+    .toHex(address)
+    .replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, "0x");
 };
 
 export class TronVmAttestor extends VmAttestor {
@@ -383,7 +381,7 @@ export class TronVmAttestor extends VmAttestor {
   }
 
   private _FINALIZATION_TIME = 60n;
-  
+
   private async _ensureTxFinalization(chainId: string, tx: TransactionReceipt) {
     const rpc = await httpRpc(chainId);
 
