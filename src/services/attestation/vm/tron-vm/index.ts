@@ -9,7 +9,6 @@ import {
   getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
 import * as tronweb from "tronweb";
-import { TransactionInfo } from "tronweb/lib/esm/types";
 import { zeroHash } from "viem";
 
 import { getOnchainId } from "../utils";
@@ -18,76 +17,30 @@ import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { undefinedOnThrow } from "../../../../common/utils";
 import { httpRpc } from "../../../../common/vm/tron-vm/rpc";
-
-export const ABI = [
-  "event RelayNativeDeposit(address from, uint256 amount, bytes32 id)",
-  "event RelayErc20Deposit(address from, address token, uint256 amount, bytes32 id)",
-  "event SolverNativeTransfer(address to, uint256 amount)",
-  "event SolverCallExecuted(address to, bytes data, uint256 amount)",
-  "event Transfer(address indexed from, address indexed to, uint256 amount)",
-  "function transfer(address to, uint256 amount)",
-  "function transferFrom(address from, address to, uint256 amount)",
-  "function callRequests(bytes32 withdrawalId) view returns (bool)",
-];
+import { ABI } from "../ethereum-vm/index";
+import {
+  Address,
+  decodeFunctionData,
+  getContract,
+  Hex,
+  parseEventLogs,
+  TransactionReceipt,
+} from "viem";
 
 const VM_TYPE = "tron-vm";
 
-const fromHexAddress = (address: string) => {
+export const fromHexAddress = (address: string) => {
   return tronweb.utils.address.fromHex(
     address.replace("0x", tronweb.utils.address.ADDRESS_PREFIX)
   );
 };
 
-const parseEventLogs = (options: {
-  abi: any;
-  logs: any[];
-  eventName: string | string[];
-}): {
-  eventName: string;
-  address: string;
-  args: any;
-  logIndex: number;
-}[] => {
-  const { abi, logs, eventName } = options;
-
-  const eventNames = Array.isArray(eventName) ? eventName : [eventName];
-
-  const parsedLogs: {
-    eventName: string;
-    address: string;
-    args: any;
-    logIndex: number;
-  }[] = [];
-
-  const iface = new tronweb.utils.ethersUtils.Interface(abi);
-
-  let logIndex = 0;
-  for (const log of logs ?? []) {
-    logIndex++;
-
-    try {
-      const parsedLog = iface.parseLog({
-        topics: log.topics?.map((topic: string) => `0x${topic}`) ?? [],
-        data: `0x${log.data ?? ""}`,
-      });
-      if (!parsedLog) {
-        continue;
-      }
-
-      if (eventNames.includes(parsedLog.name)) {
-        parsedLogs.push({
-          eventName: parsedLog.name,
-          address: "0x" + log.address,
-          args: parsedLog.args,
-          logIndex,
-        });
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return parsedLogs;
+export const toHexAddress = (address: string) => {
+  return tronweb.utils.address.toHex(address)
+    .replace(
+      tronweb.utils.address.ADDRESS_PREFIX_REGEX,
+      "0x"
+    )
 };
 
 export class TronVmAttestor extends VmAttestor {
@@ -98,14 +51,21 @@ export class TronVmAttestor extends VmAttestor {
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
-    const receipt = await rpc.trx
-      .getTransactionInfo(transactionId)
-      .catch(() => {
-        throw externalError(
-          `Missing transaction ${transactionId} on chain ${chainId}`
-        );
+    const receipt = await rpc
+      .getTransactionReceipt({
+        hash: transactionId as Hex,
+      })
+      .catch((error) => {
+        if ((error as any).name === "TransactionReceiptNotFoundError") {
+          throw externalError(
+            `Missing transaction ${transactionId} on chain ${chainId}`
+          );
+        }
+
+        throw error;
       });
-    if (!receipt || !receipt.receipt || receipt.receipt.result !== "SUCCESS") {
+
+    if (receipt.status !== "success") {
       throw externalError(
         `Reverted transaction ${transactionId} on chain ${chainId}`
       );
@@ -124,7 +84,7 @@ export class TronVmAttestor extends VmAttestor {
     // Parse and filter the logs we're interested in
     const parsedLogs = parseEventLogs({
       abi: ABI,
-      logs: receipt.log ?? [],
+      logs: receipt.logs,
       eventName: ["RelayNativeDeposit", "RelayErc20Deposit", "Transfer"],
     }).filter((log) => {
       if (
@@ -209,38 +169,30 @@ export class TronVmAttestor extends VmAttestor {
           !depositId &&
           parsedLogs.filter((l) => l.eventName === "Transfer").length === 1
         ) {
-          const transaction = await rpc.trx.getTransaction(transactionId);
-
-          const contractCall = transaction.raw_data.contract[0];
-          if (contractCall.type === "TriggerSmartContract") {
-            const transactionCalldata = (contractCall.parameter.value as any)
-              .data;
-            try {
-              const iface = new tronweb.utils.ethersUtils.Interface(ABI);
-              const decodedFunctionData = await undefinedOnThrow(() =>
-                iface.parseTransaction({
-                  data: `0x${transactionCalldata}`,
-                })
-              );
-              if (decodedFunctionData) {
-                const endOfCalldata = transactionCalldata.slice(
-                  // No `0x` prefix for Tron
-                  0 +
-                    // The 4byte method signature
-                    8 +
-                    // Either 64 or 96 bytes depending on the called method
-                    64 * (decodedFunctionData.name === "transfer" ? 2 : 3)
-                );
-                if (endOfCalldata.length >= 64) {
-                  // We take the first 32 bytes from the end of calldata
-                  const parsedId = "0x" + endOfCalldata.slice(0, 64);
-                  if (parsedId !== zeroHash) {
-                    depositId = parsedId;
-                  }
-                }
+          const transactionCalldata = (
+            await rpc.getTransaction({ hash: transactionId as Hex })
+          ).input;
+          const decodedFunctionData = await undefinedOnThrow(() =>
+            decodeFunctionData({
+              abi: ABI,
+              data: transactionCalldata,
+            })
+          );
+          if (decodedFunctionData) {
+            const endOfCalldata = transactionCalldata.slice(
+              // The `0x` prefix
+              2 +
+                // The 4byte method signature
+                8 +
+                // Either 64 or 96 bytes depending on the called method
+                64 * (decodedFunctionData.functionName === "transfer" ? 2 : 3)
+            );
+            if (endOfCalldata.length >= 64) {
+              // We take the first 32 bytes from the end of calldata
+              const parsedId = "0x" + endOfCalldata.slice(0, 64);
+              if (parsedId !== zeroHash) {
+                depositId = parsedId;
               }
-            } catch {
-              // Skip errors
             }
           }
         }
@@ -287,24 +239,26 @@ export class TronVmAttestor extends VmAttestor {
     ) as DecodedEthereumVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
-    // Use TronWeb contract interface to query if the withdrawal has been executed
-    const depositoryContract = await rpc
-      .contract()
-      .at(tronweb.utils.address.toHex(depository));
-    const isExecuted = await depositoryContract.methods
-      .callRequests(withdrawalId)
-      .call();
+    const depositoryContract = getContract({
+      address: toHexAddress(depository) as Address,
+      abi: ABI,
+      client: rpc,
+    });
+
+    const isExecuted = await depositoryContract.read.callRequests([
+      withdrawalId as Hex,
+    ]);
 
     let status: DepositoryWithdrawalStatus;
     if (isExecuted) {
       status = DepositoryWithdrawalStatus.EXECUTED;
     } else {
-      const chainTimestamp = await rpc.trx
+      const chainTimestamp = await rpc
         .getBlock()
-        .then((b) => b.block_header.raw_data.timestamp);
+        .then((block) => block.timestamp);
       if (
-        BigInt(chainTimestamp) - this._FINALIZATION_TIME >
-        (BigInt(decodedWithdrawal.withdrawal.expiration) * 1000n)   // expiration is in seconds
+        chainTimestamp - this._FINALIZATION_TIME >
+        BigInt(decodedWithdrawal.withdrawal.expiration)
       ) {
         status = DepositoryWithdrawalStatus.EXPIRED;
       } else {
@@ -339,14 +293,21 @@ export class TronVmAttestor extends VmAttestor {
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
-    const receipt = await rpc.trx
-      .getTransactionInfo(transactionId)
-      .catch(() => {
-        throw externalError(
-          `Missing transaction ${transactionId} on chain ${chainId}`
-        );
+    const receipt = await rpc
+      .getTransactionReceipt({
+        hash: transactionId as Hex,
+      })
+      .catch((error) => {
+        if ((error as any).name === "TransactionReceiptNotFoundError") {
+          throw externalError(
+            `Missing transaction ${transactionId} on chain ${chainId}`
+          );
+        }
+
+        throw error;
       });
-    if (!receipt || !receipt.receipt || receipt.receipt.result !== "SUCCESS") {
+
+    if (receipt.status !== "success") {
       throw externalError(
         `Reverted transaction ${transactionId} on chain ${chainId}`
       );
@@ -355,45 +316,37 @@ export class TronVmAttestor extends VmAttestor {
     // Ensure the transaction is finalized
     await this._ensureTxFinalization(chainId, receipt);
 
-    const transactionTimestamp = receipt.blockTimeStamp;
-    if (transactionTimestamp > payment.deadline * 1000) {
-      // Convert deadline from seconds to milliseconds
+    const transactionTimestamp = await rpc
+      .getBlock({ blockNumber: receipt.blockNumber })
+      .then((block) => block.timestamp);
+    if (transactionTimestamp > payment.deadline) {
       throw externalError(
         `Transaction ${transactionId} executed after deadline`
       );
     }
 
-    const transaction = await rpc.trx.getTransaction(transactionId);
+    const transaction = await rpc.getTransaction({
+      hash: transactionId as Hex,
+    });
     if (!transaction) {
       throw externalError(`Missing transaction ${transactionId}`);
     }
 
-    const contractCall = transaction.raw_data.contract[0];
-    if (contractCall.type === "TriggerSmartContract") {
-      const input = (contractCall.parameter.value as any).data;
-      if (!input.endsWith(payment.orderId.slice(2))) {
-        throw externalError(
-          `Transaction ${transactionId} does not reference order id`
-        );
-      }
-    } else {
+    if (!transaction.input.endsWith(payment.orderId.slice(2))) {
       throw externalError(
         `Transaction ${transactionId} does not reference order id`
       );
     }
 
-    // Get logs from transaction receipt
-    const logs = receipt.log ?? [];
-
     if (payment.currency === getVmTypeNativeCurrency(VM_TYPE)) {
-      // If the payment involves native currency, check for native transfer events
+      // If the payment involves native currency, check for SolverNativeTransfer events
       const fillContract = decodeOrderExtraData(payment.extraData, VM_TYPE)
         .extraData.fillContract;
 
       // Parse and filter the logs we're interested in
       return parseEventLogs({
         abi: ABI,
-        logs,
+        logs: receipt.logs,
         eventName: ["SolverNativeTransfer"],
       })
         .filter(
@@ -407,7 +360,7 @@ export class TronVmAttestor extends VmAttestor {
       // If the payment involves ERC20 currencies, work off standard transfer events
       return parseEventLogs({
         abi: ABI,
-        logs,
+        logs: receipt.logs,
         eventName: ["Transfer"],
       })
         .filter(
@@ -429,16 +382,17 @@ export class TronVmAttestor extends VmAttestor {
     throw internalError("Not implemented");
   }
 
-  private _FINALIZATION_TIME = 3n * 60n * 1000n;
-
-  private async _ensureTxFinalization(chainId: string, tx: TransactionInfo) {
+  private _FINALIZATION_TIME = 60n;
+  
+  private async _ensureTxFinalization(chainId: string, tx: TransactionReceipt) {
     const rpc = await httpRpc(chainId);
-    const latestBlockTimestamp = await rpc.trx
-      .getBlock()
-      .then((b) => b.block_header.raw_data.timestamp);
-    const txTimestamp = tx.blockTimeStamp;
+
+    const latestBlockTimestamp = await rpc.getBlock().then((b) => b.timestamp);
+    const txTimestamp = await rpc
+      .getBlock({ blockNumber: tx.blockNumber })
+      .then((b) => b.timestamp);
     if (latestBlockTimestamp - txTimestamp < this._FINALIZATION_TIME) {
-      throw externalError(`Transaction ${tx.id} is not finalized`);
+      throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
     }
   }
 }

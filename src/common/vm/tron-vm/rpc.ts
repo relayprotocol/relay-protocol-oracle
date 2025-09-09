@@ -1,19 +1,25 @@
-import * as tronweb from "tronweb";
+import { createPublicClient, http } from "viem";
 
 import { getChain } from "../../chains";
 
 export const httpRpc = async (chainId: string) => {
   const chain = await getChain(chainId);
-
-  const randomKey = tronweb.TronWeb.createRandom().privateKey.slice(2);
-  const rpc = new tronweb.TronWeb({
-    fullHost: chain.httpRpcUrl,
-    fullNode: new tronweb.providers.HttpProvider(chain.httpRpcUrl),
-    privateKey: randomKey,
+  return createPublicClient({
+    chain: {
+      // We only need to `rpcUrls`, but viem makes all the other ones mandatory
+      id: 0,
+      name: "Chain",
+      nativeCurrency: {
+        name: "Native",
+        symbol: "NATIVE",
+        decimals: 18,
+      },
+      rpcUrls: {
+        default: {
+          http: [chain.httpRpcUrl],
+        },
+      },
+    },
+    transport: http(),
   });
-
-  // https://github.com/tronprotocol/tronweb/issues/90
-  rpc.setAddress(rpc.address.fromPrivateKey(randomKey) as string);
-
-  return rpc;
 };
