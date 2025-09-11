@@ -38,7 +38,8 @@
   {
     "id": "solana",
     "vmType": "solana-vm",
-    "httpRpcUrl": "https://api.mainnet-beta.solana.com"
+    "httpRpcUrl": "https://api.mainnet-beta.solana.com",
+    "depository": "6TMx4zgh9Ho5DaJtaQbKbHgYLk7B6vKEoE7CfnxkqcHv"
   },
   {
     "id": "hyperliquid",
