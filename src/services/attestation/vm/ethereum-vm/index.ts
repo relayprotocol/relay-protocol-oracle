@@ -163,7 +163,11 @@ export class EthereumVmAttestor extends VmAttestor {
         // take the deposit id from the end of calldata (if the end of calldata has at least 32 bytes)
         if (
           !depositId &&
-          parsedLogs.filter((l) => l.eventName === "Transfer").length === 1
+          parsedLogs.filter(
+            (l) =>
+              l.eventName === "Transfer" &&
+              l.args.to.toLowerCase() === depository.toLowerCase()
+          ).length === 1
         ) {
           const transactionCalldata = (
             await rpc.getTransaction({ hash: transactionId as Hex })
