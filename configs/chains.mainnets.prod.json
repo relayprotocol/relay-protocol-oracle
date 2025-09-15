@@ -205,6 +205,12 @@
     "httpRpcUrl": "http://proxy-mantle.nodes.svc.cluster.local:8545/mantle"
   },
   {
+    "id": "somnia",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://api.infra.mainnet.somnia.network"
+  },
+  {
     "id": "superseed",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
