@@ -11,9 +11,9 @@ import {
 } from "@reservoir0x/relay-protocol-sdk";
 import {
   Address,
-  decodeFunctionData,
   getContract,
   Hex,
+  hexToBigInt,
   parseAbi,
   parseEventLogs,
   TransactionReceipt,
@@ -24,7 +24,6 @@ import { getOnchainId } from "../utils";
 import { VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError } from "../../../../common/error";
-import { undefinedOnThrow } from "../../../../common/utils";
 import { httpRpc } from "../../../../common/vm/ethereum-vm/rpc";
 
 export const ABI = parseAbi([
@@ -160,7 +159,7 @@ export class EthereumVmAttestor extends VmAttestor {
         }
 
         // If the transaction involves a single `Transfer` event and the calldata matches a standard ERC20 transfer,
-        // take the deposit id from the end of calldata (if the end of calldata has at least 32 bytes)
+        // take the deposit id from the end of the transfer calldata (if the end of calldata has at least 32 bytes)
         if (
           !depositId &&
           parsedLogs.filter(
@@ -169,31 +168,54 @@ export class EthereumVmAttestor extends VmAttestor {
               l.args.to.toLowerCase() === depository.toLowerCase()
           ).length === 1
         ) {
+          // We know we have a single depository transfer event
+          const uniqueDepositoryTransferEvent = parsedLogs.find(
+            (l) =>
+              l.eventName === "Transfer" &&
+              l.args.to.toLowerCase() === depository.toLowerCase()
+          )!;
+
+          // Find all standard transfers within the transaction calldata
+          const findTransfersInCalldata = (calldata: string) => {
+            const regex =
+              /(a9059cbb)([0-9a-fA-F]{64})([0-9a-fA-F]{64})([0-9a-fA-F]{64})?|(23b872dd)([0-9a-fA-F]{64})([0-9a-fA-F]{64})([0-9a-fA-F]{64})([0-9a-fA-F]{64})?/g;
+
+            const results: { to: string; amount: string; id?: string }[] = [];
+
+            let match: RegExpExecArray | null;
+            while ((match = regex.exec(calldata)) !== null) {
+              if (match[1]) {
+                results.push({
+                  to: `0x${match[2].slice(24)}`.toLowerCase(),
+                  amount: hexToBigInt(`0x${match[3]}`).toString(),
+                  id: match[4] ? `0x${match[4]}`.toLowerCase() : undefined,
+                });
+              } else {
+                results.push({
+                  to: `0x${match[7].slice(24)}`.toLowerCase(),
+                  amount: hexToBigInt(`0x${match[8]}`).toString(),
+                  id: match[4] ? `0x${match[9]}`.toLowerCase() : undefined,
+                });
+              }
+            }
+
+            return results;
+          };
+
           const transactionCalldata = (
             await rpc.getTransaction({ hash: transactionId as Hex })
           ).input;
-          const decodedFunctionData = await undefinedOnThrow(() =>
-            decodeFunctionData({
-              abi: ABI,
-              data: transactionCalldata,
-            })
+
+          // Find all standard transfers matching the transfer event
+          const transfersToDepository = findTransfersInCalldata(
+            transactionCalldata
+          ).filter(
+            (t) =>
+              t.to.toLowerCase() === depository.toLowerCase() &&
+              t.amount === uniqueDepositoryTransferEvent.args.amount.toString()
           );
-          if (decodedFunctionData) {
-            const endOfCalldata = transactionCalldata.slice(
-              // The `0x` prefix
-              2 +
-                // The 4byte method signature
-                8 +
-                // Either 64 or 96 bytes depending on the called method
-                64 * (decodedFunctionData.functionName === "transfer" ? 2 : 3)
-            );
-            if (endOfCalldata.length >= 64) {
-              // We take the first 32 bytes from the end of calldata
-              const parsedId = "0x" + endOfCalldata.slice(0, 64);
-              if (parsedId !== zeroHash) {
-                depositId = parsedId;
-              }
-            }
+          if (transfersToDepository.length === 1) {
+            depositId = transfersToDepository[0].id;
           }
         }
 
