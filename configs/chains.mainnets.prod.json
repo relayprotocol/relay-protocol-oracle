@@ -211,6 +211,12 @@
     "httpRpcUrl": "https://api.infra.mainnet.somnia.network"
   },
   {
+    "id": "plasma",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://rpc.plasma.to"
+  },
+  {
     "id": "superseed",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
