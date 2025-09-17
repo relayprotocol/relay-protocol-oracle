@@ -11,7 +11,9 @@ const Schema = {
           id: Type.String({ description: "The id of the chain" }),
           vmType: Type.Union(
             [
+              Type.Literal("bitcoin-vm"),
               Type.Literal("ethereum-vm"),
+              Type.Literal("hyperliquid-vm"),
               Type.Literal("solana-vm"),
               Type.Literal("sui-vm"),
               Type.Literal("ton-vm"),
@@ -21,9 +23,11 @@ const Schema = {
               description: "The vm type of the chain",
             }
           ),
-          escrow: Type.String({
-            description: "The escrow address for the chain",
-          }),
+          depository: Type.Optional(
+            Type.String({
+              description: "The depository address for the chain",
+            })
+          ),
         }),
         { description: "A list of supported chains" }
       ),
@@ -45,7 +49,7 @@ export default {
       chains: Object.values(chains).map((chain) => ({
         id: chain.id,
         vmType: chain.vmType,
-        escrow: chain.escrow,
+        depository: chain.depository,
       })),
     });
   },

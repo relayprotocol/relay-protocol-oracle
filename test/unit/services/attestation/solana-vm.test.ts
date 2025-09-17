@@ -9,7 +9,7 @@ import { getOrderId, Order, SolverRefundStatus } from "@reservoir0x/relay-protoc
 import { Hex } from "viem";
 import { randomHex, randomNumber } from "../../../common/utils";
 import { PublicKey, TransactionResponse as SolanaTransactionResponse } from "@solana/web3.js";
-import { RelayEscrowIdl } from "../../../../src/services/attestation/vm/solana-vm";
+import { RelayDepositoryIdl } from "../../../../src/services/attestation/vm/solana-vm/idls/RelayDepositoryIdl";
 import { eventDiscriminator, BN } from "@coral-xyz/anchor";
 import { IdlCoder } from '@coral-xyz/anchor/dist/cjs/coder/borsh/idl';
 
@@ -20,7 +20,7 @@ const testSolverPrivateKey =
   "0x1234567890123456789012345678901234567890123456789012345678901234";
 const solverWallet = privateKeyToAccount(testSolverPrivateKey);
 
-function encodeEventData(eventName: string, args: any, idl: any = RelayEscrowIdl): string {
+function encodeEventData(eventName: string, args: any, idl: any = RelayDepositoryIdl): string {
   const eventTypeDef = idl.events.find((e: any) => e.name === eventName);
   if (!eventTypeDef) {
     throw new Error(`Event not found: ${eventName}`);
@@ -51,7 +51,7 @@ function encodeEventData(eventName: string, args: any, idl: any = RelayEscrowIdl
   ]).toString('base64');
 }
 
-// function decodeEventData(eventData: Buffer, eventName: string, idl: any = RelayEscrowIdl): any {
+// function decodeEventData(eventData: Buffer, eventName: string, idl: any = RelayDepositoryIdl): any {
 //   // First 8 bytes are the discriminator
 //   const discriminator = eventData.slice(0, 8);
 //   const expectedDiscriminator = eventDiscriminator(eventName);
@@ -316,7 +316,7 @@ const createSPLTransferTransaction = ({
 function createDepositTransaction(params: {
   depositTxHash: string;
   depositorAddress: string;
-  escrowAddress: string;
+  depositoryAddress: string;
   tokenAddress: string;
   paymentAmount: string;
 }): TransactionResponse {
@@ -542,7 +542,7 @@ const setupTestEnvironment = async (options: {
     depositTxReceipt = createSPLTransferTransaction({
       transactionHash: depositTxHash,
       from: testData.depositorAddress,
-      to: testData.chain.escrow,
+      to: testData.chain.depository,
       tokenAddress: testData.tokenAddress,
       amount: paymentAmount,
       orderHash: '0x1234567890abcdef',
@@ -551,7 +551,7 @@ const setupTestEnvironment = async (options: {
     depositTxReceipt = createDepositTransaction({
       depositTxHash,
       depositorAddress: testData.depositorAddress,
-      escrowAddress: testData.chain.escrow,
+      depositoryAddress: testData.chain.depository,
       tokenAddress: testData.tokenAddress,
       paymentAmount,
     });
@@ -637,8 +637,8 @@ const setupTestEnvironment = async (options: {
     message: { raw: orderHash },
   });
   
-  // Get escrow deposits
-  const escrowDeposits = await new AttestationService().attestEscrowDeposits({
+  // Get depository deposits
+  const depositoryDeposits = await new AttestationService().attestDepositoryDeposits({
     chainId: testData.chain.id,
     transactionId: depositTxHash,
   });
@@ -648,19 +648,19 @@ const setupTestEnvironment = async (options: {
     ? [
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].result.onchainId,
+          onchainId: depositoryDeposits[0].result.onchainId,
           inputIndex: 0,
         },
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].result.onchainId, // Duplicate onchainId
+          onchainId: depositoryDeposits[0].result.onchainId, // Duplicate onchainId
           inputIndex: 0,
         },
       ]
     : [
         {
           transactionId: depositTxHash,
-          onchainId: escrowDeposits[0].result.onchainId,
+          onchainId: depositoryDeposits[0].result.onchainId,
           inputIndex: 0,
         },
       ];
@@ -671,7 +671,7 @@ const setupTestEnvironment = async (options: {
     actionTxHash,
     testOrder,
     orderSignature,
-    escrowDeposits,
+    depositoryDeposits,
     inputs,
     fillAmount,
     depositTxReceipt,
@@ -819,13 +819,13 @@ jest.mock("../../../../src/common/chains", () => {
       id: "solana",
       vmType: "solana-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
-      escrow: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
+      depository: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
     },
     ethereum: {
       id: "ethereum",
       vmType: "ethereum-vm",
       httpRpcUrl: "http://127.0.0.1:8546",
-      escrow: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
+      depository: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
     },
   };
   return {
@@ -843,115 +843,225 @@ jest.mock("../../../../src/common/vm/solana-vm/rpc", () => {
   };
 });
 
-describe("SolanaAttestationService", () => {
-  it("attestEscrowDeposits - should attest spl-token deposit event", async () => {
-    const logs = [
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u invoke [1]",
-      "Program log: Instruction: DepositToken",
-      "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]",
-      "Program log: Create",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]",
-      "Program log: Instruction: GetAccountDataSize",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 1595 of 171961 compute units",
-      "Program return: TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA pQAAAAAAAAA=",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
-      "Program 11111111111111111111111111111111 invoke [3]",
-      "Program 11111111111111111111111111111111 success",
-      "Program log: Initialize the associated token account",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]",
-      "Program log: Instruction: InitializeImmutableOwner",
-      "Program log: Please upgrade to SPL Token 2022 for immutable owner support",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 1405 of 165348 compute units",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]",
-      "Program log: Instruction: InitializeAccount3",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4214 of 161464 compute units",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
-      "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 20490 of 177436 compute units",
-      "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]",
-      "Program log: Instruction: Transfer",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4645 of 154583 compute units",
-      "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
-      "Program data: ePg9Ux+Oa5BKhcPIo5YCxfVvqfPz933GfySoNJT1XBm7C56dKEjbtgECj6a+uZgbJKIbAmd7tEbJyCWUKmAw0BsVRHOkEgXc4gDKmjsAAAAAAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=",
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u consumed 50781 of 200000 compute units",
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u success",
-    ];
-
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
-        meta: {
-          logMessages: logs,
+describe("SolanaVmAttestor", () => {
+  it("attestDepositoryDeposits - should attest spl-token deposit instruction", async () => {
+    // Mock a transaction containing deposit_token instruction but with truncated logs
+    const mockTransaction = {
+      meta: {
+        // Empty log messages to force instruction parsing
+        logMessages: [],
+        innerInstructions: [
+          {
+            index: 0,
+            instructions: [
+              {
+                // deposit_token instruction
+                programIdIndex: 0,
+                accounts: [0, 1, 2, 3, 4],
+                data: "Rhn86pnvWw7vtHC1NAPKQ1q1RAJeW2QhLCHffvbc2Co4bKmKs6EhGNt9UzjwheW58",
+              },
+            ],
+          },
+        ],
+        loadedAddresses: {
+          writable: [],
+          readonly: [],
         },
-      }),
+      },
+      transaction: {
+        message: {
+          accountKeys: [
+            {
+              pubkey: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
+              signer: false,
+            },
+            {
+              pubkey:
+                "vault_acc7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZount",
+              signer: false,
+            },
+            {
+              pubkey: "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv",
+              signer: true,
+            },
+            { pubkey: "11111111111111111111111111111111", signer: false },
+            {
+              pubkey: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+              signer: false,
+            },
+          ],
+          instructions: [
+            {
+              programId: 0,
+              accounts: [0, 1, 2, 3],
+              data: "Rhn86pnvWw7vtHC1NAPKQ1q1RAJeW2QhLCHffvbc2Co4bKmKs6EhGNt9UzjwheW58",
+            },
+          ],
+          getAccountKeys: () => ({
+            staticAccountKeys: [
+              {
+                toBase58: () => "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
+              },
+              {
+                toBase58: () => "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ",
+              },
+              {
+                toBase58: () => "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv",
+              },
+              { toBase58: () => "11111111111111111111111111111111" },
+              {
+                toBase58: () => "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+              },
+            ],
+          }),
+          compiledInstructions: [],
+          addressTableLookups: [],
+        },
+      },
+    };
+
+    // Mock httpRpc to return the mock transaction
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: () => mockTransaction,
     }));
 
+    // Create an instance of AttestationService
     const service = new AttestationService();
-    const messages = await service.attestEscrowDeposits({
+
+    // Call attestDepositoryDeposits with mock data
+    const messages = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
+
+    // Verify the results
+    expect(messages.length).toBe(1);
     const msg = messages[0];
 
-    expect(messages.length).toBe(1);
+    // Check the parsed message has the correct format and values
     expect(msg.result.currency).toBe(
-      "AzrxfjSRgePBiRyHoV4mdUX2LVTxwPR9E1Crr9mZVeH"
-    );
-    expect(msg.result.amount).toBe("1000000000");
-    expect(msg.result.depositor).toBe(
-      "61uUNRFVyDQsyne2cHzEmjA76UYpfsRKi2EaDoYH64Rs"
-    );
-    expect(msg.result.escrow).toBe(
-      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
-    );
-    expect(msg.result.depositId).toBe(
-      "0202020202020202020202020202020202020202020202020202020202020202"
-    );
-  });
-
-  it("attestEscrowDeposits - should attest native deposit event", async () => {
-    const logs = [
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u invoke [1]",
-      "Program log: Instruction: DepositSol",
-      "Program 11111111111111111111111111111111 invoke [2]",
-      "Program 11111111111111111111111111111111 success",
-      "Program data: ePg9Ux+Oa5B41ZyI3pX01JFl6AV6P2HoW3/Z+7eGs9orfK3r4gNo5QAAypo7AAAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB",
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u consumed 11114 of 200000 compute units",
-      "Program FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u success",
-    ];
-
-    (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
-        meta: {
-          logMessages: logs,
-        },
-      }),
-    }));
-
-    const service = new AttestationService();
-    const messages = await service.attestEscrowDeposits({
-      chainId: Object.values(await getChains())[0].id,
-      transactionId: randomBase58(32),
-    });
-    const msg = messages[0];
-
-    expect(messages.length).toBe(1);
-    expect(msg.result.currency).toBe("11111111111111111111111111111111");
-    expect(msg.result.amount).toBe("1000000000");
+      "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+    ); // System program ID for native SOL
     expect(msg.result.depositor).toBe(
       "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv"
     );
-    expect(msg.result.escrow).toBe(
+    expect(msg.result.depository).toBe(
       "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
     );
     expect(msg.result.depositId).toBe(
-      "0101010101010101010101010101010101010101010101010101010101010101"
+      "0xd8dc6c585358c53b2cc109c3c31d8055c94a6e85622ea1196c2abe17a77dac0b"
     );
   });
 
-  it("attestEscrowDeposits - should return empty array when no events found", async () => {
+  it("attestDepositoryDeposits - should attest native deposit instruction", async () => {
+    const mockTransaction = {
+      meta: {
+        // Empty log messages to force instruction parsing
+        logMessages: [],
+        innerInstructions: [
+          {
+            index: 0,
+            instructions: [
+              {
+                // deposit_native instruction
+                programIdIndex: 0,
+                accounts: [0, 1, 2, 3, 4],
+                data: "VyPN4WGD269ghgoiH4ZzWJHyQFj3nEwGnPv9pFnbvDDP7Xkz83DDDoY5rLkX3VJhE",
+              },
+            ],
+          },
+        ],
+        loadedAddresses: {
+          writable: [],
+          readonly: [],
+        },
+      },
+      transaction: {
+        message: {
+          accountKeys: [
+            {
+              pubkey: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
+              signer: false,
+            },
+            {
+              pubkey:
+                "vault_acc7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZount",
+              signer: false,
+            },
+            {
+              pubkey: "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv",
+              signer: true,
+            },
+            { pubkey: "11111111111111111111111111111111", signer: false },
+            {
+              pubkey: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+              signer: false,
+            },
+          ],
+          instructions: [
+            {
+              programId: 0,
+              accounts: [0, 1, 2, 3],
+              data: "Rhn86pnvWw7vtHC1NAPKQ1q1RAJeW2QhLCHffvbc2Co4bKmKs6EhGNt9UzjwheW58",
+            },
+          ],
+          getAccountKeys: () => ({
+            staticAccountKeys: [
+              {
+                toBase58: () => "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
+              },
+              {
+                toBase58: () => "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ",
+              },
+              {
+                toBase58: () => "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv",
+              },
+              { toBase58: () => "11111111111111111111111111111111" },
+              {
+                toBase58: () => "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+              },
+            ],
+          }),
+          compiledInstructions: [],
+          addressTableLookups: [],
+        },
+      },
+    };
+
+    // Mock httpRpc to return the mock transaction
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => ({
+      getTransaction: () => mockTransaction,
+    }));
+
+    // Create an instance of AttestationService
+    const service = new AttestationService();
+
+    // Call attestDepositoryDeposits with mock data
+    const messages = await service.attestDepositoryDeposits({
+      chainId: Object.values(await getChains())[0].id,
+      transactionId: randomBase58(32),
+    });
+
+    // Verify the results
+    expect(messages.length).toBe(1);
+    const msg = messages[0];
+
+    // Check the parsed message has the correct format and values
+    expect(msg.result.currency).toBe("11111111111111111111111111111111"); // System program ID for native SOL
+    expect(msg.result.depositor).toBe(
+      "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv"
+    );
+    expect(msg.result.depository).toBe(
+      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
+    );
+    expect(msg.result.depositId).toBe(
+      "0x0101010101010101010101010101010101010101010101010101010101010101"
+    );
+  });
+
+  it("attestDepositoryDeposits - should return empty array when no events found", async () => {
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: () => ({
         meta: {
           logMessages: [],
         },
@@ -959,20 +1069,20 @@ describe("SolanaAttestationService", () => {
     }));
 
     const service = new AttestationService();
-    const deposits = await service.attestEscrowDeposits({
+    const deposits = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
     expect(deposits).toEqual([]);
   });
 
-  it("attestEscrowDeposits - should handle missing transaction", async () => {
+  it("attestDepositoryDeposits - should handle missing transaction", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getParsedTransaction: () => null,
+      getTransaction: () => null,
     }));
 
     const service = new AttestationService();
-    const deposits = await service.attestEscrowDeposits({
+    const deposits = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });

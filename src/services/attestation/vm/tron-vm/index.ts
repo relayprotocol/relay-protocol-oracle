@@ -1,6 +1,5 @@
 import {
   DecodedEthereumVmWithdrawal,
-  decodeOrderCall,
   decodeOrderExtraData,
   decodeWithdrawal,
   DepositoryDepositMessage,
@@ -9,37 +8,40 @@ import {
   getDecodedWithdrawalId,
   getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
+import * as tronweb from "tronweb";
 import {
   Address,
+  decodeFunctionData,
   getContract,
   Hex,
-  hexToBigInt,
-  parseAbi,
   parseEventLogs,
   TransactionReceipt,
   zeroHash,
 } from "viem";
 
+import { ABI } from "../ethereum-vm/index";
 import { getOnchainId } from "../utils";
 import { VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
-import { externalError } from "../../../../common/error";
-import { httpRpc } from "../../../../common/vm/ethereum-vm/rpc";
+import { externalError, internalError } from "../../../../common/error";
+import { undefinedOnThrow } from "../../../../common/utils";
+import { httpRpc } from "../../../../common/vm/tron-vm/rpc";
 
-export const ABI = parseAbi([
-  "event RelayNativeDeposit(address from, uint256 amount, bytes32 id)",
-  "event RelayErc20Deposit(address from, address token, uint256 amount, bytes32 id)",
-  "event SolverNativeTransfer(address to, uint256 amount)",
-  "event SolverCallExecuted(address to, bytes data, uint256 amount)",
-  "event Transfer(address indexed from, address indexed to, uint256 amount)",
-  "function transfer(address to, uint256 amount)",
-  "function transferFrom(address from, address to, uint256 amount)",
-  "function callRequests(bytes32 withdrawalId) view returns (bool)",
-]);
+const VM_TYPE = "tron-vm";
 
-const VM_TYPE = "ethereum-vm";
+export const fromHexAddress = (address: string) => {
+  return tronweb.utils.address.fromHex(
+    address.replace("0x", tronweb.utils.address.ADDRESS_PREFIX)
+  );
+};
 
-export class EthereumVmAttestor extends VmAttestor {
+export const toHexAddress = (address: string) => {
+  return tronweb.utils.address
+    .toHex(address)
+    .replace(tronweb.utils.address.ADDRESS_PREFIX_REGEX, "0x");
+};
+
+export class TronVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
@@ -60,6 +62,7 @@ export class EthereumVmAttestor extends VmAttestor {
 
         throw error;
       });
+
     if (receipt.status !== "success") {
       throw externalError(
         `Reverted transaction ${transactionId} on chain ${chainId}`
@@ -84,21 +87,21 @@ export class EthereumVmAttestor extends VmAttestor {
     }).filter((log) => {
       if (
         log.eventName === "RelayNativeDeposit" &&
-        log.address.toLowerCase() === depository.toLowerCase()
+        fromHexAddress(log.address) === depository
       ) {
         return true;
       }
 
       if (
         log.eventName === "RelayErc20Deposit" &&
-        log.address.toLowerCase() === depository.toLowerCase()
+        fromHexAddress(log.address) === depository
       ) {
         return true;
       }
 
       if (
         log.eventName === "Transfer" &&
-        log.args.to.toLowerCase() === depository.toLowerCase()
+        fromHexAddress(log.args.to) === depository
       ) {
         return true;
       }
@@ -106,7 +109,7 @@ export class EthereumVmAttestor extends VmAttestor {
       return false;
     });
 
-    // Sort the logs accordigng to their onchain order
+    // Sort the logs according to their onchain order
     parsedLogs.sort((l1, l2) => l1.logIndex - l2.logIndex);
 
     const messages: DepositoryDepositMessage[] = [];
@@ -115,7 +118,7 @@ export class EthereumVmAttestor extends VmAttestor {
       const nextLogIndex = i + 1;
 
       if (currentLog?.eventName === "RelayNativeDeposit") {
-        const depositId = currentLog.args.id.toLowerCase();
+        const depositId = currentLog.args.id;
 
         messages.push({
           data: {
@@ -130,7 +133,7 @@ export class EthereumVmAttestor extends VmAttestor {
             ),
             depository,
             depositId,
-            depositor: currentLog.args.from.toLowerCase(),
+            depositor: fromHexAddress(currentLog.args.from),
             currency: getVmTypeNativeCurrency(VM_TYPE),
             amount: currentLog.args.amount.toString(),
           },
@@ -138,7 +141,7 @@ export class EthereumVmAttestor extends VmAttestor {
       }
 
       if (currentLog?.eventName === "Transfer") {
-        let depositor = currentLog.args.from.toLowerCase();
+        let depositor = fromHexAddress(currentLog.args.from);
 
         // If any of the next events in the transaction is a matching `Erc20Deposit` event, take the id and depositor from there
         let depositId: string | undefined;
@@ -146,11 +149,11 @@ export class EthereumVmAttestor extends VmAttestor {
           const nextLog = parsedLogs[j];
           if (
             nextLog.eventName === "RelayErc20Deposit" &&
-            nextLog.args.token.toLowerCase() ===
-              currentLog.address.toLowerCase() &&
-            nextLog.args.amount === currentLog.args.amount
+            fromHexAddress(nextLog.args.token) ===
+              fromHexAddress(currentLog.address) &&
+            nextLog.args.amount.toString() === currentLog.args.amount.toString()
           ) {
-            depositor = nextLog.args.from.toLowerCase();
+            depositor = fromHexAddress(nextLog.args.from);
 
             if (nextLog.args.id !== zeroHash) {
               depositId = nextLog.args.id;
@@ -159,63 +162,36 @@ export class EthereumVmAttestor extends VmAttestor {
         }
 
         // If the transaction involves a single `Transfer` event and the calldata matches a standard ERC20 transfer,
-        // take the deposit id from the end of the transfer calldata (if the end of calldata has at least 32 bytes)
+        // take the deposit id from the end of calldata (if the end of calldata has at least 32 bytes)
         if (
           !depositId &&
-          parsedLogs.filter(
-            (l) =>
-              l.eventName === "Transfer" &&
-              l.args.to.toLowerCase() === depository.toLowerCase()
-          ).length === 1
+          parsedLogs.filter((l) => l.eventName === "Transfer").length === 1
         ) {
-          // We know we have a single depository transfer event
-          const uniqueDepositoryTransferEvent = parsedLogs.find(
-            (l) =>
-              l.eventName === "Transfer" &&
-              l.args.to.toLowerCase() === depository.toLowerCase()
-          )!;
-
-          // Find all standard transfers within the transaction calldata
-          const findTransfersInCalldata = (calldata: string) => {
-            const regex =
-              /(a9059cbb)([0-9a-fA-F]{64})([0-9a-fA-F]{64})([0-9a-fA-F]{64})?|(23b872dd)([0-9a-fA-F]{64})([0-9a-fA-F]{64})([0-9a-fA-F]{64})([0-9a-fA-F]{64})?/g;
-
-            const results: { to: string; amount: string; id?: string }[] = [];
-
-            let match: RegExpExecArray | null;
-            while ((match = regex.exec(calldata)) !== null) {
-              if (match[1]) {
-                results.push({
-                  to: `0x${match[2].slice(24)}`.toLowerCase(),
-                  amount: hexToBigInt(`0x${match[3]}`).toString(),
-                  id: match[4] ? `0x${match[4]}`.toLowerCase() : undefined,
-                });
-              } else {
-                results.push({
-                  to: `0x${match[7].slice(24)}`.toLowerCase(),
-                  amount: hexToBigInt(`0x${match[8]}`).toString(),
-                  id: match[4] ? `0x${match[9]}`.toLowerCase() : undefined,
-                });
-              }
-            }
-
-            return results;
-          };
-
           const transactionCalldata = (
             await rpc.getTransaction({ hash: transactionId as Hex })
           ).input;
-
-          // Find all standard transfers matching the transfer event
-          const transfersToDepository = findTransfersInCalldata(
-            transactionCalldata
-          ).filter(
-            (t) =>
-              t.to.toLowerCase() === depository.toLowerCase() &&
-              t.amount === uniqueDepositoryTransferEvent.args.amount.toString()
+          const decodedFunctionData = await undefinedOnThrow(() =>
+            decodeFunctionData({
+              abi: ABI,
+              data: transactionCalldata,
+            })
           );
-          if (transfersToDepository.length === 1) {
-            depositId = transfersToDepository[0].id;
+          if (decodedFunctionData) {
+            const endOfCalldata = transactionCalldata.slice(
+              // The `0x` prefix
+              2 +
+                // The 4byte method signature
+                8 +
+                // Either 64 or 96 bytes depending on the called method
+                64 * (decodedFunctionData.functionName === "transfer" ? 2 : 3)
+            );
+            if (endOfCalldata.length >= 64) {
+              // We take the first 32 bytes from the end of calldata
+              const parsedId = "0x" + endOfCalldata.slice(0, 64);
+              if (parsedId !== zeroHash) {
+                depositId = parsedId;
+              }
+            }
           }
         }
 
@@ -233,7 +209,7 @@ export class EthereumVmAttestor extends VmAttestor {
             depository,
             depositId: depositId ?? zeroHash,
             depositor,
-            currency: currentLog.address.toLowerCase(),
+            currency: fromHexAddress(currentLog.address),
             amount: currentLog.args.amount.toString(),
           },
         });
@@ -262,10 +238,11 @@ export class EthereumVmAttestor extends VmAttestor {
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
     const depositoryContract = getContract({
-      address: chain.depository as Address,
+      address: toHexAddress(depository) as Address,
       abi: ABI,
       client: rpc,
     });
+
     const isExecuted = await depositoryContract.read.callRequests([
       withdrawalId as Hex,
     ]);
@@ -327,6 +304,7 @@ export class EthereumVmAttestor extends VmAttestor {
 
         throw error;
       });
+
     if (receipt.status !== "success") {
       throw externalError(
         `Reverted transaction ${transactionId} on chain ${chainId}`
@@ -359,17 +337,11 @@ export class EthereumVmAttestor extends VmAttestor {
     }
 
     if (payment.currency === getVmTypeNativeCurrency(VM_TYPE)) {
-      // If the payment involves native currency, we first try to see if this is a direct transfer
-      if (
-        transaction.to?.toLowerCase() === payment.recipient.toLowerCase() &&
-        transaction.input.startsWith(payment.orderId)
-      ) {
-        return transaction.value;
-      }
-
-      // Otherwise, check for any native transfer events emitted via the fill contract specified by the order
+      // If the payment involves native currency, check for SolverNativeTransfer events
       const fillContract = decodeOrderExtraData(payment.extraData, VM_TYPE)
         .extraData.fillContract;
+
+      // Parse and filter the logs we're interested in
       return parseEventLogs({
         abi: ABI,
         logs: receipt.logs,
@@ -377,8 +349,8 @@ export class EthereumVmAttestor extends VmAttestor {
       })
         .filter(
           (log) =>
-            log.address.toLowerCase() === fillContract.toLowerCase() &&
-            log.args.to.toLowerCase() === payment.recipient.toLowerCase()
+            fromHexAddress(fillContract) === fromHexAddress(log.address) &&
+            fromHexAddress(log.args.to) === payment.recipient
         )
         .map((log) => log.args.amount)
         .reduce((a, b) => a + b, 0n);
@@ -391,8 +363,8 @@ export class EthereumVmAttestor extends VmAttestor {
       })
         .filter(
           (log) =>
-            log.address.toLowerCase() === payment.currency.toLowerCase() &&
-            log.args.to.toLowerCase() === payment.recipient.toLowerCase()
+            fromHexAddress(log.address) === payment.currency &&
+            fromHexAddress(log.args.to) === payment.recipient
         )
         .map((log) => log.args.amount)
         .reduce((a, b) => a + b, 0n);
@@ -400,75 +372,12 @@ export class EthereumVmAttestor extends VmAttestor {
   }
 
   public async verifySolverCalls(
-    chainId: string,
-    transactionId: string,
-    calls: string[],
-    extraData: string
+    _chainId: string,
+    _transactionId: string,
+    _calls: string[],
+    _extraData: string
   ): Promise<boolean> {
-    const rpc = await httpRpc(chainId);
-    const chain = await getChain(chainId);
-
-    // Ensure the transaction was successfully included
-    const receipt = await rpc
-      .getTransactionReceipt({
-        hash: transactionId as Hex,
-      })
-      .catch((error) => {
-        if ((error as any).name === "TransactionReceiptNotFoundError") {
-          throw externalError(
-            `Missing transaction ${transactionId} on chain ${chainId}`
-          );
-        }
-
-        throw error;
-      });
-    if (receipt.status !== "success") {
-      throw externalError(
-        `Reverted transaction ${transactionId} on chain ${chainId}`
-      );
-    }
-
-    // Ensure the transaction is finalized
-    await this._ensureTxFinalization(chainId, receipt);
-
-    const fillContract = decodeOrderExtraData(extraData, VM_TYPE).extraData
-      .fillContract;
-
-    // Parse and filter the logs we're interested in
-    const parsedLogs = parseEventLogs({
-      abi: ABI,
-      logs: receipt.logs,
-      eventName: ["SolverCallExecuted"],
-    }).filter((log) => {
-      if (
-        log.eventName === "SolverCallExecuted" &&
-        log.address.toLowerCase() === fillContract.toLowerCase()
-      ) {
-        return true;
-      }
-
-      return false;
-    });
-
-    const usedParsedLogIndexes = new Set<number>();
-    for (const call of calls) {
-      const decodedCall = decodeOrderCall(call, chain.vmType);
-
-      const relevantLogIndex = parsedLogs.findIndex(
-        (log, i) =>
-          log.args.to.toLowerCase() === decodedCall.call.to.toLowerCase() &&
-          log.args.data.toLowerCase() === decodedCall.call.data.toLowerCase() &&
-          log.args.amount === BigInt(decodedCall.call.value) &&
-          !usedParsedLogIndexes.has(i)
-      );
-      if (relevantLogIndex === -1) {
-        return false;
-      } else {
-        usedParsedLogIndexes.add(relevantLogIndex);
-      }
-    }
-
-    return true;
+    throw internalError("Not implemented");
   }
 
   private _FINALIZATION_TIME = 60n;

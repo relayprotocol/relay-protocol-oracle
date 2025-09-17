@@ -1,5 +1,4 @@
 import { Type } from "@fastify/type-provider-typebox";
-import { SolverRefundStatus } from "@reservoir0x/relay-protocol-sdk";
 
 import {
   Endpoint,
@@ -7,11 +6,14 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
+import { signSolverFillMessage } from "../../../common/signer";
+import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
   order: Type.Object(
     {
+      version: Type.Literal("v1"),
       solverChainId: Type.String(),
       solver: Type.String(),
       salt: Type.String(),
@@ -79,17 +81,15 @@ const MessageData = Type.Object({
       }),
     })
   ),
-  refunds: Type.Array(
-    Type.Object({
-      transactionId: Type.String({
-        description: "The refund transaction",
-      }),
-      inputIndex: Type.Number({
-        description: "The index of the order input",
-      }),
-      refundIndex: Type.Number({
-        description: "The index of the order input refund",
-      }),
+  fill: Type.Object({
+    transactionId: Type.String({
+      description: "The fill transaction",
+    }),
+  }),
+  force: Type.Optional(
+    Type.Boolean({
+      description:
+        "Force attestation even if the order solver fill is not valid",
     })
   ),
 });
@@ -106,20 +106,26 @@ const Schema = {
             orderId: Type.String({
               description: "The id of the attested order",
             }),
-            status: Type.Union(
-              [Type.Literal("failed"), Type.Literal("successful")],
-              {
-                description: "The status of the solver refund",
-              }
-            ),
+            status: Type.Number({
+              description:
+                "The status of the solver fill (0 = failed, 1 = successful)",
+            }),
             totalWeightedInputPaymentBpsDiff: Type.String({
               description:
                 "The bps difference between the quoted amount and the deposited amount",
             }),
           }),
+          signature: Type.Object({
+            oracle: Type.String({
+              description: "The address of the signing oracle",
+            }),
+            signature: Type.String({
+              description: "The message signature",
+            }),
+          }),
         },
         {
-          description: "The resulting 'solver-refund' message",
+          description: "The resulting 'solver-fill' message",
         }
       ),
     }),
@@ -128,25 +134,35 @@ const Schema = {
 
 export default {
   method: "POST",
-  url: "/attestations/solver-refund/v1",
+  url: "/attestations/solver-fills/v1",
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
     const attestationService = new AttestationService();
-    const message = await attestationService.attestSolverRefund(req.body);
+    const message = await attestationService.attestSolverFill(req.body);
+
+    // Restrict the `force` option to specific integrators
+    if (req.body.force) {
+      const apiKey = req.headers["x-api-key"] as string | undefined;
+      if (
+        !apiKey ||
+        !config.apiKeys ||
+        !config.apiKeys[apiKey] ||
+        config.apiKeys[apiKey] !== "relay"
+      ) {
+        return reply
+          .status(400)
+          .send({ message: "Unauthorized to use the `force` option" });
+      }
+    }
 
     return reply.send({
       message: {
-        ...message,
-        result: {
-          ...message.result,
-          status:
-            message.result.status === SolverRefundStatus.FAILED
-              ? "failed"
-              : "successful",
-        },
+        data: message.data,
+        result: message.result,
+        signature: await signSolverFillMessage(message),
       },
     });
   },

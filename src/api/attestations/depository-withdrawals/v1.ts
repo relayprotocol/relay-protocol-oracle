@@ -1,5 +1,4 @@
 import { Type } from "@fastify/type-provider-typebox";
-import { EscrowWithdrawalStatus } from "@reservoir0x/relay-protocol-sdk";
 
 import {
   Endpoint,
@@ -7,6 +6,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
+import { signDepositoryWithdrawalMessage } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -30,23 +30,25 @@ const Schema = {
             withdrawalId: Type.String({
               description: "The id of the attested withdrawal",
             }),
-            escrow: Type.String({
-              description: "The escrow address for the withdrawal",
+            depository: Type.String({
+              description: "The depository address for the withdrawal",
             }),
-            status: Type.Union(
-              [
-                Type.Literal("executed"),
-                Type.Literal("expired"),
-                Type.Literal("pending"),
-              ],
-              {
-                description: "The status of the withdrawal",
-              }
-            ),
+            status: Type.Number({
+              description:
+                "The status of the withdrawal (0 = pending, 1 = executed, 2 = expired)",
+            }),
+          }),
+          signature: Type.Object({
+            oracle: Type.String({
+              description: "The address of the signing oracle",
+            }),
+            signature: Type.String({
+              description: "The message signature",
+            }),
           }),
         },
         {
-          description: "The resulting 'escrow-withdrawal' message",
+          description: "The resulting 'depository-withdrawal' message",
         }
       ),
     }),
@@ -55,27 +57,22 @@ const Schema = {
 
 export default {
   method: "POST",
-  url: "/attestations/escrow-withdrawal/v1",
+  url: "/attestations/depository-withdrawals/v1",
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
     const attestationService = new AttestationService();
-    const message = await attestationService.attestEscrowWithdrawal(req.body);
+    const message = await attestationService.attestDepositoryWithdrawal(
+      req.body
+    );
 
     return reply.send({
       message: {
-        ...message,
-        result: {
-          ...message.result,
-          status:
-            message.result.status === EscrowWithdrawalStatus.PENDING
-              ? "pending"
-              : message.result.status === EscrowWithdrawalStatus.EXECUTED
-              ? "executed"
-              : "expired",
-        },
+        data: message.data,
+        result: message.result,
+        signature: await signDepositoryWithdrawalMessage(message),
       },
     });
   },

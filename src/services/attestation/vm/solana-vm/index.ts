@@ -1,84 +1,273 @@
-import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
+import * as anchor from "@coral-xyz/anchor";
+import { BorshInstructionCoder, Idl, Program } from "@coral-xyz/anchor";
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
+  DecodedSolanaVmWithdrawal,
+  decodeWithdrawal,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
+  DepositoryWithdrawalStatus,
+  getDecodedWithdrawalId,
+  getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import {
+  PublicKey,
+  Connection,
+  VersionedTransactionResponse,
+  MessageCompiledInstruction,
+} from "@solana/web3.js";
 import bs58 from "bs58";
 
-import { RelayEscrowIdl } from "./idls/RelayEscrowIdl";
+import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
 import { getOnchainId } from "../utils";
+import { VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
-import { VmAttestor } from "../../vm/types";
 
-export const eventCoder = new BorshEventCoder(RelayEscrowIdl as Idl);
-export {
-  RelayEscrowIdl
-};
-
-interface DepositEventData {
-  depositor: PublicKey;
-  token: PublicKey | null;
-  amount: bigint;
-  id: number[];
-}
+const VM_TYPE = "solana-vm";
 
 export class SolanaVmAttestor extends VmAttestor {
+  private readonly instructionCoder: BorshInstructionCoder;
+
   constructor() {
     super();
-  }
 
-  public async getEscrowDepositMessages(
-    chainId: string,
-    transactionId: string
-  ): Promise<EscrowDepositMessage[]> {
-    const connection = await httpRpc(chainId);
-    const transaction = await connection.getParsedTransaction(transactionId, {
-      maxSupportedTransactionVersion: 0,
-    });
-
-    if (!transaction?.meta?.logMessages) {
-      return [];
-    }
-
-    return this.parseTransactionLogs(
-      chainId,
-      transactionId,
-      transaction.meta.logMessages,
-      await getChain(chainId).then((chain) => chain.escrow)
+    this.instructionCoder = new BorshInstructionCoder(
+      RelayDepositoryIdl as Idl
     );
   }
 
-  public async getEscrowWithdrawalMessage(
-    _chainId: string,
-    _withdrawal: string
-  ): Promise<EscrowWithdrawalMessage> {
-    throw internalError("Not implemented");
+  /**
+   * Get depository deposit messages from a transaction.
+   *
+   * This function first tries to parse events from logs. If log parsing fails or logs are truncated,
+   * it tries parsing from instructions.
+   *
+   * @param chainId The ID of the chain.
+   * @param transactionId The ID of the transaction.
+   * @returns A list of depository deposit messages.
+   */
+  public async getDepositoryDepositMessages(
+    chainId: string,
+    transactionId: string
+  ): Promise<DepositoryDepositMessage[]> {
+    const rpc = await httpRpc(chainId, "finalized");
+
+    const transaction = await rpc.getTransaction(transactionId, {
+      maxSupportedTransactionVersion: 0,
+      // Ensure the transaction is finalized
+      commitment: "finalized",
+    });
+    if (!transaction) {
+      return [];
+    }
+
+    const chain = await getChain(chainId);
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
+    const messages: DepositoryDepositMessage[] = [];
+
+    const { instructions, accountKeys } =
+      await this._extractInstructionsAndKeys(transaction, rpc);
+    if (!instructions.length) {
+      return messages;
+    }
+
+    // Iterate through all instructions, looking for calls to the depository contract
+    for (let i = 0; i < instructions.length; i++) {
+      const instruction = instructions[i];
+      const programId = accountKeys[instruction.programIdIndex];
+
+      // Check if this is a call to the depository contract
+      if (programId.toBase58() === depository) {
+        const data = Buffer.from(instruction.data);
+
+        const decodedInstruction = this.instructionCoder.decode(data);
+        if (!decodedInstruction) {
+          continue;
+        }
+
+        if (decodedInstruction.name === "deposit_native") {
+          // Handle "deposit_native" instruction
+
+          const { amount, id } = decodedInstruction.data as {
+            amount: anchor.BN;
+            id: number[];
+          };
+
+          // Get relevant accounts
+          const depositorIndex = instruction.accountKeyIndexes[2];
+          // Third account in "DepositToken" struct is the depositor
+          const depositor = accountKeys[depositorIndex].toBase58();
+
+          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          messages.push({
+            data: {
+              chainId,
+              transactionId,
+            },
+            result: {
+              onchainId,
+              depositId: "0x" + Buffer.from(id).toString("hex"),
+              depository,
+              depositor,
+              currency: getVmTypeNativeCurrency(VM_TYPE),
+              amount: amount.toString(),
+            },
+          });
+        } else if (decodedInstruction.name === "deposit_token") {
+          // Handle "deposit_token" instruction
+
+          const { amount, id } = decodedInstruction.data as {
+            amount: anchor.BN;
+            id: number[];
+          };
+
+          // Get relevant accounts
+          // Third account in "DepositToken" struct is the depositor
+          const depositorIndex = instruction.accountKeyIndexes[2];
+          // Fifth account in "DepositToken" struct is the mint
+          const mintIndex = instruction.accountKeyIndexes[4];
+
+          const depositor = accountKeys[depositorIndex].toBase58();
+          const mint = accountKeys[mintIndex].toBase58();
+
+          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          messages.push({
+            data: {
+              chainId,
+              transactionId,
+            },
+            result: {
+              onchainId,
+              depositId: "0x" + Buffer.from(id).toString("hex"),
+              depository,
+              depositor,
+              currency: mint,
+              amount: amount.toString(),
+            },
+          });
+        }
+      }
+    }
+
+    return messages;
   }
 
+  /**
+   * Get depository withdrawal message from a withdrawal.
+   *
+   * @param chainId The ID of the chain.
+   * @param withdrawal The withdrawal.
+   * @returns A depository withdrawal message.
+   */
+  public async getDepositoryWithdrawalMessage(
+    chainId: string,
+    withdrawal: string
+  ): Promise<DepositoryWithdrawalMessage> {
+    const rpc = await httpRpc(chainId, "finalized");
+    const chain = await getChain(chainId);
+
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
+    const decodedWithdrawal = decodeWithdrawal(
+      withdrawal,
+      chain.vmType
+    ) as DecodedSolanaVmWithdrawal;
+    const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
+
+    const program = new Program(
+      {
+        ...RelayDepositoryIdl,
+        address: depository,
+      } as Idl,
+      new anchor.AnchorProvider(
+        new anchor.web3.Connection(rpc.rpcEndpoint, "finalized"),
+        new anchor.Wallet(anchor.web3.Keypair.generate())
+      )
+    );
+
+    const [usedRequestPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("used_request"), Buffer.from(withdrawalId.slice(2), "hex")],
+      program.programId
+    );
+
+    let usedRequestState: { isUsed: boolean } | undefined;
+    try {
+      usedRequestState = await (program.account as any).usedRequest.fetch(
+        usedRequestPda
+      );
+    } catch {
+      // Skip errors (`usedRequestState` will be undefined if not found)
+    }
+
+    let status: DepositoryWithdrawalStatus;
+    if (usedRequestState && usedRequestState.isUsed) {
+      status = DepositoryWithdrawalStatus.EXECUTED;
+    } else {
+      const chainTimestamp = await rpc.getBlockTime(await rpc.getSlot());
+      if (!chainTimestamp) {
+        throw internalError("Failed to fetch Solana block time");
+      }
+      if (
+        BigInt(chainTimestamp) > BigInt(decodedWithdrawal.withdrawal.expiration)
+      ) {
+        status = DepositoryWithdrawalStatus.EXPIRED;
+      } else {
+        status = DepositoryWithdrawalStatus.PENDING;
+      }
+    }
+
+    return {
+      data: {
+        chainId,
+        withdrawal,
+      },
+      result: {
+        withdrawalId,
+        depository,
+        status,
+      },
+    };
+  }
+
+  /**
+   * Get solver paid amount from a transaction.
+   *
+   * @param chainId The ID of the chain.
+   * @param transactionId The ID of the transaction.
+   * @param payment The payment.
+   * @returns The solver paid amount.
+   */
   public async getSolverPaidAmount(
     chainId: string,
     transactionId: string,
     payment: {
       currency: string;
       recipient: string;
-      orderHash: string;
+      orderId: string;
       extraData: string;
       deadline: number;
     }
   ): Promise<bigint> {
     const connection = await httpRpc(chainId);
+
     // Get the transaction details
     const transaction = await connection.getTransaction(transactionId, {
       maxSupportedTransactionVersion: 0,
+      // Ensure the transaction is finalized
+      commitment: "finalized",
     });
     if (!transaction) {
       throw externalError(`Missing transaction: ${transactionId}`);
     }
-
     if (transaction.meta?.err) {
       throw externalError(`Transaction failed: ${transactionId}`);
     }
@@ -90,52 +279,24 @@ export class SolanaVmAttestor extends VmAttestor {
       );
     }
 
-    // Check that transaction contains the order hash in the memo
-    const message = transaction.transaction.message;
-    const instructions = [
-      ...message.compiledInstructions,
-      // Include any inner instructions
-      ...(transaction.meta?.innerInstructions ?? [])
-        .map((i) => i.instructions)
-        .flat()
-        .map((i) => ({
-          accountKeyIndexes: i.accounts,
-          programIdIndex: i.programIdIndex,
-          data: bs58.decode(i.data),
-        })),
-    ];
+    const { instructions, accountKeys } =
+      await this._extractInstructionsAndKeys(transaction, connection);
 
-    const accountKeys = [
-      ...message.getAccountKeys({
-        addressLookupTableAccounts: await Promise.all(
-          (transaction.transaction.message.addressTableLookups ?? []).map(
-            async ({ accountKey }) =>
-              await connection
-                .getAddressLookupTable(accountKey)
-                .then((res) => res.value!)
-          )
-        ),
-      }).staticAccountKeys,
-      // First we have `writable` and then `readonly`
-      ...(transaction.meta?.loadedAddresses?.writable ?? []),
-      ...(transaction.meta?.loadedAddresses?.readonly ?? []),
-    ];
-
-    let hasOrderHash = false;
+    let hasOrderId = false;
     for (const instruction of instructions) {
       const programId = accountKeys[instruction.programIdIndex];
       if (programId.toBase58() === MEMO_PROGRAM_ID.toBase58()) {
         const ixData = Buffer.from(instruction.data).toString();
-        if (ixData.includes(payment.orderHash)) {
-          hasOrderHash = true;
+        if (ixData.includes(payment.orderId)) {
+          hasOrderId = true;
           break;
         }
       }
     }
 
-    if (!hasOrderHash) {
+    if (!hasOrderId) {
       throw externalError(
-        `Transaction does not reference order hash: ${transactionId}`
+        `Transaction ${transactionId} does not reference order id`
       );
     }
 
@@ -185,106 +346,68 @@ export class SolanaVmAttestor extends VmAttestor {
     }
   }
 
+  /**
+   * Verify solver calls.
+   *
+   * @param _chainId The ID of the chain.
+   * @param _transactionId The ID of the transaction.
+   * @param _calls The calls.
+   * @param _extraData The extra data.
+   * @returns Whether the solver calls are valid.
+   */
   public verifySolverCalls(
     _chainId: string,
     _transactionId: string,
-    _calls: string[]
+    _calls: string[],
+    _extraData: string
   ): Promise<boolean> {
     throw internalError("Not implemented");
   }
 
-  private parseTransactionLogs(
-    chainId: string,
-    transactionId: string,
-    logs: string[],
-    escrow: string
-  ): EscrowDepositMessage[] {
-    const messages: EscrowDepositMessage[] = [];
-
-    let messageIndex = 0;
-    for (const log of logs) {
-      if (!log.startsWith("Program data: ")) {
-        continue;
-      }
-
-      try {
-        const event = eventCoder.decode(
-          log.slice("Program data: ".length)
-        );
-        if (!event) {
-          continue;
-        }
-
-        const message = this.createMessageFromEvent(
-          event,
-          chainId,
-          transactionId,
-          messageIndex++,
-          escrow
-        );
-        if (message) {
-          messages.push(message);
-        }
-      } catch {
-        // Skip errors
-      }
+  private async _extractInstructionsAndKeys(
+    transaction: VersionedTransactionResponse,
+    rpc: Connection
+  ): Promise<{
+    instructions: MessageCompiledInstruction[];
+    accountKeys: PublicKey[];
+  }> {
+    if (!transaction.transaction?.message || !transaction.meta) {
+      return {
+        instructions: [],
+        accountKeys: [],
+      };
     }
 
-    return messages;
-  }
+    const message = transaction.transaction.message;
+    const instructions = [
+      ...message.compiledInstructions,
+      // Include any inner instructions
+      ...(transaction.meta?.innerInstructions ?? [])
+        .map((i) => i.instructions)
+        .flat()
+        .map((i) => ({
+          accountKeyIndexes: i.accounts,
+          programIdIndex: i.programIdIndex,
+          data: bs58.decode(i.data),
+        })),
+    ];
 
-  private createMessageFromEvent(
-    event: any,
-    chainId: string,
-    transactionId: string,
-    messageIndex: number,
-    escrow: string
-  ): EscrowDepositMessage | undefined {
-    const onchainId = getOnchainId(
-      chainId,
-      transactionId,
-      messageIndex.toString()
-    );
+    const accountKeys = [
+      ...message.getAccountKeys({
+        addressLookupTableAccounts: await Promise.all(
+          (transaction.transaction.message.addressTableLookups ?? []).map(
+            async ({ accountKey }) =>
+              await rpc
+                .getAddressLookupTable(accountKey)
+                .then((res) => res.value!)
+          )
+        ),
+      }).staticAccountKeys,
+      // First we have `writable` and then `readonly`
+      ...(transaction.meta?.loadedAddresses?.writable ?? []),
+      ...(transaction.meta?.loadedAddresses?.readonly ?? []),
+    ];
 
-    const input = {
-      chainId,
-      transactionId,
-    };
-
-    switch (event.name) {
-      case "DepositEvent": {
-        return this.createDepositMessage(
-          event.data as DepositEventData,
-          onchainId,
-          input,
-          escrow
-        );
-      }
-
-      default: {
-        return undefined;
-      }
-    }
-  }
-
-  private createDepositMessage(
-    event: DepositEventData,
-    onchainId: string,
-    data: { chainId: string; transactionId: string },
-    escrow: string
-  ): EscrowDepositMessage {
-    return {
-      data,
-      result: {
-        onchainId,
-        depositId: Buffer.from(event.id).toString("hex"),
-        escrow,
-        depositor: event.depositor.toBase58(),
-        currency: event.token
-          ? event.token.toBase58()
-          : SystemProgram.programId.toBase58(),
-        amount: event.amount.toString(),
-      },
-    };
+    return { instructions, accountKeys };
   }
 }

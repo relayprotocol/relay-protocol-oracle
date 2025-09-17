@@ -6,6 +6,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
 } from "../../utils";
+import { signDepositoryDepositMessage } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -29,8 +30,8 @@ const Schema = {
             onchainId: Type.String({
               description: "The onchain id of the deposit",
             }),
-            escrow: Type.String({
-              description: "The escrow address for the deposit",
+            depository: Type.String({
+              description: "The depository address for the deposit",
             }),
             depositId: Type.Optional(
               Type.String({ description: "The id associated to the deposit" })
@@ -43,10 +44,18 @@ const Schema = {
             }),
             amount: Type.String({ description: "The deposited amount" }),
           }),
+          signature: Type.Object({
+            oracle: Type.String({
+              description: "The address of the signing oracle",
+            }),
+            signature: Type.String({
+              description: "The message signature",
+            }),
+          }),
         }),
         {
           description:
-            "A list of 'escrow-deposit' messages that occured in the requested transaction",
+            "A list of 'depository-deposit' messages that occured in the requested transaction",
         }
       ),
     }),
@@ -55,15 +64,24 @@ const Schema = {
 
 export default {
   method: "POST",
-  url: "/attestations/escrow-deposits/v1",
+  url: "/attestations/depository-deposits/v1",
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
     const attestationService = new AttestationService();
-    const messages = await attestationService.attestEscrowDeposits(req.body);
+    const messages = await attestationService.attestDepositoryDeposits(
+      req.body
+    );
 
-    return reply.send({ messages });
+    return reply.send({
+      messages: await Promise.all(
+        messages.map(async (message) => ({
+          ...message,
+          signature: await signDepositoryDepositMessage(message),
+        }))
+      ),
+    });
   },
 } as Endpoint;

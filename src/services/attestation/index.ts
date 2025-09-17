@@ -1,6 +1,6 @@
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
   getOrderId,
   Order,
   SolverFillMessage,
@@ -15,29 +15,40 @@ import { getSdkChainsConfig } from "../../common/chains";
 import { externalError } from "../../common/error";
 
 export class AttestationService {
-  public async attestEscrowDeposits(
-    data: EscrowDepositMessage["data"]
-  ): Promise<EscrowDepositMessage[]> {
+  public async attestDepositoryDeposits(
+    data: DepositoryDepositMessage["data"]
+  ): Promise<DepositoryDepositMessage[]> {
     return getVmAttestor(data.chainId).then((attestor) =>
-      attestor.getEscrowDepositMessages(data.chainId, data.transactionId)
+      attestor.getDepositoryDepositMessages(data.chainId, data.transactionId)
     );
   }
 
-  public async attestEscrowWithdrawal(
-    data: EscrowWithdrawalMessage["data"]
-  ): Promise<EscrowWithdrawalMessage> {
+  public async attestDepositoryWithdrawal(
+    data: DepositoryWithdrawalMessage["data"]
+  ): Promise<DepositoryWithdrawalMessage> {
     return getVmAttestor(data.chainId).then((attestor) =>
-      attestor.getEscrowWithdrawalMessage(data.chainId, data.withdrawal)
+      attestor.getDepositoryWithdrawalMessage(data.chainId, data.withdrawal)
     );
   }
 
   public async attestSolverFill(
-    data: SolverFillMessage["data"]
+    data: SolverFillMessage["data"] & { force?: boolean }
   ): Promise<SolverFillMessage> {
+    if (data.force) {
+      return {
+        data,
+        result: {
+          orderId: getOrderId(data.order, await getSdkChainsConfig()),
+          status: SolverFillStatus.SUCCESSFUL,
+          totalWeightedInputPaymentBpsDiff: "0",
+        },
+      };
+    }
+
     const totalWeightedInputPaymentBpsDiff =
       await this._getTotalWeightedInputPaymentBpsDiff(data);
 
-    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the fill
     for (
@@ -54,21 +65,20 @@ export class AttestationService {
         {
           currency: payment.currency,
           recipient: payment.recipient,
-          orderHash,
+          orderId,
           extraData: data.order.output.extraData,
           deadline: data.order.output.deadline,
         }
       );
 
       // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
-      if (
-        paidAmount <
+      const minimumAmount =
         BigInt(payment.minimumAmount) +
-          (BigInt(payment.minimumAmount) * totalWeightedInputPaymentBpsDiff) /
-            10n ** 18n
-      ) {
+        (BigInt(payment.minimumAmount) * totalWeightedInputPaymentBpsDiff) /
+          10n ** 18n;
+      if (paidAmount < minimumAmount) {
         throw externalError(
-          `Insufficient fill amount for order output payment ${outputPaymentIndex}`
+          `Insufficient fill amount for order output payment ${outputPaymentIndex} (paidAmount=${paidAmount}, minimumAmount=${minimumAmount})`
         );
       }
     }
@@ -80,7 +90,8 @@ export class AttestationService {
         !(await attestor.verifySolverCalls(
           data.order.output.chainId,
           data.fill.transactionId,
-          data.order.output.calls
+          data.order.output.calls,
+          data.order.output.extraData
         ))
       ) {
         throw externalError(`Missing call executions`);
@@ -99,12 +110,23 @@ export class AttestationService {
   }
 
   public async attestSolverRefund(
-    data: SolverRefundMessage["data"]
+    data: SolverRefundMessage["data"] & { force?: boolean }
   ): Promise<SolverRefundMessage> {
+    if (data.force) {
+      return {
+        data,
+        result: {
+          orderId: getOrderId(data.order, await getSdkChainsConfig()),
+          status: SolverRefundStatus.SUCCESSFUL,
+          totalWeightedInputPaymentBpsDiff: "0",
+        },
+      };
+    }
+
     const totalWeightedInputPaymentBpsDiff =
       await this._getTotalWeightedInputPaymentBpsDiff(data);
 
-    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the refunds
     for (
@@ -140,7 +162,7 @@ export class AttestationService {
             {
               currency: orderRefund.currency,
               recipient: orderRefund.recipient,
-              orderHash,
+              orderId,
               extraData: orderRefund.extraData,
               deadline: orderRefund.deadline,
             }
@@ -190,16 +212,16 @@ export class AttestationService {
     }
 
     // Get the order hash
-    const orderHash = getOrderId(data.order, await getSdkChainsConfig());
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the order signature
     const isSignatureValid = await verifyMessage({
       address: data.order.solver as Address,
       message: {
-        raw: orderHash,
+        raw: orderId,
       },
       signature: data.orderSignature as Hex,
-    });
+    }).catch(() => false);
     if (!isSignatureValid) {
       throw externalError("Invalid order signature");
     }
@@ -224,16 +246,18 @@ export class AttestationService {
           );
         }
 
-        // Get the escrow deposit corresponding to the current order input payment
-        const escrowDeposit = await this.attestEscrowDeposits({
+        // Get the depository deposit corresponding to the current order input payment
+        const depositoryDeposit = await this.attestDepositoryDeposits({
           chainId: orderInput.payment.chainId,
           transactionId: inputInformation.transactionId,
-        }).then((escrowDeposits) =>
-          escrowDeposits.find(
-            (d) => d.result.onchainId === inputInformation.onchainId
+        }).then((depositoryDeposits) =>
+          depositoryDeposits.find(
+            (d) =>
+              d.result.depositId === orderId &&
+              d.result.onchainId === inputInformation.onchainId
           )
         );
-        if (!escrowDeposit) {
+        if (!depositoryDeposit) {
           throw externalError(
             `Invalid input information for order input payment ${inputPaymentIndex}`
           );
@@ -241,7 +265,7 @@ export class AttestationService {
 
         // Keep track of the total weighted paid amount
         totalWeightedPaidAmount +=
-          BigInt(escrowDeposit.result.amount) *
+          BigInt(depositoryDeposit.result.amount) *
           BigInt(orderInput.payment.weight);
       }
     }

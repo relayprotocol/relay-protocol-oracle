@@ -26,9 +26,13 @@ import {
   getChains,
   getSdkChainsConfig,
 } from "../../../../src/common/chains";
-import { httpRpc } from "../../../../src/common/vm/ethereum-vm/rpc";
+import { httpRpc } from "../../../../src/common/vm/tron-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
+import {
+  fromHexAddress,
+  toHexAddress,
+} from "../../../../src/services/attestation/vm/tron-vm";
 
 import { ONE_BILLION, randomHex, randomNumber } from "../../../common/utils";
 
@@ -38,11 +42,11 @@ const solverWallet = privateKeyToAccount(testSolverPrivateKey);
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<string, Chain> = {
-    ethereum: {
-      id: "ethereum",
-      vmType: "ethereum-vm",
+    tron: {
+      id: "tron",
+      vmType: "tron-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
-      depository: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
+      depository: "TXtEs6t2oUWQsNos7m68gbHdE9Q5n6x2oN",
     },
   };
   return {
@@ -54,7 +58,7 @@ jest.mock("../../../../src/common/chains", () => {
       ),
   };
 });
-jest.mock("../../../../src/common/vm/ethereum-vm/rpc", () => {
+jest.mock("../../../../src/common/vm/tron-vm/rpc", () => {
   return {
     httpRpc: jest.fn(),
   };
@@ -132,7 +136,7 @@ const generateTransferLog = ({
   const topics = encodeEventTopics({
     abi: ABI,
     eventName: "Transfer",
-    args: { from: from as Hex, to: to as Hex },
+    args: { from: toHexAddress(from) as Hex, to: toHexAddress(to) as Hex },
   });
   const data = encodeAbiParameters(
     [{ name: "amount", type: "uint256" }],
@@ -173,13 +177,13 @@ const generateNativeDepositLog = ({
       { name: "amount", type: "uint256" },
       { name: "id", type: "bytes32" },
     ],
-    [from as Hex, BigInt(amount), id as Hex]
+    [toHexAddress(from) as Hex, BigInt(amount), id as Hex]
   );
 
   return generateTransactionLog({
     transactionHash,
     logIndex,
-    address: to,
+    address: toHexAddress(to),
     data,
     topics: topics as string[],
   });
@@ -280,21 +284,21 @@ function createTestOrder({
   return {
     version: "v1",
     salt: "0x1",
-    solverChainId: "ethereum",
+    solverChainId: "tron",
     solver: solverAddress,
     inputs: [
       {
         payment: {
-          chainId: "ethereum",
-          currency: inputCurrency,
+          chainId: "tron",
+          currency: fromHexAddress(inputCurrency),
           amount: paymentAmount,
           weight: "1",
         },
         refunds: [
           {
-            chainId: "ethereum",
-            recipient: refundRecipient,
-            currency: inputCurrency,
+            chainId: "tron",
+            recipient: fromHexAddress(refundRecipient),
+            currency: fromHexAddress(inputCurrency),
             minimumAmount: paymentAmount,
             deadline: Math.floor(Date.now() / 1000) + 36000,
             extraData: encodeAbiParameters(
@@ -306,11 +310,11 @@ function createTestOrder({
       },
     ],
     output: {
-      chainId: "ethereum",
+      chainId: "tron",
       payments: [
         {
-          recipient: outputRecipient,
-          currency: outputCurrency,
+          recipient: fromHexAddress(outputRecipient),
+          currency: fromHexAddress(outputCurrency),
           minimumAmount: paymentAmount,
           expectedAmount: paymentAmount,
         },
@@ -456,7 +460,7 @@ const getBlockMock = async (data?: any) => {
   }
 };
 
-describe("EthereumVmAttestor", () => {
+describe("TronVmAttestor", () => {
   it("attestDepositoryDeposits - single Transfer event", async () => {
     const chains = Object.values(await getChains());
 
@@ -495,9 +499,9 @@ describe("EthereumVmAttestor", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.depositor).toEqual(fromHexAddress(from));
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.currency).toEqual(fromHexAddress(token));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
   });
@@ -532,7 +536,7 @@ describe("EthereumVmAttestor", () => {
           encodeFunctionData({
             abi: ABI,
             functionName: "transfer",
-            args: [chain.depository as Hex, BigInt(amount)],
+            args: [toHexAddress(chain.depository!) as Hex, BigInt(amount)],
           }) + id.slice(2),
       }),
       getTransactionReceipt: async () => transactionReceipt,
@@ -548,9 +552,9 @@ describe("EthereumVmAttestor", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.depositor).toEqual(fromHexAddress(from));
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.currency).toEqual(fromHexAddress(token));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
   });
@@ -597,9 +601,9 @@ describe("EthereumVmAttestor", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.depositor).toEqual(fromHexAddress(from));
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.currency).toEqual(fromHexAddress(token));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
   });
@@ -651,9 +655,9 @@ describe("EthereumVmAttestor", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.depositor).toEqual(fromHexAddress(from));
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.currency).toEqual(fromHexAddress(token));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
   });
@@ -703,9 +707,9 @@ describe("EthereumVmAttestor", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.depositor).toEqual(fromHexAddress(from));
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.currency).toEqual(fromHexAddress(token));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
   });
@@ -758,9 +762,9 @@ describe("EthereumVmAttestor", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(depositor);
+    expect(msg.result.depositor).toEqual(fromHexAddress(depositor));
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.currency).toEqual(fromHexAddress(token));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
   });
@@ -812,9 +816,9 @@ describe("EthereumVmAttestor", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(depositor);
+    expect(msg.result.depositor).toEqual(fromHexAddress(depositor));
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.currency).toEqual(fromHexAddress(token));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
   });
@@ -857,9 +861,9 @@ describe("EthereumVmAttestor", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.depositor).toEqual(fromHexAddress(from));
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(zeroAddress);
+    expect(msg.result.currency).toEqual(fromHexAddress(zeroAddress));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(id);
   });
@@ -901,9 +905,9 @@ describe("EthereumVmAttestor", () => {
 
     expect(msg.data.chainId).toEqual(chain.id);
     expect(msg.data.transactionId).toEqual(transactionHash);
-    expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.depositor).toEqual(fromHexAddress(from));
     expect(msg.result.depository).toEqual(chain.depository);
-    expect(msg.result.currency).toEqual(zeroAddress);
+    expect(msg.result.currency).toEqual(fromHexAddress(zeroAddress));
     expect(msg.result.amount).toEqual(amount);
     expect(msg.result.depositId).toEqual(zeroHash);
   });
@@ -914,7 +918,7 @@ describe("EthereumVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
-      vmType: "ethereum-vm",
+      vmType: "tron-vm",
       withdrawal: {
         calls: [
           {
@@ -949,7 +953,7 @@ describe("EthereumVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
-      vmType: "ethereum-vm",
+      vmType: "tron-vm",
       withdrawal: {
         calls: [
           {
@@ -989,7 +993,7 @@ describe("EthereumVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
-      vmType: "ethereum-vm",
+      vmType: "tron-vm",
       withdrawal: {
         calls: [
           {

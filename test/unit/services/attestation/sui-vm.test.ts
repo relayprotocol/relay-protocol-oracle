@@ -625,7 +625,7 @@ jest.mock("../../../../src/common/chains", () => {
       id: "sui",
       vmType: "sui-vm",
       httpRpcUrl: "http://127.0.0.1:9000",
-      escrow:
+      depository:
         "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e",
     },
     ethereum: {
@@ -650,8 +650,8 @@ jest.mock("../../../../src/common/vm/sui-vm/rpc", () => {
   };
 });
 
-describe("SuiAttestationService", () => {
-  it("attestEscrowDeposits - should attest deposit event", async () => {
+describe("SuiVmAttestor", () => {
+  it("attestDepositoryDeposits - should attest deposit event", async () => {
     const events = [
       {
         id: {
@@ -660,10 +660,10 @@ describe("SuiAttestationService", () => {
         },
         packageId:
           "0x0b50c9a37ec3e171b115455e73158c6aa2d7d079bf2915720f022457dc987bd4",
-        transactionModule: "escrow",
+        transactionModule: "depository",
         sender:
           "0x5f7f85e64cb90f4fad427c119cfcfe916397e6f559e052e686df05fe561f9f80",
-        type: "0x0b50c9a37ec3e171b115455e73158c6aa2d7d079bf2915720f022457dc987bd4::escrow::DepositEvent",
+        type: "0x0b50c9a37ec3e171b115455e73158c6aa2d7d079bf2915720f022457dc987bd4::depository::DepositEvent",
         parsedJson: {
           amount: "3000",
           coin_type: {
@@ -687,7 +687,7 @@ describe("SuiAttestationService", () => {
     }));
 
     const service = new AttestationService();
-    const messages = await service.attestEscrowDeposits({
+    const messages = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });
@@ -701,7 +701,7 @@ describe("SuiAttestationService", () => {
     expect(msg.result.depositor).toBe(
       "0x5f7f85e64cb90f4fad427c119cfcfe916397e6f559e052e686df05fe561f9f80"
     );
-    expect(msg.result.escrow).toBe(
+    expect(msg.result.depository).toBe(
       "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e"
     );
     expect(msg.result.depositId).toBe(
@@ -709,7 +709,7 @@ describe("SuiAttestationService", () => {
     );
   });
 
-  it("attestEscrowDeposits - should return empty array when no events found", async () => {
+  it("attestDepositoryDeposits - should return empty array when no events found", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
       getTransactionBlock: () => ({
         events: [],
@@ -717,20 +717,20 @@ describe("SuiAttestationService", () => {
     }));
 
     const service = new AttestationService();
-    const deposits = await service.attestEscrowDeposits({
+    const deposits = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });
     expect(deposits).toEqual([]);
   });
 
-  it("attestEscrowDeposits - should handle transaction not found", async () => {
+  it("attestDepositoryDeposits - should handle transaction not found", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
       getTransactionBlock: () => null,
     }));
 
     const service = new AttestationService();
-    const deposits = await service.attestEscrowDeposits({
+    const deposits = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });

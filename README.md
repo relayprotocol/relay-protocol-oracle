@@ -1,24 +1,16 @@
-## Relay oracle
+## Relay Oracle
 
 > #### Reference implementation of a Relay protocol oracle
 
-See [Overview](./docs/Overview.md) for in-depth documentation on how the oracle works
+See [overview](./docs/overview.md) for in-depth documentation on how the oracle works
 
 ### Installation
-
-#### Prerequisites
-
-All infrastructure components required to run the service and tests are available via `docker`, these must be up and running before starting the service or running the tests:
-
-```bash
-docker compose up
-```
 
 #### Testing
 
 Run the tests via:
 
-```bash
+```sh
 yarn test
 ```
 
@@ -28,6 +20,6 @@ Before starting the service, make sure to have the required environment variable
 
 Start the service via:
 
-```bash
+```sh
 yarn start
 ```

@@ -1,14 +1,21 @@
 import { SuiEvent } from "@mysten/sui/client";
+import { bcs } from "@mysten/sui/bcs";
+import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { Transaction } from "@mysten/sui/transactions";
 import {
-  EscrowDepositMessage,
-  EscrowWithdrawalMessage,
+  DecodedSuiVmWithdrawal,
+  decodeWithdrawal,
+  DepositoryDepositMessage,
+  DepositoryWithdrawalMessage,
+  DepositoryWithdrawalStatus,
+  getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 
 import { getOnchainId } from "../utils";
+import { VmAttestor } from "../../vm/types";
 import { externalError, internalError } from "../../../../common/error";
 import { getChain } from "../../../../common/chains";
 import { httpRpc } from "../../../../common/vm/sui-vm/rpc";
-import { VmAttestor } from "../../vm/types";
 
 interface DepositEventData {
   from: string;
@@ -20,10 +27,10 @@ interface DepositEventData {
 }
 
 export class SuiVmAttestor extends VmAttestor {
-  public async getEscrowDepositMessages(
+  public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<EscrowDepositMessage[]> {
+  ): Promise<DepositoryDepositMessage[]> {
     const connection = await httpRpc(chainId);
     const transaction = await connection.getTransactionBlock({
       digest: transactionId,
@@ -36,19 +43,97 @@ export class SuiVmAttestor extends VmAttestor {
       return [];
     }
 
+    const chain = await getChain(chainId);
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
     return this.parseTransactionLogs(
       chainId,
       transactionId,
       transaction.events,
-      await getChain(chainId).then((chain) => chain.escrow)
+      depository
     );
   }
 
-  public async getEscrowWithdrawalMessage(
-    _chainId: string,
-    _withdrawal: string
-  ): Promise<EscrowWithdrawalMessage> {
-    throw internalError("Not implemented");
+  public async getDepositoryWithdrawalMessage(
+    chainId: string,
+    withdrawal: string
+  ): Promise<DepositoryWithdrawalMessage> {
+    const rpc = await httpRpc(chainId);
+    const chain = await getChain(chainId);
+
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
+    const decodedWithdrawal = decodeWithdrawal(
+      withdrawal,
+      chain.vmType
+    ) as DecodedSuiVmWithdrawal;
+    const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
+
+    let status: DepositoryWithdrawalStatus;
+    let onChainStatus: boolean | null = null;
+    try {
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${chain.depository}::depository::check_request_executed`,
+        typeArguments: [],
+        arguments: [
+          // TODO: add EXECUTED_REQUESTS_ID
+          tx.object("EXECUTED_REQUESTS_ID"),
+          tx.pure.vector("u8", Buffer.from(withdrawalId, "hex")),
+        ],
+      });
+
+      const randomWallet = new Ed25519Keypair();
+      const response = await rpc.devInspectTransactionBlock({
+        transactionBlock: tx,
+        sender: randomWallet.toSuiAddress(),
+      });
+
+      if (!response.results?.[0]?.returnValues?.[0]?.[0]) {
+        throw internalError("Failed to cal check_request_executed");
+      }
+      const isExecuted = bcs.Bool.parse(
+        new Uint8Array(response.results[0].returnValues[0][0])
+      );
+      if (isExecuted) {
+        onChainStatus = true;
+      }
+    } catch {
+      // Skip error
+    }
+
+    if (onChainStatus) {
+      status = DepositoryWithdrawalStatus.EXECUTED;
+    } else {
+      const latestCheckpointSeq = await rpc.getLatestCheckpointSequenceNumber();
+      const checkpoint = await rpc.getCheckpoint({ id: latestCheckpointSeq });
+      if (
+        BigInt(Number(checkpoint.timestampMs) / 1000) >
+        BigInt(decodedWithdrawal.withdrawal.expiration)
+      ) {
+        status = DepositoryWithdrawalStatus.EXPIRED;
+      } else {
+        status = DepositoryWithdrawalStatus.PENDING;
+      }
+    }
+
+    return {
+      data: {
+        chainId,
+        withdrawal,
+      },
+      result: {
+        withdrawalId,
+        depository,
+        status,
+      },
+    };
   }
 
   public async getSolverPaidAmount(
@@ -57,7 +142,7 @@ export class SuiVmAttestor extends VmAttestor {
     payment: {
       currency: string;
       recipient: string;
-      orderHash: string;
+      orderId: string;
       extraData: string;
       deadline: number;
     }
@@ -89,21 +174,21 @@ export class SuiVmAttestor extends VmAttestor {
 
     // Verify order hash is included in the transaction
     // This could be in a memo event or somewhere in the transaction data
-    let orderHashFound = false;
+    let orderIdFound = false;
     if (transaction.events) {
       for (const event of transaction.events) {
         // TODO: validate package Id
         if (event.type.includes("::memo::MemoEvent")) {
           const memo = (event.parsedJson as any).message;
-          if (memo === payment.orderHash) {
-            orderHashFound = true;
+          if (memo === payment.orderId) {
+            orderIdFound = true;
             break;
           }
         }
       }
     }
 
-    if (!orderHashFound) {
+    if (!orderIdFound) {
       throw externalError(
         `Order hash not found in transaction: ${transactionId}`
       );
@@ -139,7 +224,8 @@ export class SuiVmAttestor extends VmAttestor {
   public verifySolverCalls(
     _chainId: string,
     _transactionId: string,
-    _calls: string[]
+    _calls: string[],
+    _extraData: string
   ): Promise<boolean> {
     throw internalError("Not implemented");
   }
@@ -148,9 +234,9 @@ export class SuiVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string,
     events: SuiEvent[],
-    escrow: string
-  ): EscrowDepositMessage[] {
-    const messages: EscrowDepositMessage[] = [];
+    depository: string
+  ): DepositoryDepositMessage[] {
+    const messages: DepositoryDepositMessage[] = [];
 
     let messageIndex = 0;
     for (const event of events) {
@@ -159,7 +245,7 @@ export class SuiVmAttestor extends VmAttestor {
         chainId,
         transactionId,
         messageIndex++,
-        escrow
+        depository
       );
       if (message) {
         messages.push(message);
@@ -174,8 +260,8 @@ export class SuiVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string,
     messageIndex: number,
-    escrow: string
-  ): EscrowDepositMessage | undefined {
+    depository: string
+  ): DepositoryDepositMessage | undefined {
     const onchainId = getOnchainId(
       chainId,
       transactionId,
@@ -192,7 +278,7 @@ export class SuiVmAttestor extends VmAttestor {
         event.parsedJson as DepositEventData,
         onchainId,
         input,
-        escrow
+        depository
       );
     } else {
       return undefined;
@@ -203,13 +289,13 @@ export class SuiVmAttestor extends VmAttestor {
     event: DepositEventData,
     onchainId: string,
     data: { chainId: string; transactionId: string },
-    escrow: string
-  ): EscrowDepositMessage {
+    depository: string
+  ): DepositoryDepositMessage {
     return {
       data,
       result: {
         onchainId,
-        escrow,
+        depository,
         depositId: Buffer.from(event.deposit_id).toString("hex"),
         depositor: event.from,
         currency: event.coin_type.name,

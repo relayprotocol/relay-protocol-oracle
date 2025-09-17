@@ -48,8 +48,8 @@ jobs:
         with:
           push: true
           tags: |
-            ghcr.io/reservoirprotocol/relay-protocol-oracle:latest
-            ghcr.io/reservoirprotocol/relay-protocol-oracle:${{ github.sha }}
+            ghcr.io/relayprotocol/relay-protocol-oracle:latest
+            ghcr.io/relayprotocol/relay-protocol-oracle:${{ github.sha }}
 
   deploy-staging:
     name: Deploy to Development
@@ -68,8 +68,35 @@ jobs:
 
       - name: Deploy to Dev Environment
         working-directory: k8s-configs
+        env:
+          DEVOPSBOT_GPG_PRIVATE_KEY: ${{ secrets.DEVOPSBOT_GPG_PRIVATE_KEY }}
         run: |
           ./utils/version_update.sh \
             ./dev/platform/relay-protocol-oracle.yaml \
+            ${{ github.sha }} \
+            relay-protocol-oracle
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build]
+    environment: prod
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository k8s-configs
+        uses: actions/checkout@v3
+        with:
+          repository: unevenlabs/k8s-configs
+          token: ${{ secrets.DEVOPSBOT_TOKEN }}
+          path: k8s-configs
+
+      - name: Deploy to Prod Environment
+        working-directory: k8s-configs
+        env:
+          DEVOPSBOT_GPG_PRIVATE_KEY: ${{ secrets.DEVOPSBOT_GPG_PRIVATE_KEY }}
+        run: |
+          ./utils/version_update.sh \
+            ./prod/platform/relay-protocol-oracle.yaml \
             ${{ github.sha }} \
             relay-protocol-oracle
