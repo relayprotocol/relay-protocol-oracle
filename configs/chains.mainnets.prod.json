@@ -451,6 +451,12 @@
     "httpRpcUrl": "http://proxy-rari.nodes.svc.cluster.local:8545/rari"
   },
   {
+    "id": "syndicate",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-syndicate.nodes.svc.cluster.local:8545/syndicate"
+  },
+  {
     "id": "solana",
     "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
     "vmType": "solana-vm",
