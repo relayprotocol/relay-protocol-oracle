@@ -454,7 +454,7 @@
     "id": "syndicate",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-syndicate.nodes.svc.cluster.local:8545/syndicate"
+    "httpRpcUrl": "https://commons.rpc.syndicate.io"
   },
   {
     "id": "solana",
