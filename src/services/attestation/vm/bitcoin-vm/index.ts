@@ -147,8 +147,12 @@ export class BitcoinVmAttestor extends VmAttestor {
     const esploraCompatibleApiUrl =
       chain.additionalData?.esploraCompatibleApiUrl;
     if (!esploraCompatibleApiUrl) {
-      throw externalError("No Esplora-compatible API URL configured for chain");
+      throw externalError("No Esplora-compatible API URL configured");
     }
+
+    const accessToken = await this._getEsploraAccessToken(
+      esploraCompatibleApiUrl
+    );
 
     // For every PSBT input, get the transaction that spent it
     const txidsSpendingPsbtInputs = new Set<string>();
@@ -162,7 +166,14 @@ export class BitcoinVmAttestor extends VmAttestor {
         };
       } = await axios
         .get(
-          `${esploraCompatibleApiUrl}/tx/${input.txid}/outspend/${input.vout}`
+          `${esploraCompatibleApiUrl}/tx/${input.txid}/outspend/${input.vout}`,
+          accessToken
+            ? {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              }
+            : undefined
         )
         .then((response) => response.data);
       if (outspend.spent && outspend.txid && outspend.status?.confirmed) {
@@ -345,5 +356,52 @@ export class BitcoinVmAttestor extends VmAttestor {
 
       return { i, opReturn: undefined };
     });
+  }
+
+  _esploraAccessToken: { token: string; expiration: number } | undefined;
+  private async _getEsploraAccessToken(esploraCompatibleApiUrl: string) {
+    if (
+      this._esploraAccessToken &&
+      this._esploraAccessToken.expiration > Math.floor(Date.now() / 1000)
+    ) {
+      return this._esploraAccessToken.token;
+    }
+
+    if (esploraCompatibleApiUrl.includes("enterprise.blockstream")) {
+      const blockstreamLoginUrl =
+        "https://login.blockstream.com/realms/blockstream-public/protocol/openid-connect/token";
+
+      const params = new URLSearchParams();
+
+      const clientId = process.env.BLOCKSTREAM_CLIENT_ID;
+      const clientSecret = process.env.BLOCKSTREAM_CLIENT_SECRET;
+      if (!clientId || !clientSecret) {
+        throw externalError("Misconfigured Esplora-compatible API URL");
+      }
+
+      params.append("client_id", clientId);
+      params.append("client_secret", clientSecret);
+      params.append("grant_type", "client_credentials");
+      params.append("scope", "openid");
+
+      const options = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params,
+      };
+
+      const data: any = await fetch(blockstreamLoginUrl, options).then(
+        (response) => response.json()
+      );
+
+      this._esploraAccessToken = {
+        token: data.access_token,
+        expiration: Math.floor(Date.now() / 1000) + data.expires_in,
+      };
+    }
+
+    return this._esploraAccessToken?.token;
   }
 }
