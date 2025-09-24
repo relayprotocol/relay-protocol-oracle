@@ -485,7 +485,7 @@
     "vmType": "bitcoin-vm",
     "httpRpcUrl": "https://billowing-purple-crater.btc.quiknode.pro/0aa8445038a800d6e2fc387d114951b4647c6983",
     "additionalData": {
-      "esploraCompatibleApiUrl": "https://blockstream.info/api"
+      "esploraCompatibleApiUrl": "https://enterprise.blockstream.info/api"
     }
   },
   {
