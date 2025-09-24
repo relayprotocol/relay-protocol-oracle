@@ -699,7 +699,7 @@ describe("BitcoinVmAttestor", () => {
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
         })
-      ).rejects.toThrow("No Esplora-compatible API URL configured for chain");
+      ).rejects.toThrow("No Esplora-compatible API URL configured");
     });
 
     it("should throw error when no allocator UTXOs are detected", async () => {
