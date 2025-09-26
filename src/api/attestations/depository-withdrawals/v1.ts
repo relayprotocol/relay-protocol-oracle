@@ -3,11 +3,15 @@ import { Type } from "@fastify/type-provider-typebox";
 import {
   Endpoint,
   ErrorResponses,
+  executionSchema,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
   signatureSchema,
 } from "../../utils";
-import { signDepositoryWithdrawalMessage } from "../../../common/signer";
+import {
+  signDepositoryWithdrawalMessage,
+  signExecutionMessage,
+} from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -45,6 +49,7 @@ const Schema = {
           description: "The resulting 'depository-withdrawal' message",
         }
       ),
+      execution: executionSchema,
     }),
   },
 };
@@ -58,9 +63,8 @@ export default {
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
     const attestationService = new AttestationService();
-    const message = await attestationService.attestDepositoryWithdrawal(
-      req.body
-    );
+    const { message, execution } =
+      await attestationService.attestDepositoryWithdrawal(req.body);
 
     return reply.send({
       message: {
@@ -68,6 +72,12 @@ export default {
         result: message.result,
         signature: await signDepositoryWithdrawalMessage(message),
       },
+      execution: execution
+        ? {
+            ...execution,
+            signature: await signExecutionMessage(execution),
+          }
+        : undefined,
     });
   },
 } as Endpoint;

@@ -105,7 +105,7 @@
     "id": "hyperevm",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "https://rpc.hyperliquid.xyz/evm"
+    "httpRpcUrl": "http://proxy-hyperliquid.nodes.svc.cluster.local:8545/hyperliquid"
   },
   {
     "id": "metis",
@@ -184,7 +184,7 @@
     "id": "abstract",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-abstract.nodes.svc.cluster.local:8545/abstract"
+    "httpRpcUrl": "https://api.mainnet.abs.xyz"
   },
   {
     "id": "morph",
@@ -203,6 +203,18 @@
     "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-mantle.nodes.svc.cluster.local:8545/mantle"
+  },
+  {
+    "id": "somnia",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://api.infra.mainnet.somnia.network"
+  },
+  {
+    "id": "plasma",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://rpc.plasma.to"
   },
   {
     "id": "superseed",
@@ -304,7 +316,7 @@
     "id": "zircuit",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "https://mainnet.zircuit.com"
+    "httpRpcUrl": "http://proxy-zircuit.nodes.svc.cluster.local:8545/zircuit"
   },
   {
     "id": "superposition",
@@ -439,6 +451,12 @@
     "httpRpcUrl": "http://proxy-rari.nodes.svc.cluster.local:8545/rari"
   },
   {
+    "id": "syndicate",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://commons.rpc.syndicate.io"
+  },
+  {
     "id": "solana",
     "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
     "vmType": "solana-vm",
@@ -465,9 +483,15 @@
     "id": "bitcoin",
     "depository": "bc1qdqqsq6y7csd0cr3ye45h9lv8ydh777j2wehgl6",
     "vmType": "bitcoin-vm",
-    "httpRpcUrl": "https://docs-demo.btc.quiknode.pro",
+    "httpRpcUrl": "https://billowing-purple-crater.btc.quiknode.pro/0aa8445038a800d6e2fc387d114951b4647c6983",
     "additionalData": {
-      "esploraCompatibleApiUrl": "https://blockstream.info/api"
+      "esploraCompatibleApiUrl": "https://enterprise.blockstream.info/api"
     }
+  },
+  {
+    "id": "tron",
+    "depository": "TXtEs6t2oUWQsNos7m68gbHdE9Q5n6x2oN",
+    "vmType": "tron-vm",
+    "httpRpcUrl": "https://api.trongrid.io/jsonrpc"
   }
 ]

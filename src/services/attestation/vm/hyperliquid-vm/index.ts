@@ -2,14 +2,15 @@ import * as hl from "@nktkas/hyperliquid";
 import {
   DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
+  getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
-
 import { Hex, parseUnits } from "viem";
 
 import { VmAttestor } from "../../vm/types";
-import { getChainNativeCurrency } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/hyperliquid-vm/rpc";
+
+const VM_TYPE = "hyperliquid-vm";
 
 export class HyperliquidVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
@@ -54,7 +55,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
       );
     }
 
-    if (payment.currency === (await getChainNativeCurrency(chainId))) {
+    if (payment.currency === getVmTypeNativeCurrency(VM_TYPE)) {
       if (txDetails.action.type === "usdSend") {
         const txParameters =
           txDetails.action as unknown as hl.UsdSendParameters;

@@ -17,7 +17,7 @@
     "@fastify/type-provider-typebox": "^5.1.0",
     "@mysten/sui": "^1.26.1",
     "@nktkas/hyperliquid": "0.22.1",
-    "@reservoir0x/relay-protocol-sdk": "^0.0.40",
+    "@reservoir0x/relay-protocol-sdk": "^0.0.43",
     "@sinclair/typebox": "^0.34.14",
     "@solana/spl-memo": "^0.2.5",
     "@solana/web3.js": "^1.98.0",
@@ -25,6 +25,7 @@
     "bitcoinjs-lib": "^6.1.7",
     "bs58": "^6.0.0",
     "fastify": "^5.2.1",
+    "tronweb": "^6.0.4",
     "viem": "^2.30.1",
     "winston": "^3.17.0"
   },

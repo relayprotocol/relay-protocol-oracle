@@ -7,6 +7,7 @@ import {
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
+  getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
 import {
@@ -20,9 +21,11 @@ import bs58 from "bs58";
 import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
 import { getDeterministicId } from "../utils";
 import { VmAttestor } from "../../vm/types";
-import { getChain, getChainNativeCurrency } from "../../../../common/chains";
+import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
+
+const VM_TYPE = "solana-vm";
 
 export class SolanaVmAttestor extends VmAttestor {
   private readonly instructionCoder: BorshInstructionCoder;
@@ -116,7 +119,7 @@ export class SolanaVmAttestor extends VmAttestor {
               depositId: "0x" + Buffer.from(id).toString("hex"),
               depository,
               depositor,
-              currency: await getChainNativeCurrency(chainId),
+              currency: getVmTypeNativeCurrency(VM_TYPE),
               amount: amount.toString(),
             },
           });
@@ -301,7 +304,7 @@ export class SolanaVmAttestor extends VmAttestor {
 
     if (!hasOrderId) {
       throw externalError(
-        `Transaction ${transactionId} does not reference order hash`
+        `Transaction ${transactionId} does not reference order id`
       );
     }
 
