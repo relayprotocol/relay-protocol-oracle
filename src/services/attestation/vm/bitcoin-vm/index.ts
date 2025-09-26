@@ -9,13 +9,16 @@ import {
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
+  getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
 
 import { getDeterministicId } from "../utils";
 import { VmAttestor } from "../../vm/types";
-import { getChain, getChainNativeCurrency } from "../../../../common/chains";
+import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/bitcoin-vm/rpc";
+
+const VM_TYPE = "bitcoin-vm";
 
 export class BitcoinVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
@@ -95,7 +98,7 @@ export class BitcoinVmAttestor extends VmAttestor {
           depository,
           depositId: depositId ?? zeroHash,
           depositor,
-          currency: await getChainNativeCurrency(chainId),
+          currency: getVmTypeNativeCurrency(VM_TYPE),
           amount: amount.toString(),
         },
       },
