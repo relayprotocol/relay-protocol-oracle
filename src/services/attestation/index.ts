@@ -14,13 +14,13 @@ import {
   SolverRefundStatus,
   VmType,
 } from "@reservoir0x/relay-protocol-sdk";
+import { getDecodedWithdrawalCurrency } from "@reservoir0x/relay-protocol-sdk/dist/messages/v2.1/depository-withdrawal";
 import { Address, Hex, maxUint256, verifyMessage, zeroHash } from "viem";
 
 import { getVmAttestor } from "./vm";
 import { getDeterministicId } from "./vm/utils";
 import { getChainVmType, getSdkChainsConfig } from "../../common/chains";
 import { externalError } from "../../common/error";
-import { getDecodedWithdrawalCurrency } from "@reservoir0x/relay-protocol-sdk/dist/messages/v2.1/depository-withdrawal";
 
 export class AttestationService {
   public async attestDepositoryDeposits(
