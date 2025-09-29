@@ -21,6 +21,12 @@ const MessageData = Type.Object({
   transactionId: Type.String({
     description: "The transaction id to attest",
   }),
+  includeOnchainHubExecution: Type.Optional(
+    Type.Boolean({
+      description:
+        "Whether to include an execution message for the onchain Hub",
+    })
+  ),
 });
 
 const Schema = {

@@ -21,6 +21,12 @@ const MessageData = Type.Object({
   withdrawal: Type.String({
     description: "The withdrawal to attest",
   }),
+  includeOnchainHubExecution: Type.Optional(
+    Type.Boolean({
+      description:
+        "Whether to include an execution message for the onchain Hub",
+    })
+  ),
 });
 
 const Schema = {

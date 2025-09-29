@@ -10,7 +10,12 @@ export type Chain = {
   httpRpcUrl: string;
   depository?: string;
   additionalData?: any;
+  // The numeric chain id in the onchain hub contract
+  hubChainId?: string;
 };
+
+export const HUB_VM_TYPE = "hub-vm" as any as VmType;
+export const HUB_CHAIN_ID = "0";
 
 let _chains: { [id: string]: Chain } | undefined;
 export const getChains = async () => {
@@ -45,6 +50,15 @@ export const getChain = async (chainId: string) => {
 
 export const getChainVmType = async (chainId: string) =>
   getChain(chainId).then((c) => c.vmType);
+
+export const getChainHubChainId = async (chainId: string) => {
+  const hubChainId = await getChain(chainId).then((c) => c.hubChainId);
+  if (!hubChainId) {
+    throw externalError(`Chain ${chainId} has no hub chain id configured`);
+  }
+
+  return hubChainId;
+};
 
 export const getSdkChainsConfig = async () => {
   return Object.fromEntries(
