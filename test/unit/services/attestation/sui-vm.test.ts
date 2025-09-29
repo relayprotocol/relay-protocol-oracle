@@ -67,7 +67,7 @@ describe("SuiVmAttestor", () => {
     }));
 
     const service = new AttestationService();
-    const messages = await service.attestDepositoryDeposits({
+    const { messages } = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });
