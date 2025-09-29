@@ -312,10 +312,11 @@ describe("BitcoinVmAttestor", () => {
       });
 
       // Execute test
-      const messages = await new AttestationService().attestDepositoryDeposits({
-        chainId: "bitcoin",
-        transactionId,
-      });
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        });
 
       // Verify results
       expect(messages).toHaveLength(1);

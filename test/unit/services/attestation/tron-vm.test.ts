@@ -1261,11 +1261,12 @@ const setupTestEnvironment = async (
   });
 
   // Get depository deposits
-  const depositoryDeposits =
-    await new AttestationService().attestDepositoryDeposits({
+  const depositoryDeposits = await new AttestationService()
+    .attestDepositoryDeposits({
       chainId: testData.chain.id,
       transactionId: depositTxHash,
-    });
+    })
+    .then((d) => d.messages);
 
   // Create inputs array
   const inputs = options.duplicateOnchainIds

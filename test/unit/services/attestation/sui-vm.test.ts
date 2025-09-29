@@ -101,7 +101,7 @@ describe("SuiVmAttestor", () => {
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });
-    expect(deposits).toEqual([]);
+    expect(deposits.messages).toEqual([]);
   });
 
   it("attestDepositoryDeposits - should handle transaction not found", async () => {
@@ -114,6 +114,6 @@ describe("SuiVmAttestor", () => {
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });
-    expect(deposits).toEqual([]);
+    expect(deposits.messages).toEqual([]);
   });
 });
