@@ -1146,7 +1146,7 @@ describe("SolanaVmAttestor", () => {
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
-    expect(deposits).toEqual([]);
+    expect(deposits.messages).toEqual([]);
   });
 
   it("attestDepositoryDeposits - should handle missing transaction", async () => {
@@ -1159,7 +1159,7 @@ describe("SolanaVmAttestor", () => {
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
-    expect(deposits).toEqual([]);
+    expect(deposits.messages).toEqual([]);
   });
 
   it("attestSolverFill - validates solver fill correctly", async () => {
