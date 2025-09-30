@@ -53,7 +53,7 @@ export class SuiVmAttestor extends VmAttestor {
       );
 
       if (event.type.includes("DepositEvent")) {
-        const typedEvent = event as any as {
+        const typedEvent = event.parsedJson as {
           from: string;
           coin_type: {
             name: string;

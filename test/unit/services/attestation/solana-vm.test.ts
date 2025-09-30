@@ -763,16 +763,19 @@ function createMockRpcData(params: {
 // Setup RPC mock implementation
 function setupRpcMock(mockRpcData: any) {
   (httpRpc as jest.Mock).mockImplementation(() => ({
-    getParsedTransaction: (txId: string) => {
+    getParsedTransaction: async (txId: string) => {
       const receipt = mockRpcData.transactions[txId]?.receipt;
       return receipt;
     },
-    getTransaction: (txId: any) => {
+    getTransaction: async (txId: any) => {
       const txData = mockRpcData.transactions[txId]?.receipt;
       if (!txData) {
         throw new Error(`Invalid transaction ID: ${txId}`);
       }
       return txData;
+    },
+    getBlock: async () => {
+      return { blockTime: Math.floor(Date.now() / 1000) };
     },
   }));
 }
@@ -995,7 +998,8 @@ describe("SolanaVmAttestor", () => {
 
     // Mock httpRpc to return the mock transaction
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => mockTransaction,
+      getTransaction: async () => mockTransaction,
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
     // Create an instance of AttestationService
@@ -1103,7 +1107,8 @@ describe("SolanaVmAttestor", () => {
 
     // Mock httpRpc to return the mock transaction
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => mockTransaction,
+      getTransaction: async () => mockTransaction,
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
     // Create an instance of AttestationService
@@ -1132,13 +1137,14 @@ describe("SolanaVmAttestor", () => {
     );
   });
 
-  it("attestDepositoryDeposits - should return empty array when no events found", async () => {
+  it("attestDepositoryDeposits - should return empty array when no instructions found", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({
+      getTransaction: async () => ({
         meta: {
           logMessages: [],
         },
       }),
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
     const service = new AttestationService();
@@ -1151,7 +1157,8 @@ describe("SolanaVmAttestor", () => {
 
   it("attestDepositoryDeposits - should handle missing transaction", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => null,
+      getTransaction: async () => null,
+      getBlock: async () => null,
     }));
 
     const service = new AttestationService();

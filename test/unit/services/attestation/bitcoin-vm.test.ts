@@ -298,17 +298,15 @@ describe("BitcoinVmAttestor", () => {
 
       // Setup RPC mock
       setupRpcMock({
-        getTransaction: jest.fn().mockImplementation((txid) => {
+        getTransaction: async (txid: string) => {
           if (txid === transactionId) {
             return depositTx;
           } else if (txid === inputTxid) {
             return inputTx;
           }
           return null;
-        }),
-        getBlock: jest
-          .fn()
-          .mockReturnValue(generateBitcoinBlock(depositTx.blockhash)),
+        },
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
       });
 
       // Execute test

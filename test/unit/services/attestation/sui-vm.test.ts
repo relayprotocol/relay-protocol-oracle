@@ -63,6 +63,7 @@ describe("SuiVmAttestor", () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
       getTransactionBlock: () => ({
         events,
+        timestampMs: String(Date.now()),
       }),
     }));
 
@@ -93,6 +94,7 @@ describe("SuiVmAttestor", () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
       getTransactionBlock: () => ({
         events: [],
+        timestampMs: String(Date.now()),
       }),
     }));
 
