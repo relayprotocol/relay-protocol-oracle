@@ -270,7 +270,7 @@
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-arena-z.nodes.svc.cluster.local:8545/arenaz",
-    "hubChainId": "7896"
+    "hubChainId": "7897"
   },
   {
     "id": "b3",
