@@ -3,11 +3,17 @@ import {
   DepositoryWithdrawalMessage,
 } from "@reservoir0x/relay-protocol-sdk";
 
+export type EnhancedDepositoryDepositMessage = DepositoryDepositMessage & {
+  extraData: {
+    timestamp: string;
+  };
+};
+
 export abstract class VmAttestor {
   public abstract getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<DepositoryDepositMessage[]>;
+  ): Promise<EnhancedDepositoryDepositMessage[]>;
 
   public abstract getDepositoryWithdrawalMessage(
     chainId: string,

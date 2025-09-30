@@ -23,6 +23,7 @@ import {
 } from "viem";
 
 import { getVmAttestor } from "./vm";
+import { EnhancedDepositoryDepositMessage } from "./vm/types";
 import { getDeterministicId } from "./vm/utils";
 import {
   getChainHubChainId,
@@ -92,6 +93,7 @@ export class AttestationService {
                         toChainId: HUB_CHAIN_ID,
                         to: await this._getOrderAddress({
                           chainId: m.data.chainId,
+                          timestamp: m.extraData.timestamp,
                           depositor: m.result.depositor,
                           depositId: m.result.depositId,
                         }),
@@ -344,7 +346,7 @@ export class AttestationService {
     }[];
   }): Promise<{
     totalWeightedInputPaymentBpsDiff: bigint;
-    depositoryDeposits: DepositoryDepositMessage[];
+    depositoryDeposits: EnhancedDepositoryDepositMessage[];
   }> {
     // Ensure every input specifies a unique onchain id
     if (
@@ -371,7 +373,7 @@ export class AttestationService {
 
     // Verify the inputs
     let totalWeightedPaidAmount = 0n;
-    const depositoryDeposits: DepositoryDepositMessage[] = [];
+    const depositoryDeposits: EnhancedDepositoryDepositMessage[] = [];
     {
       for (
         let inputPaymentIndex = 0;
@@ -391,16 +393,22 @@ export class AttestationService {
         }
 
         // Get the depository deposit corresponding to the current order input payment
-        const depositoryDeposit = await this.attestDepositoryDeposits({
-          chainId: orderInput.payment.chainId,
-          transactionId: inputInformation.transactionId,
-        }).then((depositoryDeposits) =>
-          depositoryDeposits.messages.find(
-            (d) =>
-              d.result.depositId === orderId &&
-              d.result.onchainId === inputInformation.onchainId
+        const depositoryDeposit = await getVmAttestor(
+          orderInput.payment.chainId
+        )
+          .then((attestor) =>
+            attestor.getDepositoryDepositMessages(
+              orderInput.payment.chainId,
+              inputInformation.transactionId
+            )
           )
-        );
+          .then((depositoryDeposits) =>
+            depositoryDeposits.find(
+              (d) =>
+                d.result.depositId === orderId &&
+                d.result.onchainId === inputInformation.onchainId
+            )
+          );
         if (!depositoryDeposit) {
           throw externalError(
             `Invalid input information for order input payment ${inputPaymentIndex}`
@@ -435,6 +443,7 @@ export class AttestationService {
 
   private async _getOrderAddress(data: {
     chainId: string;
+    timestamp: string;
     depositor: string;
     depositId: string;
   }): Promise<string> {
@@ -443,12 +452,14 @@ export class AttestationService {
         [
           { type: "string" },
           { type: "uint256" },
+          { type: "uint256" },
           { type: "string" },
           { type: "bytes32" },
         ],
         [
           await getChainVmType(data.chainId),
           BigInt(await getChainHubChainId(data.chainId)),
+          BigInt(data.timestamp),
           data.depositor,
           data.depositId as Hex,
         ]
@@ -459,7 +470,7 @@ export class AttestationService {
   private async _getSolverFillOrRefundExecution(data: {
     order: Order;
     totalWeightedInputPaymentBpsDiff: bigint;
-    depositoryDeposits: DepositoryDepositMessage[];
+    depositoryDeposits: EnhancedDepositoryDepositMessage[];
     type: "fill" | "refund";
   }): Promise<ExecutionMessage> {
     const actions: string[] = [];
@@ -477,6 +488,7 @@ export class AttestationService {
             fromChainId: HUB_CHAIN_ID,
             from: await this._getOrderAddress({
               chainId: deposit.data.chainId,
+              timestamp: deposit.extraData.timestamp,
               depositor: deposit.result.depositor,
               depositId: deposit.result.depositor,
             }),

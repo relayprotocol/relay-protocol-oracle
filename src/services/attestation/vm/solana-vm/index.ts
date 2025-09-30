@@ -3,7 +3,6 @@ import { BorshInstructionCoder, Idl, Program } from "@coral-xyz/anchor";
 import {
   DecodedSolanaVmWithdrawal,
   decodeWithdrawal,
-  DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
@@ -20,7 +19,7 @@ import bs58 from "bs58";
 
 import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
 import { getDeterministicId } from "../utils";
-import { VmAttestor } from "../../vm/types";
+import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
@@ -38,20 +37,10 @@ export class SolanaVmAttestor extends VmAttestor {
     );
   }
 
-  /**
-   * Get depository deposit messages from a transaction.
-   *
-   * This function first tries to parse events from logs. If log parsing fails or logs are truncated,
-   * it tries parsing from instructions.
-   *
-   * @param chainId The ID of the chain.
-   * @param transactionId The ID of the transaction.
-   * @returns A list of depository deposit messages.
-   */
   public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<DepositoryDepositMessage[]> {
+  ): Promise<EnhancedDepositoryDepositMessage[]> {
     const rpc = await httpRpc(chainId, "finalized");
 
     const transaction = await rpc.getTransaction(transactionId, {
@@ -61,6 +50,14 @@ export class SolanaVmAttestor extends VmAttestor {
     });
     if (!transaction) {
       return [];
+    }
+
+    // Get the timestamp of the transaction
+    const timestamp = await rpc
+      .getBlock(transaction.slot)
+      .then((b) => b?.blockTime);
+    if (!timestamp) {
+      throw externalError("Could not fetch the timestamp of the transaction");
     }
 
     const chain = await getChain(chainId);
@@ -75,7 +72,7 @@ export class SolanaVmAttestor extends VmAttestor {
       return [];
     }
 
-    const messages: DepositoryDepositMessage[] = [];
+    const messages: EnhancedDepositoryDepositMessage[] = [];
 
     // Iterate through all instructions, looking for calls to the depository contract
     for (let i = 0; i < instructions.length; i++) {
@@ -122,6 +119,9 @@ export class SolanaVmAttestor extends VmAttestor {
               currency: getVmTypeNativeCurrency(VM_TYPE),
               amount: amount.toString(),
             },
+            extraData: {
+              timestamp: String(timestamp),
+            },
           });
         } else if (decodedInstruction.name === "deposit_token") {
           // Handle "deposit_token" instruction
@@ -157,6 +157,9 @@ export class SolanaVmAttestor extends VmAttestor {
               depositor,
               currency: mint,
               amount: amount.toString(),
+            },
+            extraData: {
+              timestamp: String(timestamp),
             },
           });
         }

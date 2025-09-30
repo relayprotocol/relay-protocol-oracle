@@ -5,7 +5,6 @@ import { zeroHash } from "viem";
 import {
   DecodedBitcoinVmWithdrawal,
   decodeWithdrawal,
-  DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
@@ -13,7 +12,7 @@ import {
 } from "@reservoir0x/relay-protocol-sdk";
 
 import { getDeterministicId } from "../utils";
-import { VmAttestor } from "../../vm/types";
+import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/bitcoin-vm/rpc";
@@ -24,7 +23,7 @@ export class BitcoinVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<DepositoryDepositMessage[]> {
+  ): Promise<EnhancedDepositoryDepositMessage[]> {
     const rpc = await httpRpc(chainId);
 
     // Get transaction details
@@ -100,6 +99,11 @@ export class BitcoinVmAttestor extends VmAttestor {
           depositor,
           currency: getVmTypeNativeCurrency(VM_TYPE),
           amount: amount.toString(),
+        },
+        extraData: {
+          timestamp: await rpc
+            .getBlock(transaction.blockhash)
+            .then((block) => String(block.time)),
         },
       },
     ];

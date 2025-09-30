@@ -2,7 +2,6 @@ import {
   DecodedEthereumVmWithdrawal,
   decodeOrderExtraData,
   decodeWithdrawal,
-  DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
@@ -21,7 +20,7 @@ import {
 
 import { ABI } from "../ethereum-vm/index";
 import { getDeterministicId } from "../utils";
-import { VmAttestor } from "../../vm/types";
+import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { undefinedOnThrow } from "../../../../common/utils";
@@ -45,7 +44,7 @@ export class TronVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<DepositoryDepositMessage[]> {
+  ): Promise<EnhancedDepositoryDepositMessage[]> {
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
@@ -68,6 +67,11 @@ export class TronVmAttestor extends VmAttestor {
         `Reverted transaction ${transactionId} on chain ${chainId}`
       );
     }
+
+    // Get the timestamp of the transaction
+    const timestamp = await rpc
+      .getBlock({ blockNumber: receipt.blockNumber })
+      .then((b) => Number(b.timestamp));
 
     // Ensure the transaction is finalized
     await this._ensureTxFinalization(chainId, receipt);
@@ -112,7 +116,7 @@ export class TronVmAttestor extends VmAttestor {
     // Sort the logs according to their onchain order
     parsedLogs.sort((l1, l2) => l1.logIndex - l2.logIndex);
 
-    const messages: DepositoryDepositMessage[] = [];
+    const messages: EnhancedDepositoryDepositMessage[] = [];
     for (let i = 0; i < parsedLogs.length; i++) {
       const currentLog = parsedLogs[i];
       const nextLogIndex = i + 1;
@@ -136,6 +140,9 @@ export class TronVmAttestor extends VmAttestor {
             depositor: fromHexAddress(currentLog.args.from),
             currency: getVmTypeNativeCurrency(VM_TYPE),
             amount: currentLog.args.amount.toString(),
+          },
+          extraData: {
+            timestamp: String(timestamp),
           },
         });
       }
@@ -211,6 +218,9 @@ export class TronVmAttestor extends VmAttestor {
             depositor,
             currency: fromHexAddress(currentLog.address),
             amount: currentLog.args.amount.toString(),
+          },
+          extraData: {
+            timestamp: String(timestamp),
           },
         });
       }
