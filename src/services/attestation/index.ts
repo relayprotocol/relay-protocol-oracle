@@ -449,13 +449,7 @@ export class AttestationService {
   }): Promise<string> {
     return keccak256(
       encodePacked(
-        [
-          { type: "string" },
-          { type: "uint256" },
-          { type: "uint256" },
-          { type: "string" },
-          { type: "bytes32" },
-        ],
+        ["string", "uint256", "uint256", "string", "bytes32"],
         [
           await getChainVmType(data.chainId),
           BigInt(await getChainHubChainId(data.chainId)),
