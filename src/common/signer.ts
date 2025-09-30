@@ -1,8 +1,10 @@
 import {
   DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
+  ExecutionMessage,
   getDepositoryDepositMessageId,
   getDepositoryWithdrawalMessageId,
+  getExecutionMessageId,
   getSolverFillMessageId,
   getSolverRefundMessageId,
   SolverFillMessage,
@@ -46,3 +48,6 @@ export const signSolverFillMessage = async (m: SolverFillMessage) =>
 
 export const signSolverRefundMessage = async (m: SolverRefundMessage) =>
   sign(getSolverRefundMessageId(m, await getSdkChainsConfig()));
+
+export const signExecutionMessage = async (m: ExecutionMessage) =>
+  sign(getExecutionMessageId(m));

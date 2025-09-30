@@ -63,11 +63,12 @@ describe("SuiVmAttestor", () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
       getTransactionBlock: () => ({
         events,
+        timestampMs: String(Date.now()),
       }),
     }));
 
     const service = new AttestationService();
-    const messages = await service.attestDepositoryDeposits({
+    const { messages } = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });
@@ -93,6 +94,7 @@ describe("SuiVmAttestor", () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
       getTransactionBlock: () => ({
         events: [],
+        timestampMs: String(Date.now()),
       }),
     }));
 
@@ -101,7 +103,7 @@ describe("SuiVmAttestor", () => {
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });
-    expect(deposits).toEqual([]);
+    expect(deposits.messages).toEqual([]);
   });
 
   it("attestDepositoryDeposits - should handle transaction not found", async () => {
@@ -114,6 +116,6 @@ describe("SuiVmAttestor", () => {
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(20),
     });
-    expect(deposits).toEqual([]);
+    expect(deposits.messages).toEqual([]);
   });
 });

@@ -5,10 +5,17 @@ import { Chain, getChains } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/solana-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { privateKeyToAccount } from "viem/accounts";
-import { getOrderId, Order, SolverRefundStatus } from "@reservoir0x/relay-protocol-sdk";
+import {
+  getOrderId,
+  Order,
+  SolverRefundStatus,
+} from "@reservoir0x/relay-protocol-sdk";
 import { Hex } from "viem";
 import { randomHex, randomNumber } from "../../../common/utils";
-import { PublicKey, TransactionResponse as SolanaTransactionResponse } from "@solana/web3.js";
+import {
+  PublicKey,
+  TransactionResponse as SolanaTransactionResponse,
+} from "@solana/web3.js";
 import bs58 from "bs58";
 import * as anchor from "@coral-xyz/anchor";
 import { BorshInstructionCoder, Idl } from "@coral-xyz/anchor";
@@ -25,20 +32,23 @@ const solverWallet = privateKeyToAccount(testSolverPrivateKey);
 const instructionCoder = new BorshInstructionCoder(RelayDepositoryIdl as Idl);
 
 // Helper function to generate instruction data for deposits
-function generateDepositInstructionData(orderHash: string, amount: string, isToken: boolean = false) {
+function generateDepositInstructionData(
+  orderHash: string,
+  amount: string,
+  isToken: boolean = false
+) {
   // Convert orderHash to id array (remove 0x prefix and convert to Buffer, then to array)
-  const idBuffer = Buffer.from(orderHash.slice(2), 'hex');
+  const idBuffer = Buffer.from(orderHash.slice(2), "hex");
   const id = Array.from(idBuffer);
-  
+
   const instructionName = isToken ? "deposit_token" : "deposit_native";
   const instructionData = {
     amount: new anchor.BN(amount),
     id: id,
   };
-  
+
   return bs58.encode(instructionCoder.encode(instructionName, instructionData));
 }
-
 
 const generateTransactionResponse = (
   transactionHash: string,
@@ -58,43 +68,47 @@ const generateTransactionResponse = (
     new PublicKey(options?.paymentRecipient || randomBase58(32)),
     new PublicKey(zeroAddress), // System program
   ];
-  
+
   const keys = accountKeys || defaultKeys;
-  
+
   // Generate random blockTime in the past hour
   const blockTime = Math.floor(Date.now() / 1000) - randomNumber(3600);
-  
+
   // Initialize balance arrays with zeros for all accounts
   const preBalances = Array(keys.length).fill(0);
   const postBalances = Array(keys.length).fill(0);
-  
+
   // If a payment is simulated, set appropriate balance changes
   if (options?.paymentAmount && options?.paymentRecipient) {
     // Find recipient index in account keys
     const recipientIndex = keys.findIndex(
-      key => key.toBase58() === options.paymentRecipient
+      (key) => key.toBase58() === options.paymentRecipient
     );
-    
+
     if (recipientIndex !== -1) {
       const paymentAmountLamports = BigInt(options.paymentAmount);
       const initialBalance = BigInt(randomNumber(1e9));
-      
+
       // Set pre and post balances for the recipient
-      preBalances[recipientIndex] = initialBalance; 
+      preBalances[recipientIndex] = initialBalance;
       postBalances[recipientIndex] = initialBalance + paymentAmountLamports;
     }
   }
-  
+
   // Build token balance arrays if needed
   let preTokenBalances: any[] = [];
   let postTokenBalances: any[] = [];
-  
-  if (options?.tokenMint && options?.paymentRecipient && options?.paymentAmount) {
+
+  if (
+    options?.tokenMint &&
+    options?.paymentRecipient &&
+    options?.paymentAmount
+  ) {
     const initialTokenAmount = randomNumber(1e9).toString();
     const finalTokenAmount = (
       BigInt(initialTokenAmount) + BigInt(options.paymentAmount)
     ).toString();
-    
+
     preTokenBalances = [
       {
         accountIndex: 0,
@@ -104,11 +118,11 @@ const generateTransactionResponse = (
           amount: initialTokenAmount,
           decimals: 9,
           uiAmount: null,
-          uiAmountString: initialTokenAmount
-        }
-      }
+          uiAmountString: initialTokenAmount,
+        },
+      },
     ];
-    
+
     postTokenBalances = [
       {
         accountIndex: 0,
@@ -118,15 +132,15 @@ const generateTransactionResponse = (
           amount: finalTokenAmount,
           decimals: 9,
           uiAmount: null,
-          uiAmountString: finalTokenAmount
-        }
-      }
+          uiAmountString: finalTokenAmount,
+        },
+      },
     ];
   } else if (options?.preTokenBalances && options?.postTokenBalances) {
     preTokenBalances = options.preTokenBalances;
     postTokenBalances = options.postTokenBalances;
   }
-  
+
   return {
     slot: randomNumber(1e10),
     blockTime,
@@ -157,7 +171,7 @@ const generateTransactionResponse = (
           numReadonlyUnsignedAccounts: 0,
         },
         getAccountKeys: () => ({
-          staticAccountKeys: keys
+          staticAccountKeys: keys,
         }),
       } as any,
     },
@@ -180,8 +194,12 @@ const createSPLTransferTransaction = ({
   orderHash: string;
 }): TransactionResponse => {
   // Generate instruction data with correct orderHash for SPL token deposit
-  const depositInstructionData = generateDepositInstructionData(orderHash, amount, true);
-  
+  const depositInstructionData = generateDepositInstructionData(
+    orderHash,
+    amount,
+    true
+  );
+
   // Create a mock transaction that mimics the working test case for SPL tokens
   const mockTransaction = {
     slot: Math.floor(Date.now() / 1000),
@@ -205,12 +223,14 @@ const createSPLTransferTransaction = ({
               // memo instruction containing order hash
               programIdIndex: 5, // Memo program index
               accounts: [],
-              data: bs58.encode(Buffer.from(orderHash, 'utf-8')),
+              data: bs58.encode(Buffer.from(orderHash, "utf-8")),
             },
           ],
         },
       ],
-      logMessages: [`Program log: SPL Transfer executed for order: ${orderHash}`],
+      logMessages: [
+        `Program log: SPL Transfer executed for order: ${orderHash}`,
+      ],
       preTokenBalances: [
         {
           accountIndex: 1,
@@ -221,8 +241,8 @@ const createSPLTransferTransaction = ({
             decimals: 9,
             uiAmount: 0,
             uiAmountString: "0",
-          }
-        }
+          },
+        },
       ],
       postTokenBalances: [
         {
@@ -234,8 +254,8 @@ const createSPLTransferTransaction = ({
             decimals: 9,
             uiAmount: parseFloat(amount) / 1e9,
             uiAmountString: (parseFloat(amount) / 1e9).toString(),
-          }
-        }
+          },
+        },
       ],
       loadedAddresses: {
         writable: [],
@@ -247,11 +267,17 @@ const createSPLTransferTransaction = ({
       message: {
         accountKeys: [
           { pubkey: to, signer: false }, // Depository/recipient
-          { pubkey: "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ", signer: false },
+          {
+            pubkey: "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ",
+            signer: false,
+          },
           { pubkey: from, signer: true }, // Depositor
           { pubkey: "11111111111111111111111111111111", signer: false },
           { pubkey: tokenAddress, signer: false }, // Token mint
-          { pubkey: "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr", signer: false }, // Memo program
+          {
+            pubkey: "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
+            signer: false,
+          }, // Memo program
         ],
         instructions: [],
         getAccountKeys: () => ({
@@ -269,7 +295,7 @@ const createSPLTransferTransaction = ({
       },
     },
   };
-  
+
   return mockTransaction as any;
 };
 
@@ -282,11 +308,21 @@ function createDepositTransaction(params: {
   paymentAmount: string;
   orderHash: string;
 }): TransactionResponse {
-  const { depositTxHash, depositorAddress, depositoryAddress, paymentAmount, orderHash } = params;
-  
+  const {
+    depositTxHash,
+    depositorAddress,
+    depositoryAddress,
+    paymentAmount,
+    orderHash,
+  } = params;
+
   // Generate instruction data with correct orderHash
-  const instructionData = generateDepositInstructionData(orderHash, paymentAmount, false);
-  
+  const instructionData = generateDepositInstructionData(
+    orderHash,
+    paymentAmount,
+    false
+  );
+
   // Create a mock transaction that mimics the working test case
   const mockTransaction = {
     slot: Math.floor(Date.now() / 1000),
@@ -322,10 +358,16 @@ function createDepositTransaction(params: {
       message: {
         accountKeys: [
           { pubkey: depositoryAddress, signer: false },
-          { pubkey: "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ", signer: false },
+          {
+            pubkey: "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ",
+            signer: false,
+          },
           { pubkey: depositorAddress, signer: true },
           { pubkey: "11111111111111111111111111111111", signer: false },
-          { pubkey: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", signer: false },
+          {
+            pubkey: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+            signer: false,
+          },
         ],
         instructions: [],
         getAccountKeys: () => ({
@@ -342,7 +384,7 @@ function createDepositTransaction(params: {
       },
     },
   };
-  
+
   return mockTransaction as any;
 }
 
@@ -354,24 +396,24 @@ function createRefundTransaction(params: {
   paymentAmount: string;
   orderHash: string;
 }): TransactionResponse {
-  const { 
-    refundTxHash, 
+  const {
+    refundTxHash,
     refundRecipient,
     solverContractAddress,
     paymentAmount,
-    orderHash
+    orderHash,
   } = params;
-  
+
   // Create memo instruction containing order hash
   const memoInstruction = {
     programIdIndex: 0, // Index of the memo program in the accountKeys array
     accountKeyIndexes: [],
-    data: Buffer.from(orderHash, 'utf-8'),
+    data: Buffer.from(orderHash, "utf-8"),
   };
 
   // Create account keys including memo program and recipient
   const accountKeys = [
-    new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'), // Memo program
+    new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"), // Memo program
     new PublicKey(refundRecipient), // Refund recipient
     new PublicKey(solverContractAddress), // Solver contract
     new PublicKey(zeroAddress), // System program (for native SOL transfers)
@@ -380,12 +422,12 @@ function createRefundTransaction(params: {
   // Generate transaction with balance changes showing payment to the recipient
   return generateTransactionResponse(
     refundTxHash,
-    [`Program log: Refund executed for order: ${orderHash}`], 
+    [`Program log: Refund executed for order: ${orderHash}`],
     [memoInstruction],
     accountKeys,
     {
       paymentRecipient: refundRecipient,
-      paymentAmount: paymentAmount
+      paymentAmount: paymentAmount,
     }
   );
 }
@@ -398,38 +440,38 @@ function createFillTransaction(params: {
   paymentAmount: string;
   orderHash: string;
 }): TransactionResponse {
-  const { 
-    fillTxHash, 
+  const {
+    fillTxHash,
     outputRecipient,
     solverContractAddress,
     paymentAmount,
-    orderHash
+    orderHash,
   } = params;
-  
+
   // Create memo instruction containing order hash
   const memoInstruction = {
     programIdIndex: 0, // Index of the memo program in the accountKeys array
     accountKeyIndexes: [],
-    data: Buffer.from(orderHash, 'utf-8'),
+    data: Buffer.from(orderHash, "utf-8"),
   };
 
   // Create account keys including memo program and recipient
   const accountKeys = [
-    new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'), // Memo program
+    new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"), // Memo program
     new PublicKey(outputRecipient), // Payment recipient
     new PublicKey(solverContractAddress), // Solver contract
     new PublicKey(zeroAddress), // System program (for native SOL transfers)
   ];
-  
+
   // Generate transaction with balance changes showing payment to the recipient
   return generateTransactionResponse(
     fillTxHash,
-    [`Program log: Fill executed for order: ${orderHash}`], 
+    [`Program log: Fill executed for order: ${orderHash}`],
     [memoInstruction],
     accountKeys,
     {
       paymentRecipient: outputRecipient,
-      paymentAmount: paymentAmount
+      paymentAmount: paymentAmount,
     }
   );
 }
@@ -470,7 +512,7 @@ function createTestOrder({
             currency: inputCurrency,
             minimumAmount: paymentAmount,
             deadline: Math.floor(Date.now() / 1000) + 36000,
-            extraData: '0x',
+            extraData: "0x",
           },
         ],
       },
@@ -486,7 +528,7 @@ function createTestOrder({
         },
       ],
       calls: [],
-      extraData: '0x',
+      extraData: "0x",
       deadline: Math.floor(Date.now() / 1000) + 36000,
     },
     fees: [],
@@ -508,11 +550,11 @@ interface TestSetupParams {
 function setupTestData(): TestSetupParams {
   const currentTimestamp = Math.floor(Date.now() / 1000);
   const depositorAddress = randomBase58(32);
-  const tokenAddress = randomBase58(32)
+  const tokenAddress = randomBase58(32);
   const paymentAmount = randomNumber(1e10).toString();
-  const outputRecipient = randomBase58(32)
-  const refundRecipient = randomBase58(32)
-  const solverContractAddress = randomBase58(32)
+  const outputRecipient = randomBase58(32);
+  const refundRecipient = randomBase58(32);
+  const solverContractAddress = randomBase58(32);
 
   return {
     chain: null, // Will be set at call site
@@ -531,28 +573,30 @@ function setupTestData(): TestSetupParams {
  * @param options Configuration options for the test environment
  * @returns Test environment with all necessary data for testing
  */
-const setupTestEnvironment = async (options: {
-  useSPLToken?: boolean;
-  invalidSignature?: boolean;
-  expiredDeadline?: boolean;
-  insufficientPayment?: boolean;
-  duplicateOnchainIds?: boolean;
-  customPaymentAmount?: string;
-  actionType?: 'fill' | 'refund';
-} = {}) => {
+const setupTestEnvironment = async (
+  options: {
+    useSPLToken?: boolean;
+    invalidSignature?: boolean;
+    expiredDeadline?: boolean;
+    insufficientPayment?: boolean;
+    duplicateOnchainIds?: boolean;
+    customPaymentAmount?: string;
+    actionType?: "fill" | "refund";
+  } = {}
+) => {
   const chains = Object.values(await getChains());
   const testData = setupTestData();
   testData.chain = chains.find((chain) => chain.id === "solana");
-  
+
   const depositTxHash = randomBase58(32);
   const actionTxHash = randomBase58(32); // Can be either fill or refund transaction hash
-  
+
   // Adjust payment amount if specified
   const paymentAmount = options.customPaymentAmount || testData.paymentAmount;
-  const fillAmount = options.insufficientPayment 
-    ? (BigInt(paymentAmount) * 50n / 100n).toString() // 50% of required amount
+  const fillAmount = options.insufficientPayment
+    ? ((BigInt(paymentAmount) * 50n) / 100n).toString() // 50% of required amount
     : paymentAmount;
-  
+
   // Create test order first to generate orderHash
   const testOrder = createTestOrder({
     paymentAmount,
@@ -562,17 +606,17 @@ const setupTestEnvironment = async (options: {
     inputCurrency: options.useSPLToken ? testData.tokenAddress : zeroAddress,
     outputCurrency: options.useSPLToken ? testData.tokenAddress : zeroAddress,
   });
-  
+
   // Set expired deadline if specified
   if (options.expiredDeadline) {
     testOrder.output.deadline = Math.floor(Date.now() / 1000) - 3600; // 1 hour in the past
   }
 
   const orderHash = getOrderId(testOrder, {
-    "solana": "solana-vm",
-    "ethereum": "ethereum-vm"
+    solana: "solana-vm",
+    ethereum: "ethereum-vm",
   });
-  
+
   // Create deposit transaction with the generated orderHash
   let depositTxReceipt: TransactionResponse;
   if (options.useSPLToken) {
@@ -594,11 +638,11 @@ const setupTestEnvironment = async (options: {
       orderHash,
     });
   }
-  
+
   // Create action transaction receipt (fill or refund)
   let actionTxReceipt: TransactionResponse;
-  const isRefund = options.actionType === 'refund';
-  
+  const isRefund = options.actionType === "refund";
+
   if (options.useSPLToken) {
     actionTxReceipt = createSPLTransferTransaction({
       transactionHash: actionTxHash,
@@ -638,26 +682,30 @@ const setupTestEnvironment = async (options: {
         receipt: actionTxReceipt,
       },
     },
-    currentTimestamp: options.expiredDeadline ? Math.floor(Date.now() / 1000) : testData.currentTimestamp,
+    currentTimestamp: options.expiredDeadline
+      ? Math.floor(Date.now() / 1000)
+      : testData.currentTimestamp,
   });
-  
+
   // Setup RPC mock
   setupRpcMock(mockRpcData);
-  
+
   // Create order signature
-  const signerWallet = options.invalidSignature 
+  const signerWallet = options.invalidSignature
     ? privateKeyToAccount(randomHex(32) as Hex) // Random wallet for invalid signature
     : solverWallet;
-  
+
   const orderSignature = await signerWallet.signMessage({
     message: { raw: orderHash },
   });
-  
+
   // Get depository deposits using the real method
-  const depositoryDeposits = await new AttestationService().attestDepositoryDeposits({
-    chainId: testData.chain.id,
-    transactionId: depositTxHash,
-  });
+  const depositoryDeposits = await new AttestationService()
+    .attestDepositoryDeposits({
+      chainId: testData.chain.id,
+      transactionId: depositTxHash,
+    })
+    .then((d) => d.messages);
 
   // Create inputs array
   const inputs = options.duplicateOnchainIds
@@ -680,7 +728,7 @@ const setupTestEnvironment = async (options: {
           inputIndex: 0,
         },
       ];
-  
+
   return {
     testData,
     depositTxHash,
@@ -701,7 +749,7 @@ function createMockRpcData(params: {
   currentTimestamp: number;
 }) {
   const { transactions, currentTimestamp } = params;
-  
+
   return {
     transactions,
     block: {
@@ -715,16 +763,19 @@ function createMockRpcData(params: {
 // Setup RPC mock implementation
 function setupRpcMock(mockRpcData: any) {
   (httpRpc as jest.Mock).mockImplementation(() => ({
-    getParsedTransaction: (txId: string) => {
+    getParsedTransaction: async (txId: string) => {
       const receipt = mockRpcData.transactions[txId]?.receipt;
-      return receipt
+      return receipt;
     },
-    getTransaction: (txId: any) => {
+    getTransaction: async (txId: any) => {
       const txData = mockRpcData.transactions[txId]?.receipt;
       if (!txData) {
         throw new Error(`Invalid transaction ID: ${txId}`);
       }
       return txData;
+    },
+    getBlock: async () => {
+      return { blockTime: Math.floor(Date.now() / 1000) };
     },
   }));
 }
@@ -744,8 +795,8 @@ const testAttestSolverFill = async (options: {
   expectError?: string;
 }) => {
   // Setup test environment with fill action type
-  const env = await setupTestEnvironment({...options, actionType: 'fill'});
-  
+  const env = await setupTestEnvironment({ ...options, actionType: "fill" });
+
   // Execute or expect error
   if (options.expectError) {
     await expect(
@@ -768,9 +819,13 @@ const testAttestSolverFill = async (options: {
         transactionId: env.actionTxHash,
       },
     });
-    
-    expect(solverFillResult.result.status).toBe(SolverRefundStatus.SUCCESSFUL);
-    expect(solverFillResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
+
+    expect(solverFillResult.message.result.status).toBe(
+      SolverRefundStatus.SUCCESSFUL
+    );
+    expect(
+      solverFillResult.message.result.totalWeightedInputPaymentBpsDiff
+    ).toBe("0");
     return solverFillResult;
   }
 };
@@ -790,8 +845,8 @@ const testAttestSolverRefund = async (options: {
   expectError?: string;
 }) => {
   // Setup test environment with refund action type
-  const env = await setupTestEnvironment({...options, actionType: 'refund'});
-  
+  const env = await setupTestEnvironment({ ...options, actionType: "refund" });
+
   // Execute or expect error
   if (options.expectError) {
     await expect(
@@ -810,21 +865,26 @@ const testAttestSolverRefund = async (options: {
     ).rejects.toThrow(options.expectError);
     return null;
   } else {
-    const solverRefundResult = await new AttestationService().attestSolverRefund({
-      order: env.testOrder,
-      orderSignature: env.orderSignature,
-      inputs: env.inputs,
-      refunds: [
-        {
-          transactionId: env.actionTxHash,
-          inputIndex: 0,
-          refundIndex: 0,
-        },
-      ],
-    });
-    
-    expect(solverRefundResult.result.status).toBe(SolverRefundStatus.SUCCESSFUL);
-    expect(solverRefundResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
+    const solverRefundResult =
+      await new AttestationService().attestSolverRefund({
+        order: env.testOrder,
+        orderSignature: env.orderSignature,
+        inputs: env.inputs,
+        refunds: [
+          {
+            transactionId: env.actionTxHash,
+            inputIndex: 0,
+            refundIndex: 0,
+          },
+        ],
+      });
+
+    expect(solverRefundResult.message.result.status).toBe(
+      SolverRefundStatus.SUCCESSFUL
+    );
+    expect(
+      solverRefundResult.message.result.totalWeightedInputPaymentBpsDiff
+    ).toBe("0");
     return solverRefundResult;
   }
 };
@@ -938,14 +998,15 @@ describe("SolanaVmAttestor", () => {
 
     // Mock httpRpc to return the mock transaction
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => mockTransaction,
+      getTransaction: async () => mockTransaction,
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
     // Create an instance of AttestationService
     const service = new AttestationService();
 
     // Call attestDepositoryDeposits with mock data
-    const messages = await service.attestDepositoryDeposits({
+    const { messages } = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
@@ -1046,14 +1107,15 @@ describe("SolanaVmAttestor", () => {
 
     // Mock httpRpc to return the mock transaction
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => mockTransaction,
+      getTransaction: async () => mockTransaction,
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
     // Create an instance of AttestationService
     const service = new AttestationService();
 
     // Call attestDepositoryDeposits with mock data
-    const messages = await service.attestDepositoryDeposits({
+    const { messages } = await service.attestDepositoryDeposits({
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
@@ -1075,13 +1137,14 @@ describe("SolanaVmAttestor", () => {
     );
   });
 
-  it("attestDepositoryDeposits - should return empty array when no events found", async () => {
+  it("attestDepositoryDeposits - should return empty array when no instructions found", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => ({
+      getTransaction: async () => ({
         meta: {
           logMessages: [],
         },
       }),
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
     const service = new AttestationService();
@@ -1089,12 +1152,13 @@ describe("SolanaVmAttestor", () => {
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
-    expect(deposits).toEqual([]);
+    expect(deposits.messages).toEqual([]);
   });
 
   it("attestDepositoryDeposits - should handle missing transaction", async () => {
     (httpRpc as jest.Mock).mockImplementation(() => ({
-      getTransaction: () => null,
+      getTransaction: async () => null,
+      getBlock: async () => null,
     }));
 
     const service = new AttestationService();
@@ -1102,7 +1166,7 @@ describe("SolanaVmAttestor", () => {
       chainId: Object.values(await getChains())[0].id,
       transactionId: randomBase58(32),
     });
-    expect(deposits).toEqual([]);
+    expect(deposits.messages).toEqual([]);
   });
 
   it("attestSolverFill - validates solver fill correctly", async () => {
@@ -1110,53 +1174,53 @@ describe("SolanaVmAttestor", () => {
   });
 
   it("attestSolverFill - fails with invalid order signature", async () => {
-    await testAttestSolverFill({ 
-      invalidSignature: true, 
-      expectError: "Invalid order signature" 
+    await testAttestSolverFill({
+      invalidSignature: true,
+      expectError: "Invalid order signature",
     });
   });
 
   it("attestSolverFill - fails with non-unique onchain ids", async () => {
-    await testAttestSolverFill({ 
-      duplicateOnchainIds: true, 
-      expectError: "Input information contains non-unique onchain ids" 
+    await testAttestSolverFill({
+      duplicateOnchainIds: true,
+      expectError: "Input information contains non-unique onchain ids",
     });
   });
 
   it("attestSolverFill - fails with insufficient fill amount", async () => {
-    await testAttestSolverFill({ 
-      insufficientPayment: true, 
-      expectError: "Insufficient fill amount for order output payment" 
+    await testAttestSolverFill({
+      insufficientPayment: true,
+      expectError: "Insufficient fill amount for order output payment",
     });
   });
 
   it("attestSolverFill - fails with expired output deadline", async () => {
-    await testAttestSolverFill({ 
-      expiredDeadline: true, 
-      expectError: "deadline" 
+    await testAttestSolverFill({
+      expiredDeadline: true,
+      expectError: "deadline",
     });
   });
 
   it("attestSolverFill - validates with ERC20 token payments", async () => {
-    await testAttestSolverFill({ 
-      useSPLToken: true 
+    await testAttestSolverFill({
+      useSPLToken: true,
     });
   });
 
   it("attestSolverRefund - validates solver refund correctly", async () => {
     await testAttestSolverRefund({});
   });
-  
+
   it("attestSolverRefund - fails with invalid order signature", async () => {
-    await testAttestSolverRefund({ 
-      invalidSignature: true, 
-      expectError: "Invalid order signature" 
+    await testAttestSolverRefund({
+      invalidSignature: true,
+      expectError: "Invalid order signature",
     });
   });
-  
+
   it("attestSolverRefund - validates with ERC20 token payments", async () => {
-    await testAttestSolverRefund({ 
-      useSPLToken: true 
+    await testAttestSolverRefund({
+      useSPLToken: true,
     });
   });
 });

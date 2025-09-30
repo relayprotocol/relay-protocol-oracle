@@ -3,10 +3,15 @@ import { Type } from "@fastify/type-provider-typebox";
 import {
   Endpoint,
   ErrorResponses,
+  executionSchema,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
+  signatureSchema,
 } from "../../utils";
-import { signSolverFillMessage } from "../../../common/signer";
+import {
+  signExecutionMessage,
+  signSolverFillMessage,
+} from "../../../common/signer";
 import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
@@ -92,6 +97,12 @@ const MessageData = Type.Object({
         "Force attestation even if the order solver fill is not valid",
     })
   ),
+  includeOnchainHubExecution: Type.Optional(
+    Type.Boolean({
+      description:
+        "Whether to include an execution message for the onchain Hub",
+    })
+  ),
 });
 
 const Schema = {
@@ -115,19 +126,13 @@ const Schema = {
                 "The bps difference between the quoted amount and the deposited amount",
             }),
           }),
-          signature: Type.Object({
-            oracle: Type.String({
-              description: "The address of the signing oracle",
-            }),
-            signature: Type.String({
-              description: "The message signature",
-            }),
-          }),
+          signature: signatureSchema,
         },
         {
           description: "The resulting 'solver-fill' message",
         }
       ),
+      execution: executionSchema,
     }),
   },
 };
@@ -141,7 +146,9 @@ export default {
     reply: FastifyReplyTypeBox<typeof Schema>
   ) => {
     const attestationService = new AttestationService();
-    const message = await attestationService.attestSolverFill(req.body);
+    const { message, execution } = await attestationService.attestSolverFill(
+      req.body
+    );
 
     // Restrict the `force` option to specific integrators
     if (req.body.force) {
@@ -164,6 +171,12 @@ export default {
         result: message.result,
         signature: await signSolverFillMessage(message),
       },
+      execution: execution
+        ? {
+            ...execution,
+            signature: await signExecutionMessage(execution),
+          }
+        : undefined,
     });
   },
 } as Endpoint;

@@ -298,24 +298,23 @@ describe("BitcoinVmAttestor", () => {
 
       // Setup RPC mock
       setupRpcMock({
-        getTransaction: jest.fn().mockImplementation((txid) => {
+        getTransaction: async (txid: string) => {
           if (txid === transactionId) {
             return depositTx;
           } else if (txid === inputTxid) {
             return inputTx;
           }
           return null;
-        }),
-        getBlock: jest
-          .fn()
-          .mockReturnValue(generateBitcoinBlock(depositTx.blockhash)),
+        },
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
       });
 
       // Execute test
-      const messages = await new AttestationService().attestDepositoryDeposits({
-        chainId: "bitcoin",
-        transactionId,
-      });
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        });
 
       // Verify results
       expect(messages).toHaveLength(1);
@@ -597,12 +596,11 @@ describe("BitcoinVmAttestor", () => {
       const { withdrawalHex } = setupWithdrawalTest();
 
       // Execute test
-      const message = await new AttestationService().attestDepositoryWithdrawal(
-        {
+      const { message } =
+        await new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
-        }
-      );
+        });
 
       // Verify results
       expect(message.result.withdrawalId).toBe("0x1234567890");
@@ -618,12 +616,11 @@ describe("BitcoinVmAttestor", () => {
       });
 
       // Execute test
-      const message = await new AttestationService().attestDepositoryWithdrawal(
-        {
+      const { message } =
+        await new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
-        }
-      );
+        });
 
       // Verify results
       expect(message.result.withdrawalId).toBe("0x1234567890");
@@ -639,12 +636,11 @@ describe("BitcoinVmAttestor", () => {
       });
 
       // Execute test
-      const message = await new AttestationService().attestDepositoryWithdrawal(
-        {
+      const { message } =
+        await new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
-        }
-      );
+        });
 
       // Verify results
       expect(message.result.withdrawalId).toBe("0x1234567890");
@@ -659,12 +655,11 @@ describe("BitcoinVmAttestor", () => {
       });
 
       // Execute test
-      const message = await new AttestationService().attestDepositoryWithdrawal(
-        {
+      const { message } =
+        await new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
-        }
-      );
+        });
 
       // Verify results
       expect(message.result.withdrawalId).toBe("0x1234567890");

@@ -3,47 +3,55 @@
     "id": "ethereum",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-ethereum.nodes.svc.cluster.local:8545/ethereum",
-    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299",
+    "hubChainId": "1"
   },
   {
     "id": "optimism",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-optimism.nodes.svc.cluster.local:8545/optimism",
-    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299",
+    "hubChainId": "10"
   },
   {
     "id": "polygon",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-polygon.nodes.svc.cluster.local:8545/polygon",
-    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299",
+    "hubChainId": "137"
   },
   {
     "id": "abstract",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-abstract.nodes.svc.cluster.local:8545/abstract",
-    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299",
+    "hubChainId": "2741"
   },
   {
     "id": "base",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-base.nodes.svc.cluster.local:8545/base",
-    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299",
+    "hubChainId": "8453"
   },
   {
     "id": "arbitrum",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-arbitrum.nodes.svc.cluster.local:8545/arbitrum",
-    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299"
+    "depository": "0x5cb1de3603a71ac2f67b12bfbf095013fe4ac299",
+    "hubChainId": "42161"
   },
   {
     "id": "solana",
     "vmType": "solana-vm",
     "httpRpcUrl": "https://api.mainnet-beta.solana.com",
-    "depository": "6TMx4zgh9Ho5DaJtaQbKbHgYLk7B6vKEoE7CfnxkqcHv"
+    "depository": "6TMx4zgh9Ho5DaJtaQbKbHgYLk7B6vKEoE7CfnxkqcHv",
+    "hubChainId": "50176979118388105370421134508366610418687875236156196470082648173271157915018"
   },
   {
     "id": "hyperliquid",
     "vmType": "hyperliquid-vm",
-    "httpRpcUrl": "https://api.hyperliquid.xyz"
+    "httpRpcUrl": "https://api.hyperliquid.xyz",
+    "hubChainId": "111378472430415857054556056192544272316610524417112732947551032542507639335976"
   }
 ]

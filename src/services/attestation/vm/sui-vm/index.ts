@@ -1,36 +1,25 @@
-import { SuiEvent } from "@mysten/sui/client";
 import { bcs } from "@mysten/sui/bcs";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 import {
   DecodedSuiVmWithdrawal,
   decodeWithdrawal,
-  DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
 } from "@reservoir0x/relay-protocol-sdk";
 
-import { getOnchainId } from "../utils";
-import { VmAttestor } from "../../vm/types";
+import { getDeterministicId } from "../utils";
+import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { externalError, internalError } from "../../../../common/error";
 import { getChain } from "../../../../common/chains";
 import { httpRpc } from "../../../../common/vm/sui-vm/rpc";
-
-interface DepositEventData {
-  from: string;
-  coin_type: {
-    name: string;
-  };
-  amount: string;
-  deposit_id: string;
-}
 
 export class SuiVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<DepositoryDepositMessage[]> {
+  ): Promise<EnhancedDepositoryDepositMessage[]> {
     const connection = await httpRpc(chainId);
     const transaction = await connection.getTransactionBlock({
       digest: transactionId,
@@ -43,18 +32,57 @@ export class SuiVmAttestor extends VmAttestor {
       return [];
     }
 
+    if (!transaction.timestampMs) {
+      throw externalError("Could not fetch the timestamp of the transaction");
+    }
+
     const chain = await getChain(chainId);
     const depository = chain.depository;
     if (!depository) {
       throw externalError("Chain has no depository configured");
     }
 
-    return this.parseTransactionLogs(
-      chainId,
-      transactionId,
-      transaction.events,
-      depository
-    );
+    const messages: EnhancedDepositoryDepositMessage[] = [];
+
+    let messageIndex = 0;
+    for (const event of transaction.events) {
+      const onchainId = getDeterministicId(
+        chainId,
+        transactionId,
+        messageIndex.toString()
+      );
+
+      if (event.type.includes("DepositEvent")) {
+        const typedEvent = event.parsedJson as {
+          from: string;
+          coin_type: {
+            name: string;
+          };
+          amount: string;
+          deposit_id: string;
+        };
+
+        messages.push({
+          data: {
+            chainId,
+            transactionId,
+          },
+          result: {
+            onchainId,
+            depository,
+            depositId: Buffer.from(typedEvent.deposit_id).toString("hex"),
+            depositor: typedEvent.from,
+            currency: typedEvent.coin_type.name,
+            amount: typedEvent.amount.toString(),
+          },
+          extraData: {
+            timestamp: transaction.timestampMs,
+          },
+        });
+      }
+    }
+
+    return messages;
   }
 
   public async getDepositoryWithdrawalMessage(
@@ -228,79 +256,5 @@ export class SuiVmAttestor extends VmAttestor {
     _extraData: string
   ): Promise<boolean> {
     throw internalError("Not implemented");
-  }
-
-  private parseTransactionLogs(
-    chainId: string,
-    transactionId: string,
-    events: SuiEvent[],
-    depository: string
-  ): DepositoryDepositMessage[] {
-    const messages: DepositoryDepositMessage[] = [];
-
-    let messageIndex = 0;
-    for (const event of events) {
-      const message = this.createMessageFromEvent(
-        event,
-        chainId,
-        transactionId,
-        messageIndex++,
-        depository
-      );
-      if (message) {
-        messages.push(message);
-      }
-    }
-
-    return messages;
-  }
-
-  private createMessageFromEvent(
-    event: SuiEvent,
-    chainId: string,
-    transactionId: string,
-    messageIndex: number,
-    depository: string
-  ): DepositoryDepositMessage | undefined {
-    const onchainId = getOnchainId(
-      chainId,
-      transactionId,
-      messageIndex.toString()
-    );
-
-    const input = {
-      chainId,
-      transactionId,
-    };
-
-    if (event.type.includes("DepositEvent")) {
-      return this.createDepositMessage(
-        event.parsedJson as DepositEventData,
-        onchainId,
-        input,
-        depository
-      );
-    } else {
-      return undefined;
-    }
-  }
-
-  private createDepositMessage(
-    event: DepositEventData,
-    onchainId: string,
-    data: { chainId: string; transactionId: string },
-    depository: string
-  ): DepositoryDepositMessage {
-    return {
-      data,
-      result: {
-        onchainId,
-        depository,
-        depositId: Buffer.from(event.deposit_id).toString("hex"),
-        depositor: event.from,
-        currency: event.coin_type.name,
-        amount: event.amount.toString(),
-      },
-    };
   }
 }

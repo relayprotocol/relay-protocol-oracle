@@ -3,7 +3,6 @@ import { BorshInstructionCoder, Idl, Program } from "@coral-xyz/anchor";
 import {
   DecodedSolanaVmWithdrawal,
   decodeWithdrawal,
-  DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
@@ -19,8 +18,8 @@ import {
 import bs58 from "bs58";
 
 import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
-import { getOnchainId } from "../utils";
-import { VmAttestor } from "../../vm/types";
+import { getDeterministicId } from "../utils";
+import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
@@ -38,20 +37,10 @@ export class SolanaVmAttestor extends VmAttestor {
     );
   }
 
-  /**
-   * Get depository deposit messages from a transaction.
-   *
-   * This function first tries to parse events from logs. If log parsing fails or logs are truncated,
-   * it tries parsing from instructions.
-   *
-   * @param chainId The ID of the chain.
-   * @param transactionId The ID of the transaction.
-   * @returns A list of depository deposit messages.
-   */
   public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string
-  ): Promise<DepositoryDepositMessage[]> {
+  ): Promise<EnhancedDepositoryDepositMessage[]> {
     const rpc = await httpRpc(chainId, "finalized");
 
     const transaction = await rpc.getTransaction(transactionId, {
@@ -63,19 +52,27 @@ export class SolanaVmAttestor extends VmAttestor {
       return [];
     }
 
+    // Get the timestamp of the transaction
+    const timestamp = await rpc
+      .getBlock(transaction.slot)
+      .then((b) => b?.blockTime);
+    if (!timestamp) {
+      throw externalError("Could not fetch the timestamp of the transaction");
+    }
+
     const chain = await getChain(chainId);
     const depository = chain.depository;
     if (!depository) {
       throw externalError("Chain has no depository configured");
     }
 
-    const messages: DepositoryDepositMessage[] = [];
-
     const { instructions, accountKeys } =
       await this._extractInstructionsAndKeys(transaction, rpc);
     if (!instructions.length) {
-      return messages;
+      return [];
     }
+
+    const messages: EnhancedDepositoryDepositMessage[] = [];
 
     // Iterate through all instructions, looking for calls to the depository contract
     for (let i = 0; i < instructions.length; i++) {
@@ -104,7 +101,11 @@ export class SolanaVmAttestor extends VmAttestor {
           // Third account in "DepositToken" struct is the depositor
           const depositor = accountKeys[depositorIndex].toBase58();
 
-          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          const onchainId = getDeterministicId(
+            chainId,
+            transactionId,
+            i.toString()
+          );
           messages.push({
             data: {
               chainId,
@@ -117,6 +118,9 @@ export class SolanaVmAttestor extends VmAttestor {
               depositor,
               currency: getVmTypeNativeCurrency(VM_TYPE),
               amount: amount.toString(),
+            },
+            extraData: {
+              timestamp: String(timestamp),
             },
           });
         } else if (decodedInstruction.name === "deposit_token") {
@@ -136,7 +140,11 @@ export class SolanaVmAttestor extends VmAttestor {
           const depositor = accountKeys[depositorIndex].toBase58();
           const mint = accountKeys[mintIndex].toBase58();
 
-          const onchainId = getOnchainId(chainId, transactionId, i.toString());
+          const onchainId = getDeterministicId(
+            chainId,
+            transactionId,
+            i.toString()
+          );
           messages.push({
             data: {
               chainId,
@@ -149,6 +157,9 @@ export class SolanaVmAttestor extends VmAttestor {
               depositor,
               currency: mint,
               amount: amount.toString(),
+            },
+            extraData: {
+              timestamp: String(timestamp),
             },
           });
         }

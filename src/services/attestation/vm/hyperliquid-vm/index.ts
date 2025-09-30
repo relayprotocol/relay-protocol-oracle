@@ -1,12 +1,11 @@
 import * as hl from "@nktkas/hyperliquid";
 import {
-  DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
   getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
 import { Hex, parseUnits } from "viem";
 
-import { VmAttestor } from "../../vm/types";
+import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/hyperliquid-vm/rpc";
 
@@ -16,7 +15,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     _chainId: string,
     _transactionId: string
-  ): Promise<DepositoryDepositMessage[]> {
+  ): Promise<EnhancedDepositoryDepositMessage[]> {
     throw internalError("Not implemented (getDepositoryDepositMessages)");
   }
 

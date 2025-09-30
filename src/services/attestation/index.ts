@@ -1,6 +1,10 @@
 import {
+  ActionType,
   DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
+  DepositoryWithdrawalStatus,
+  encodeAction,
+  ExecutionMessage,
   getOrderId,
   Order,
   SolverFillMessage,
@@ -8,45 +12,159 @@ import {
   SolverRefundMessage,
   SolverRefundStatus,
 } from "@reservoir0x/relay-protocol-sdk";
-import { Address, Hex, verifyMessage } from "viem";
+import {
+  Address,
+  encodePacked,
+  Hex,
+  keccak256,
+  maxUint256,
+  verifyMessage,
+  zeroHash,
+} from "viem";
 
 import { getVmAttestor } from "./vm";
-import { getSdkChainsConfig } from "../../common/chains";
+import { EnhancedDepositoryDepositMessage } from "./vm/types";
+import { getDeterministicId } from "./vm/utils";
+import {
+  getChainHubChainId,
+  getChainVmType,
+  getSdkChainsConfig,
+  HUB_CHAIN_ID,
+  HUB_VM_TYPE,
+} from "../../common/chains";
 import { externalError } from "../../common/error";
 
 export class AttestationService {
   public async attestDepositoryDeposits(
-    data: DepositoryDepositMessage["data"]
-  ): Promise<DepositoryDepositMessage[]> {
-    return getVmAttestor(data.chainId).then((attestor) =>
+    data: DepositoryDepositMessage["data"] & {
+      includeOnchainHubExecution?: boolean;
+    }
+  ): Promise<{
+    messages: DepositoryDepositMessage[];
+    execution?: ExecutionMessage;
+  }> {
+    const messages = await getVmAttestor(data.chainId).then((attestor) =>
       attestor.getDepositoryDepositMessages(data.chainId, data.transactionId)
     );
+
+    // Generate onchain hub execution
+    let execution: ExecutionMessage | undefined;
+    if (data.includeOnchainHubExecution) {
+      execution = !messages.length
+        ? undefined
+        : {
+            idempotencyKey: getDeterministicId(
+              data.chainId,
+              data.transactionId
+            ),
+            actions: await Promise.all(
+              messages.map(async (m) => {
+                // Mint to depositor
+                const results = [
+                  encodeAction({
+                    type: ActionType.MINT,
+                    data: {
+                      currencyVmType: await getChainVmType(m.data.chainId),
+                      currencyChainId: await getChainHubChainId(m.data.chainId),
+                      currency: m.result.currency,
+                      toVmType: await getChainVmType(m.data.chainId),
+                      toChainId: await getChainHubChainId(m.data.chainId),
+                      to: m.result.depositor,
+                      amount: m.result.amount,
+                    },
+                  }),
+                ];
+
+                // Transfer from depositor to order
+                if (m.result.depositId !== zeroHash) {
+                  results.push(
+                    encodeAction({
+                      type: ActionType.TRANSFER,
+                      data: {
+                        currencyVmType: await getChainVmType(m.data.chainId),
+                        currencyChainId: await getChainHubChainId(
+                          m.data.chainId
+                        ),
+                        currency: m.result.currency,
+                        fromVmType: await getChainVmType(m.data.chainId),
+                        fromChainId: await getChainHubChainId(m.data.chainId),
+                        from: m.result.depositor,
+                        toVmType: HUB_VM_TYPE,
+                        toChainId: HUB_CHAIN_ID,
+                        to: await this._getOrderAddress({
+                          chainId: m.data.chainId,
+                          timestamp: m.extraData.timestamp,
+                          depositor: m.result.depositor,
+                          depositId: m.result.depositId,
+                        }),
+                        amount: m.result.amount,
+                      },
+                    })
+                  );
+                }
+
+                return results;
+              })
+            ).then((r) => r.flat()),
+          };
+    }
+
+    return {
+      messages,
+      execution,
+    };
   }
 
   public async attestDepositoryWithdrawal(
-    data: DepositoryWithdrawalMessage["data"]
-  ): Promise<DepositoryWithdrawalMessage> {
-    return getVmAttestor(data.chainId).then((attestor) =>
+    data: DepositoryWithdrawalMessage["data"] & {
+      includeOnchainHubExecution?: boolean;
+    }
+  ): Promise<{
+    message: DepositoryWithdrawalMessage;
+    execution?: ExecutionMessage;
+  }> {
+    const message = await getVmAttestor(data.chainId).then((attestor) =>
       attestor.getDepositoryWithdrawalMessage(data.chainId, data.withdrawal)
     );
+
+    // Generate onchain hub execution
+    let execution: ExecutionMessage | undefined;
+    if (data.includeOnchainHubExecution) {
+      if (message.result.status === DepositoryWithdrawalStatus.EXECUTED) {
+        // TODO: Burn from withdrawal
+      } else if (message.result.status === DepositoryWithdrawalStatus.EXPIRED) {
+        // TODO: Transfer from withdrawal to depositor
+      }
+    }
+
+    return {
+      message,
+      execution,
+    };
   }
 
   public async attestSolverFill(
-    data: SolverFillMessage["data"] & { force?: boolean }
-  ): Promise<SolverFillMessage> {
+    data: SolverFillMessage["data"] & {
+      force?: boolean;
+      includeOnchainHubExecution?: boolean;
+    }
+  ): Promise<{ message: SolverFillMessage; execution?: ExecutionMessage }> {
     if (data.force) {
+      // TODO: Return execution for forced attestations
       return {
-        data,
-        result: {
-          orderId: getOrderId(data.order, await getSdkChainsConfig()),
-          status: SolverFillStatus.SUCCESSFUL,
-          totalWeightedInputPaymentBpsDiff: "0",
+        message: {
+          data,
+          result: {
+            orderId: getOrderId(data.order, await getSdkChainsConfig()),
+            status: SolverFillStatus.SUCCESSFUL,
+            totalWeightedInputPaymentBpsDiff: "0",
+          },
         },
       };
     }
 
-    const totalWeightedInputPaymentBpsDiff =
-      await this._getTotalWeightedInputPaymentBpsDiff(data);
+    const { totalWeightedInputPaymentBpsDiff, depositoryDeposits } =
+      await this._getDepositsDetails(data);
 
     const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
@@ -99,32 +217,48 @@ export class AttestationService {
     }
 
     return {
-      data,
-      result: {
-        orderId: getOrderId(data.order, await getSdkChainsConfig()),
-        status: SolverFillStatus.SUCCESSFUL,
-        totalWeightedInputPaymentBpsDiff:
-          totalWeightedInputPaymentBpsDiff.toString(),
+      message: {
+        data,
+        result: {
+          orderId: getOrderId(data.order, await getSdkChainsConfig()),
+          status: SolverFillStatus.SUCCESSFUL,
+          totalWeightedInputPaymentBpsDiff:
+            totalWeightedInputPaymentBpsDiff.toString(),
+        },
       },
+      execution: data.includeOnchainHubExecution
+        ? await this._getSolverFillOrRefundExecution({
+            order: data.order,
+            totalWeightedInputPaymentBpsDiff,
+            depositoryDeposits,
+            type: "fill",
+          })
+        : undefined,
     };
   }
 
   public async attestSolverRefund(
-    data: SolverRefundMessage["data"] & { force?: boolean }
-  ): Promise<SolverRefundMessage> {
+    data: SolverRefundMessage["data"] & {
+      force?: boolean;
+      includeOnchainHubExecution?: boolean;
+    }
+  ): Promise<{ message: SolverRefundMessage; execution?: ExecutionMessage }> {
     if (data.force) {
+      // TODO: Return execution for forced attestations
       return {
-        data,
-        result: {
-          orderId: getOrderId(data.order, await getSdkChainsConfig()),
-          status: SolverRefundStatus.SUCCESSFUL,
-          totalWeightedInputPaymentBpsDiff: "0",
+        message: {
+          data,
+          result: {
+            orderId: getOrderId(data.order, await getSdkChainsConfig()),
+            status: SolverRefundStatus.SUCCESSFUL,
+            totalWeightedInputPaymentBpsDiff: "0",
+          },
         },
       };
     }
 
-    const totalWeightedInputPaymentBpsDiff =
-      await this._getTotalWeightedInputPaymentBpsDiff(data);
+    const { totalWeightedInputPaymentBpsDiff, depositoryDeposits } =
+      await this._getDepositsDetails(data);
 
     const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
@@ -170,31 +304,39 @@ export class AttestationService {
       );
 
       // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
-      if (
-        paidAmount <
+      const minimumAmount =
         BigInt(orderRefund.minimumAmount) +
-          (BigInt(orderRefund.minimumAmount) *
-            totalWeightedInputPaymentBpsDiff) /
-            10n ** 18n
-      ) {
+        (BigInt(orderRefund.minimumAmount) * totalWeightedInputPaymentBpsDiff) /
+          10n ** 18n;
+      if (paidAmount < minimumAmount) {
         throw externalError(
-          `Insufficient refund amount for order input payment ${inputPaymentIndex}`
+          `Insufficient refund amount for order input payment ${inputPaymentIndex} (paidAmount=${paidAmount}, minimumAmount=${minimumAmount})`
         );
       }
     }
 
     return {
-      data,
-      result: {
-        orderId: getOrderId(data.order, await getSdkChainsConfig()),
-        status: SolverRefundStatus.SUCCESSFUL,
-        totalWeightedInputPaymentBpsDiff:
-          totalWeightedInputPaymentBpsDiff.toString(),
+      message: {
+        data,
+        result: {
+          orderId: getOrderId(data.order, await getSdkChainsConfig()),
+          status: SolverRefundStatus.SUCCESSFUL,
+          totalWeightedInputPaymentBpsDiff:
+            totalWeightedInputPaymentBpsDiff.toString(),
+        },
       },
+      execution: data.includeOnchainHubExecution
+        ? await this._getSolverFillOrRefundExecution({
+            order: data.order,
+            totalWeightedInputPaymentBpsDiff,
+            depositoryDeposits,
+            type: "refund",
+          })
+        : undefined,
     };
   }
 
-  private async _getTotalWeightedInputPaymentBpsDiff(data: {
+  private async _getDepositsDetails(data: {
     order: Order;
     orderSignature: string;
     inputs: {
@@ -202,7 +344,10 @@ export class AttestationService {
       onchainId: string;
       inputIndex: number;
     }[];
-  }) {
+  }): Promise<{
+    totalWeightedInputPaymentBpsDiff: bigint;
+    depositoryDeposits: EnhancedDepositoryDepositMessage[];
+  }> {
     // Ensure every input specifies a unique onchain id
     if (
       new Set(data.inputs.map((input) => input.onchainId)).size !==
@@ -211,7 +356,7 @@ export class AttestationService {
       throw externalError("Input information contains non-unique onchain ids");
     }
 
-    // Get the order hash
+    // Get the order id
     const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the order signature
@@ -228,6 +373,7 @@ export class AttestationService {
 
     // Verify the inputs
     let totalWeightedPaidAmount = 0n;
+    const depositoryDeposits: EnhancedDepositoryDepositMessage[] = [];
     {
       for (
         let inputPaymentIndex = 0;
@@ -247,16 +393,22 @@ export class AttestationService {
         }
 
         // Get the depository deposit corresponding to the current order input payment
-        const depositoryDeposit = await this.attestDepositoryDeposits({
-          chainId: orderInput.payment.chainId,
-          transactionId: inputInformation.transactionId,
-        }).then((depositoryDeposits) =>
-          depositoryDeposits.find(
-            (d) =>
-              d.result.depositId === orderId &&
-              d.result.onchainId === inputInformation.onchainId
+        const depositoryDeposit = await getVmAttestor(
+          orderInput.payment.chainId
+        )
+          .then((attestor) =>
+            attestor.getDepositoryDepositMessages(
+              orderInput.payment.chainId,
+              inputInformation.transactionId
+            )
           )
-        );
+          .then((depositoryDeposits) =>
+            depositoryDeposits.find(
+              (d) =>
+                d.result.depositId === orderId &&
+                d.result.onchainId === inputInformation.onchainId
+            )
+          );
         if (!depositoryDeposit) {
           throw externalError(
             `Invalid input information for order input payment ${inputPaymentIndex}`
@@ -267,6 +419,9 @@ export class AttestationService {
         totalWeightedPaidAmount +=
           BigInt(depositoryDeposit.result.amount) *
           BigInt(orderInput.payment.weight);
+
+        // Save the corresponding deposit
+        depositoryDeposits.push(depositoryDeposit);
       }
     }
 
@@ -280,6 +435,103 @@ export class AttestationService {
       ((totalWeightedPaidAmount - totalWeightedRequestedAmount) * 10n ** 18n) /
       totalWeightedRequestedAmount;
 
-    return totalWeightedInputPaymentBpsDiff;
+    return {
+      totalWeightedInputPaymentBpsDiff,
+      depositoryDeposits,
+    };
+  }
+
+  private async _getOrderAddress(data: {
+    chainId: string;
+    timestamp: string;
+    depositor: string;
+    depositId: string;
+  }): Promise<string> {
+    return keccak256(
+      encodePacked(
+        [
+          { type: "string" },
+          { type: "uint256" },
+          { type: "uint256" },
+          { type: "string" },
+          { type: "bytes32" },
+        ],
+        [
+          await getChainVmType(data.chainId),
+          BigInt(await getChainHubChainId(data.chainId)),
+          BigInt(data.timestamp),
+          data.depositor,
+          data.depositId as Hex,
+        ]
+      )
+    );
+  }
+
+  private async _getSolverFillOrRefundExecution(data: {
+    order: Order;
+    totalWeightedInputPaymentBpsDiff: bigint;
+    depositoryDeposits: EnhancedDepositoryDepositMessage[];
+    type: "fill" | "refund";
+  }): Promise<ExecutionMessage> {
+    const actions: string[] = [];
+
+    // Transfer from order to solver
+    for (const deposit of data.depositoryDeposits) {
+      actions.push(
+        encodeAction({
+          type: ActionType.TRANSFER,
+          data: {
+            currencyVmType: await getChainVmType(deposit.data.chainId),
+            currencyChainId: await getChainHubChainId(deposit.data.chainId),
+            currency: deposit.result.currency,
+            fromVmType: HUB_VM_TYPE,
+            fromChainId: HUB_CHAIN_ID,
+            from: await this._getOrderAddress({
+              chainId: deposit.data.chainId,
+              timestamp: deposit.extraData.timestamp,
+              depositor: deposit.result.depositor,
+              depositId: deposit.result.depositor,
+            }),
+            toVmType: await getChainVmType(data.order.solverChainId),
+            toChainId: await getChainHubChainId(data.order.solverChainId),
+            to: data.order.solver,
+            amount: maxUint256.toString(),
+          },
+        })
+      );
+    }
+
+    // Only when the solver filled, transfer from solver to fee recipients
+    if (data.type === "fill") {
+      for (const fee of data.order.fees) {
+        actions.push(
+          encodeAction({
+            type: ActionType.TRANSFER,
+            data: {
+              currencyVmType: await getChainVmType(fee.currencyChainId),
+              currencyChainId: await getChainHubChainId(fee.currencyChainId),
+              currency: fee.currency,
+              fromVmType: await getChainVmType(data.order.solverChainId),
+              fromChainId: await getChainHubChainId(data.order.solverChainId),
+              from: data.order.solver,
+              toVmType: await getChainVmType(fee.recipientChainId),
+              toChainId: await getChainHubChainId(fee.recipientChainId),
+              to: fee.recipient,
+              amount: String(
+                BigInt(fee.amount) +
+                  (BigInt(fee.amount) *
+                    BigInt(data.totalWeightedInputPaymentBpsDiff)) /
+                    10n ** 18n
+              ),
+            },
+          })
+        );
+      }
+    }
+
+    return {
+      idempotencyKey: getOrderId(data.order, await getSdkChainsConfig()),
+      actions,
+    };
   }
 }

@@ -485,10 +485,11 @@ describe("EthereumVmAttestor", () => {
       getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0];
@@ -538,10 +539,11 @@ describe("EthereumVmAttestor", () => {
       getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0];
@@ -587,10 +589,11 @@ describe("EthereumVmAttestor", () => {
       getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0];
@@ -641,10 +644,11 @@ describe("EthereumVmAttestor", () => {
       getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0];
@@ -693,10 +697,11 @@ describe("EthereumVmAttestor", () => {
       getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0];
@@ -748,10 +753,11 @@ describe("EthereumVmAttestor", () => {
       getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0];
@@ -802,10 +808,11 @@ describe("EthereumVmAttestor", () => {
       getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0];
@@ -847,10 +854,11 @@ describe("EthereumVmAttestor", () => {
       getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0];
@@ -891,10 +899,11 @@ describe("EthereumVmAttestor", () => {
       getTransactionReceipt: async () => transactionReceipt,
     }));
 
-    const messages = await new AttestationService().attestDepositoryDeposits({
-      chainId: chain.id,
-      transactionId: transactionHash,
-    });
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
     expect(messages.length === 1).toBeTruthy();
 
     const msg = messages[0];
@@ -935,10 +944,11 @@ describe("EthereumVmAttestor", () => {
       },
     }));
 
-    const message = await new AttestationService().attestDepositoryWithdrawal({
-      chainId: chain.id,
-      withdrawal: encodeWithdrawal(decodedWithdrawal),
-    });
+    const { message } =
+      await new AttestationService().attestDepositoryWithdrawal({
+        chainId: chain.id,
+        withdrawal: encodeWithdrawal(decodedWithdrawal),
+      });
     expect(message.result.depository).toEqual(chain.depository);
     expect(message.result.status).toEqual(DepositoryWithdrawalStatus.EXECUTED);
   });
@@ -975,10 +985,11 @@ describe("EthereumVmAttestor", () => {
       }),
     }));
 
-    const message = await new AttestationService().attestDepositoryWithdrawal({
-      chainId: chain.id,
-      withdrawal: encodeWithdrawal(decodedWithdrawal),
-    });
+    const { message } =
+      await new AttestationService().attestDepositoryWithdrawal({
+        chainId: chain.id,
+        withdrawal: encodeWithdrawal(decodedWithdrawal),
+      });
     expect(message.result.depository).toEqual(chain.depository);
     expect(message.result.status).toEqual(DepositoryWithdrawalStatus.EXPIRED);
   });
@@ -1015,10 +1026,11 @@ describe("EthereumVmAttestor", () => {
       }),
     }));
 
-    const message = await new AttestationService().attestDepositoryWithdrawal({
-      chainId: chain.id,
-      withdrawal: encodeWithdrawal(decodedWithdrawal),
-    });
+    const { message } =
+      await new AttestationService().attestDepositoryWithdrawal({
+        chainId: chain.id,
+        withdrawal: encodeWithdrawal(decodedWithdrawal),
+      });
     expect(message.result.depository).toEqual(chain.depository);
     expect(message.result.status).toEqual(DepositoryWithdrawalStatus.PENDING);
   });
@@ -1245,11 +1257,12 @@ const setupTestEnvironment = async (
   });
 
   // Get depository deposits
-  const depositoryDeposits =
-    await new AttestationService().attestDepositoryDeposits({
+  const depositoryDeposits = await new AttestationService()
+    .attestDepositoryDeposits({
       chainId: testData.chain.id,
       transactionId: depositTxHash,
-    });
+    })
+    .then((d) => d.messages);
 
   // Create inputs array
   const inputs = options.duplicateOnchainIds
@@ -1327,8 +1340,12 @@ const testAttestSolverFill = async (options: {
       },
     });
 
-    expect(solverFillResult.result.status).toBe(SolverFillStatus.SUCCESSFUL);
-    expect(solverFillResult.result.totalWeightedInputPaymentBpsDiff).toBe("0");
+    expect(solverFillResult.message.result.status).toBe(
+      SolverFillStatus.SUCCESSFUL
+    );
+    expect(
+      solverFillResult.message.result.totalWeightedInputPaymentBpsDiff
+    ).toBe("0");
     return solverFillResult;
   }
 };
@@ -1382,12 +1399,12 @@ const testAttestSolverRefund = async (options: {
         ],
       });
 
-    expect(solverRefundResult.result.status).toBe(
+    expect(solverRefundResult.message.result.status).toBe(
       SolverRefundStatus.SUCCESSFUL
     );
-    expect(solverRefundResult.result.totalWeightedInputPaymentBpsDiff).toBe(
-      "0"
-    );
+    expect(
+      solverRefundResult.message.result.totalWeightedInputPaymentBpsDiff
+    ).toBe("0");
     return solverRefundResult;
   }
 };
