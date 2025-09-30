@@ -54,7 +54,11 @@ export class SolanaVmAttestor extends VmAttestor {
 
     // Get the timestamp of the transaction
     const timestamp = await rpc
-      .getBlock(transaction.slot)
+      .getBlock(transaction.slot, {
+        maxSupportedTransactionVersion: 0,
+        // Ensure the block is finalized
+        commitment: "finalized",
+      })
       .then((b) => b?.blockTime);
     if (!timestamp) {
       throw externalError("Could not fetch the timestamp of the transaction");
