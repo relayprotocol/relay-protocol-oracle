@@ -29,6 +29,7 @@ export const getChains = async () => {
         vmType: readConfigValue(chain.vmType),
         httpRpcUrl: readConfigValue(chain.httpRpcUrl),
         depository: readConfigValue(chain.depository),
+        hubChainId: readConfigValue(chain.hubChainId),
         additionalData: readConfigValue(chain.additionalData),
       };
     }
