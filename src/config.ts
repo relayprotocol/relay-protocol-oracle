@@ -10,6 +10,6 @@ export const config = {
         })
       )
     : undefined,
-  onChainOracleAddress: process.env.ON_CHAIN_ORACLE_ADDRESS!,
+  onChainOracleAddress: process.env.ON_CHAIN_ORACLE_CONTRACT_ADDRESS!,
   onChainOracleChainId: process.env.ON_CHAIN_ORACLE_CHAIN_ID!,
 };
