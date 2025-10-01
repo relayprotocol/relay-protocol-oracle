@@ -30,7 +30,7 @@ const getOracleWallet = () => {
 const signExecutionEIP712 = async (idempotencyKey: Hex, actions: Hex[]) =>
 {
   const oracleWallet = getOracleWallet();
-  oracleWallet.signTypedData({
+  const signature = await oracleWallet.signTypedData({
     domain: {
       chainId: BigInt(config.onChainOracleChainId),
       name: 'RelayOracle',
@@ -54,7 +54,12 @@ const signExecutionEIP712 = async (idempotencyKey: Hex, actions: Hex[]) =>
         },
       ],
     },
-  })
+  });
+
+  return {
+    oracle: oracleWallet.account.address.toLowerCase(),
+    signature,
+  };
 }
 
 const sign = async (data: Hex) => {
