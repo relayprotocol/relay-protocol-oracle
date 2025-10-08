@@ -484,7 +484,7 @@ export class AttestationService {
               chainId: deposit.data.chainId,
               timestamp: deposit.extraData.timestamp,
               depositor: deposit.result.depositor,
-              depositId: deposit.result.depositor,
+              depositId: deposit.result.depositId,
             }),
             toVmType: await getChainVmType(data.order.solverChainId),
             toChainId: await getChainHubChainId(data.order.solverChainId),
