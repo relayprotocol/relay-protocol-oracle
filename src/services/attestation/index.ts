@@ -473,7 +473,7 @@ export class AttestationService {
     // Transfer from order to solver
     for (const deposit of data.depositoryDeposits) {
       logger.info(
-        "debug",
+        "debug bytes32 bytes20 error",
         JSON.stringify({
           msg: "Debug",
           params: {
