@@ -71,10 +71,7 @@ jobs:
         env:
           DEVOPSBOT_GPG_PRIVATE_KEY: ${{ secrets.DEVOPSBOT_GPG_PRIVATE_KEY }}
         run: |
-          ./utils/version_update.sh \
-            ./dev/platform/relay-protocol-oracle.yaml \
-            ${{ github.sha }} \
-            relay-protocol-oracle
+          ./utils/version_update_batch.sh relay-protocol-oracle ${{ github.sha }} $(grep -rl 'application: relay-protocol-oracle' dev/platform/ | tr '\n' ' ')
 
   deploy-production:
     name: Deploy to Production
@@ -96,7 +93,4 @@ jobs:
         env:
           DEVOPSBOT_GPG_PRIVATE_KEY: ${{ secrets.DEVOPSBOT_GPG_PRIVATE_KEY }}
         run: |
-          ./utils/version_update.sh \
-            ./prod/platform/relay-protocol-oracle.yaml \
-            ${{ github.sha }} \
-            relay-protocol-oracle
+          ./utils/version_update_batch.sh relay-protocol-oracle ${{ github.sha }} $(grep -rl 'application: relay-protocol-oracle' prod/platform/ | tr '\n' ' ')
