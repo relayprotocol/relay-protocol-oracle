@@ -472,18 +472,6 @@ export class AttestationService {
 
     // Transfer from order to solver
     for (const deposit of data.depositoryDeposits) {
-      logger.info(
-        "debug",
-        JSON.stringify({
-          msg: "Debug",
-          params: {
-            chainId: deposit.data.chainId,
-            timestamp: deposit.extraData.timestamp,
-            depositor: deposit.result.depositor,
-            depositId: deposit.result.depositId,
-          },
-        })
-      );
       actions.push(
         encodeAction({
           type: ActionType.TRANSFER,
