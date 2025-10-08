@@ -33,7 +33,6 @@ import {
   HUB_VM_TYPE,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
-import { logger } from "../../common/logger";
 
 export class AttestationService {
   public async attestDepositoryDeposits(
