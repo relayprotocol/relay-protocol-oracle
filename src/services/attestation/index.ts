@@ -78,18 +78,6 @@ export class AttestationService {
 
                 // Transfer from depositor to order
                 if (m.result.depositId !== zeroHash) {
-                  logger.info(
-                    "debug",
-                    JSON.stringify({
-                      msg: "Debug",
-                      params: {
-                        chainId: m.data.chainId,
-                        timestamp: m.extraData.timestamp,
-                        depositor: m.result.depositor,
-                        depositId: m.result.depositId,
-                      },
-                    })
-                  );
                   results.push(
                     encodeAction({
                       type: ActionType.TRANSFER,
@@ -484,6 +472,18 @@ export class AttestationService {
 
     // Transfer from order to solver
     for (const deposit of data.depositoryDeposits) {
+      logger.info(
+        "debug",
+        JSON.stringify({
+          msg: "Debug",
+          params: {
+            chainId: deposit.data.chainId,
+            timestamp: deposit.extraData.timestamp,
+            depositor: deposit.result.depositor,
+            depositId: deposit.result.depositId,
+          },
+        })
+      );
       actions.push(
         encodeAction({
           type: ActionType.TRANSFER,
