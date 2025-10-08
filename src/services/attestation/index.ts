@@ -33,6 +33,7 @@ import {
   HUB_VM_TYPE,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
+import { logger } from "../../common/logger";
 
 export class AttestationService {
   public async attestDepositoryDeposits(
@@ -77,6 +78,18 @@ export class AttestationService {
 
                 // Transfer from depositor to order
                 if (m.result.depositId !== zeroHash) {
+                  logger.info(
+                    "debug",
+                    JSON.stringify({
+                      msg: "Debug",
+                      params: {
+                        chainId: m.data.chainId,
+                        timestamp: m.extraData.timestamp,
+                        depositor: m.result.depositor,
+                        depositId: m.result.depositId,
+                      },
+                    })
+                  );
                   results.push(
                     encodeAction({
                       type: ActionType.TRANSFER,
