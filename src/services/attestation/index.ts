@@ -59,7 +59,7 @@ export class AttestationService {
             ),
             actions: await Promise.all(
               messages.map(async (m) => {
-                // Mint to depositor
+                // Mint directyl to order
                 const results = [
                   encodeAction({
                     type: ActionType.MINT,
@@ -67,42 +67,18 @@ export class AttestationService {
                       currencyVmType: await getChainVmType(m.data.chainId),
                       currencyChainId: await getChainHubChainId(m.data.chainId),
                       currency: m.result.currency,
-                      toVmType: await getChainVmType(m.data.chainId),
-                      toChainId: await getChainHubChainId(m.data.chainId),
-                      to: m.result.depositor,
+                      toVmType: HUB_VM_TYPE,
+                      toChainId: HUB_CHAIN_ID,
+                      to: await this._getOrderAddress({
+                        chainId: m.data.chainId,
+                        timestamp: m.extraData.timestamp,
+                        depositor: m.result.depositor,
+                        depositId: m.result.depositId,
+                      }),
                       amount: m.result.amount,
                     },
                   }),
                 ];
-
-                // Transfer from depositor to order
-                if (m.result.depositId !== zeroHash) {
-                  results.push(
-                    encodeAction({
-                      type: ActionType.TRANSFER,
-                      data: {
-                        currencyVmType: await getChainVmType(m.data.chainId),
-                        currencyChainId: await getChainHubChainId(
-                          m.data.chainId
-                        ),
-                        currency: m.result.currency,
-                        fromVmType: await getChainVmType(m.data.chainId),
-                        fromChainId: await getChainHubChainId(m.data.chainId),
-                        from: m.result.depositor,
-                        toVmType: HUB_VM_TYPE,
-                        toChainId: HUB_CHAIN_ID,
-                        to: await this._getOrderAddress({
-                          chainId: m.data.chainId,
-                          timestamp: m.extraData.timestamp,
-                          depositor: m.result.depositor,
-                          depositId: m.result.depositId,
-                        }),
-                        amount: m.result.amount,
-                      },
-                    })
-                  );
-                }
-
                 return results;
               })
             ).then((r) => r.flat()),
