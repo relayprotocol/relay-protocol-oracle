@@ -17,6 +17,7 @@ export const httpRpc = async (chainId: string) => {
         rpc: chain.httpRpcUrl.replace("api.", "rpc."),
       },
     },
+    timeout: 5000,
   });
 
   return new hl.InfoClient({ transport });
