@@ -69,12 +69,15 @@ export class AttestationService {
                       currency: m.result.currency,
                       toVmType: HUB_VM_TYPE,
                       toChainId: HUB_CHAIN_ID,
-                      to: await this._getOrderAddress({
-                        chainId: m.data.chainId,
-                        timestamp: m.extraData.timestamp,
-                        depositor: m.result.depositor,
-                        depositId: m.result.depositId,
-                      }),
+                      to: m.result.depositId !== zeroHash ? 
+                        await this._getOrderAddress({
+                          chainId: m.data.chainId,
+                          timestamp: m.extraData.timestamp,
+                          depositor: m.result.depositor,
+                          depositId: m.result.depositId,
+                        }) 
+                        : 
+                        m.result.depositor,
                       amount: m.result.amount,
                     },
                   }),
