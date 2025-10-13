@@ -59,7 +59,7 @@ export class AttestationService {
             ),
             actions: await Promise.all(
               messages.map(async (m) => {
-                // Mint directyl to order
+                // Mint directly to order
                 const results = [
                   encodeAction({
                     type: ActionType.MINT,
