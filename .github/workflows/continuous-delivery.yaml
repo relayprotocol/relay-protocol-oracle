@@ -5,7 +5,7 @@ on:
     branches: [main, staging]
 
 env:
-  NODE_VERSION: "23.x"
+  NODE_VERSION: "24.x"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:

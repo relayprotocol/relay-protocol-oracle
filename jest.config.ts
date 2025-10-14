@@ -9,8 +9,10 @@ const config: Config = {
   verbose: true,
 
   transform: {
-    "^.+\\.ts?$": "ts-jest",
+    "^.+\\.(t|j)s?$": "ts-jest",
   },
+
+  transformIgnorePatterns: ["node_modules/(?!(@nktkas/hyperliquid|@noble)/)"],
 
   // globalSetup: "./test/setup.ts",
 };
