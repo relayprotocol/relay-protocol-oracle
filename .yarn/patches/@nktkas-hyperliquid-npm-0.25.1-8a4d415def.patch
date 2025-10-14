@@ -1,0 +1,1017 @@
+diff --git a/script/src/signing/mod.js b/script/src/signing/mod.js
+index 989bc87aea748bf0415d3fac85587e1298ac35f0..b28103882a0088fed2da12a5273e34d2e6f76ea2 100644
+--- a/script/src/signing/mod.js
++++ b/script/src/signing/mod.js
+@@ -2,120 +2,6 @@
+ /**
+  * This module contains functions for generating Hyperliquid transaction signatures.
+  *
+- * @example Signing an L1 action
+- * ```ts
+- * import { signL1Action } from "@nktkas/hyperliquid/signing";
+- * import { CancelRequest, parser } from "@nktkas/hyperliquid/api/exchange";
+- * import { privateKeyToAccount } from "npm:viem/accounts";
+- *
+- * const wallet = privateKeyToAccount("0x..."); // viem or ethers
+- *
+- * const action = parser(CancelRequest.entries.action)({ // for correct signature generation
+- *   type: "cancel",
+- *   cancels: [
+- *     { a: 0, o: 12345 },
+- *   ],
+- * });
+- * const nonce = Date.now();
+- *
+- * const signature = await signL1Action({ wallet, action, nonce });
+- *
+- * // Send the signed action to the Hyperliquid API
+- * const response = await fetch("https://api.hyperliquid.xyz/exchange", {
+- *   method: "POST",
+- *   headers: { "Content-Type": "application/json" },
+- *   body: JSON.stringify({ action, signature, nonce }),
+- * });
+- * const body = await response.json();
+- * ```
+- *
+- * @example Signing a user-signed action
+- * ```ts
+- * import { signUserSignedAction } from "@nktkas/hyperliquid/signing";
+- * import { ApproveAgentRequest, ApproveAgentTypes, parser } from "@nktkas/hyperliquid/api/exchange";
+- * import { privateKeyToAccount } from "npm:viem/accounts";
+- *
+- * const wallet = privateKeyToAccount("0x..."); // viem or ethers
+- *
+- * const action = parser(ApproveAgentRequest.entries.action)({ // for correct signature generation
+- *   type: "approveAgent",
+- *   signatureChainId: "0x66eee",
+- *   hyperliquidChain: "Mainnet",
+- *   agentAddress: "0x...",
+- *   agentName: "Agent",
+- *   nonce: Date.now(),
+- * });
+- *
+- * const signature = await signUserSignedAction({ wallet, action, types: ApproveAgentTypes });
+- *
+- * // Send the signed action to the Hyperliquid API
+- * const response = await fetch("https://api.hyperliquid.xyz/exchange", {
+- *   method: "POST",
+- *   headers: { "Content-Type": "application/json" },
+- *   body: JSON.stringify({ action, signature, nonce: action.nonce }),
+- * });
+- * const body = await response.json();
+- * ```
+- *
+- * @example Signing a multi-signature action
+- * ```ts
+- * import { signL1Action, signMultiSigAction } from "@nktkas/hyperliquid/signing";
+- * import { MultiSigRequest, parser, ScheduleCancelRequest } from "@nktkas/hyperliquid/api/exchange";
+- * import { privateKeyToAccount } from "npm:viem/accounts";
+- *
+- * const wallet = privateKeyToAccount("0x..."); // viem or ethers
+- * const multiSigUser = "0x...";
+- *
+- * const action = parser(ScheduleCancelRequest.entries.action)({ // for correct signature generation
+- *   type: "scheduleCancel",
+- *   time: Date.now() + 10000,
+- * });
+- * const nonce = Date.now();
+- *
+- * // Create the required number of signatures
+- * const signatures = await Promise.all(["0x...", "0x..."].map(async (signerPrivKey) => {
+- *   return await signL1Action({
+- *     wallet: privateKeyToAccount(signerPrivKey as `0x${string}`), // viem or ethers
+- *     action: [multiSigUser.toLowerCase(), wallet.address.toLowerCase(), action],
+- *     nonce,
+- *   });
+- * }));
+- *
+- * // // or user-signed action
+- * // const signatures = await Promise.all(["0x...", "0x..."].map(async (signerPrivKey) => {
+- * //   return await signUserSignedAction({
+- * //     wallet: privateKeyToAccount(signerPrivKey as `0x${string}`), // viem or ethers
+- * //     action: {
+- * //       ...action,
+- * //       payloadMultiSigUser: multiSigUser,
+- * //       outerSigner: wallet.address,
+- * //     },
+- * //     types: SomeTypes,
+- * //   });
+- * // }));
+- *
+- * // Then use signatures in the multi-sig action
+- * const multiSigAction = parser(MultiSigRequest.entries.action)({
+- *   type: "multiSig",
+- *   signatureChainId: "0x66eee",
+- *   signatures,
+- *   payload: {
+- *     multiSigUser,
+- *     outerSigner: wallet.address,
+- *     action,
+- *   },
+- * });
+- * const multiSigSignature = await signMultiSigAction({ wallet, action: multiSigAction, nonce });
+- *
+- * // Send the multi-sig action to the Hyperliquid API
+- * const response = await fetch("https://api.hyperliquid.xyz/exchange", {
+- *   method: "POST",
+- *   headers: { "Content-Type": "application/json" },
+- *   body: JSON.stringify({ action: multiSigAction, signature: multiSigSignature, nonce }),
+- * });
+- * const body = await response.json();
+- * ```
+- *
+  * @module
+  */
+ Object.defineProperty(exports, "__esModule", { value: true });
+@@ -124,252 +10,229 @@ exports.createL1ActionHash = createL1ActionHash;
+ exports.signL1Action = signL1Action;
+ exports.signUserSignedAction = signUserSignedAction;
+ exports.signMultiSigAction = signMultiSigAction;
+-const sha3_js_1 = require("@noble/hashes/sha3.js");
+-const utils_js_1 = require("@noble/hashes/utils.js");
+-const msgpack_1 = require("@msgpack/msgpack");
+-const _signTypedData_js_1 = require("./_signTypedData.js");
++
++// --- ESM-only noble imports replaced with dynamic import + local utils ---
++let nobleHashes;
++async function getHashes() {
++  if (!nobleHashes) {
++    nobleHashes = await import("@noble/hashes/sha3.js");
++  }
++  return nobleHashes;
++}
++
++// Local replacements for @noble/hashes/utils.js
++function concatBytes(...arrs) {
++  const length = arrs.reduce((sum, a) => sum + a.length, 0);
++  const out = new Uint8Array(length);
++  let offset = 0;
++  for (const a of arrs) {
++    out.set(a, offset);
++    offset += a.length;
++  }
++  return out;
++}
++function bytesToHex(bytes) {
++  let hex = "";
++  for (let i = 0; i < bytes.length; i++) {
++    const h = bytes[i].toString(16).padStart(2, "0");
++    hex += h;
++  }
++  return hex;
++}
++function hexToBytes(hex) {
++  const h = hex.startsWith("0x") ? hex.slice(2) : hex;
++  if (h.length % 2 !== 0)
++    throw new Error("hex string must have an even length");
++  const out = new Uint8Array(h.length / 2);
++  for (let i = 0; i < out.length; i++) {
++    out[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
++  }
++  return out;
++}
++
++const { encode } = require("@msgpack/msgpack");
++const { signTypedData } = require("./_signTypedData.js");
+ var _signTypedData_js_2 = require("./_signTypedData.js");
+-Object.defineProperty(exports, "getWalletAddress", { enumerable: true, get: function () { return _signTypedData_js_2.getWalletAddress; } });
+-Object.defineProperty(exports, "getWalletChainId", { enumerable: true, get: function () { return _signTypedData_js_2.getWalletChainId; } });
++Object.defineProperty(exports, "getWalletAddress", {
++  enumerable: true,
++  get: function () {
++    return _signTypedData_js_2.getWalletAddress;
++  },
++});
++Object.defineProperty(exports, "getWalletChainId", {
++  enumerable: true,
++  get: function () {
++    return _signTypedData_js_2.getWalletChainId;
++  },
++});
++
+ /**
+  * Create a hash of the L1 action.
+- * @example
+- * ```ts
+- * import { createL1ActionHash } from "@nktkas/hyperliquid/signing";
+- * import { CancelRequest, parser } from "@nktkas/hyperliquid/api/exchange";
+- *
+- * const action = parser(CancelRequest.entries.action)({ // for correct signature generation
+- *   type: "cancel",
+- *   cancels: [
+- *     { a: 0, o: 12345 },
+- *   ],
+- * });
+- * const nonce = Date.now();
+- *
+- * const actionHash = createL1ActionHash({ action, nonce });
+- * ```
++ * NOTE: Now async (uses dynamic import of keccak_256).
+  */
+-function createL1ActionHash(args) {
+-    const { action, nonce, vaultAddress, expiresAfter } = args;
+-    // 1. Action
+-    const actionBytes = (0, msgpack_1.encode)(action, { ignoreUndefined: true });
+-    // 2. Nonce
+-    const nonceBytes = toUint64Bytes(nonce);
+-    // 3. Vault address
+-    const vaultMarker = vaultAddress ? new Uint8Array([1]) : new Uint8Array([0]);
+-    const vaultBytes = vaultAddress ? (0, utils_js_1.hexToBytes)(vaultAddress.slice(2)) : new Uint8Array();
+-    // 4. Expires after
+-    const expiresMarker = expiresAfter !== undefined ? new Uint8Array([0]) : new Uint8Array();
+-    const expiresBytes = expiresAfter !== undefined ? toUint64Bytes(expiresAfter) : new Uint8Array();
+-    // Create a hash
+-    const bytes = (0, utils_js_1.concatBytes)(actionBytes, nonceBytes, vaultMarker, vaultBytes, expiresMarker, expiresBytes);
+-    const hash = (0, sha3_js_1.keccak_256)(bytes);
+-    return `0x${(0, utils_js_1.bytesToHex)(hash)}`;
++async function createL1ActionHash(args) {
++  const { keccak_256 } = await getHashes();
++  const { action, nonce, vaultAddress, expiresAfter } = args;
++
++  // 1. Action
++  const actionBytes = encode(action, { ignoreUndefined: true });
++
++  // 2. Nonce
++  const nonceBytes = toUint64Bytes(nonce);
++
++  // 3. Vault address
++  const vaultMarker = vaultAddress ? new Uint8Array([1]) : new Uint8Array([0]);
++  const vaultBytes = vaultAddress ? hexToBytes(vaultAddress) : new Uint8Array();
++
++  // 4. Expires after
++  const expiresMarker =
++    expiresAfter !== undefined ? new Uint8Array([0]) : new Uint8Array();
++  const expiresBytes =
++    expiresAfter !== undefined ? toUint64Bytes(expiresAfter) : new Uint8Array();
++
++  // Create a hash
++  const bytes = concatBytes(
++    actionBytes,
++    nonceBytes,
++    vaultMarker,
++    vaultBytes,
++    expiresMarker,
++    expiresBytes
++  );
++  const hash = keccak_256(bytes);
++  return `0x${bytesToHex(hash)}`;
+ }
++
+ function toUint64Bytes(n) {
+-    const bytes = new Uint8Array(8);
+-    new DataView(bytes.buffer).setBigUint64(0, BigInt(n));
+-    return bytes;
++  const bytes = new Uint8Array(8);
++  new DataView(bytes.buffer).setBigUint64(0, BigInt(n));
++  return bytes;
+ }
++
+ /**
+  * Sign an L1 action.
+- * @example
+- * ```ts
+- * import { signL1Action } from "@nktkas/hyperliquid/signing";
+- * import { CancelRequest, parser } from "@nktkas/hyperliquid/api/exchange";
+- * import { privateKeyToAccount } from "npm:viem/accounts";
+- *
+- * const wallet = privateKeyToAccount("0x..."); // viem or ethers
+- *
+- * const action = parser(CancelRequest.entries.action)({ // for correct signature generation
+- *   type: "cancel",
+- *   cancels: [
+- *     { a: 0, o: 12345 },
+- *   ],
+- * });
+- * const nonce = Date.now();
+- *
+- * const signature = await signL1Action({ wallet, action, nonce });
+- *
+- * // Send the signed action to the Hyperliquid API
+- * const response = await fetch("https://api.hyperliquid.xyz/exchange", {
+- *   method: "POST",
+- *   headers: { "Content-Type": "application/json" },
+- *   body: JSON.stringify({ action, signature, nonce }),
+- * });
+- * const body = await response.json();
+- * ```
+  */
+ async function signL1Action(args) {
+-    const { wallet, action, nonce, isTestnet = false, vaultAddress, expiresAfter, } = args;
+-    const actionHash = createL1ActionHash({ action, nonce, vaultAddress, expiresAfter });
+-    const message = {
+-        source: isTestnet ? "b" : "a",
+-        connectionId: actionHash,
+-    };
+-    return await (0, _signTypedData_js_1.signTypedData)({
+-        wallet,
+-        domain: {
+-            name: "Exchange",
+-            version: "1",
+-            chainId: 1337, // hyperliquid requires chainId to be 1337
+-            verifyingContract: "0x0000000000000000000000000000000000000000",
+-        },
+-        types: {
+-            Agent: [
+-                { name: "source", type: "string" },
+-                { name: "connectionId", type: "bytes32" },
+-            ],
+-        },
+-        primaryType: "Agent",
+-        message,
+-    });
++  const {
++    wallet,
++    action,
++    nonce,
++    isTestnet = false,
++    vaultAddress,
++    expiresAfter,
++  } = args;
++  const actionHash = await createL1ActionHash({
++    action,
++    nonce,
++    vaultAddress,
++    expiresAfter,
++  });
++  const message = {
++    source: isTestnet ? "b" : "a",
++    connectionId: actionHash,
++  };
++  return await signTypedData({
++    wallet,
++    domain: {
++      name: "Exchange",
++      version: "1",
++      chainId: 1337, // hyperliquid requires chainId to be 1337
++      verifyingContract: "0x0000000000000000000000000000000000000000",
++    },
++    types: {
++      Agent: [
++        { name: "source", type: "string" },
++        { name: "connectionId", type: "bytes32" },
++      ],
++    },
++    primaryType: "Agent",
++    message,
++  });
+ }
++
+ /**
+  * Sign a user-signed action.
+- * @example
+- * ```ts
+- * import { signUserSignedAction } from "@nktkas/hyperliquid/signing";
+- * import { ApproveAgentRequest, ApproveAgentTypes, parser } from "@nktkas/hyperliquid/api/exchange";
+- * import { privateKeyToAccount } from "npm:viem/accounts";
+- *
+- * const wallet = privateKeyToAccount("0x..."); // viem or ethers
+- *
+- * const action = parser(ApproveAgentRequest.entries.action)({ // for correct signature generation
+- *   type: "approveAgent",
+- *   signatureChainId: "0x66eee",
+- *   hyperliquidChain: "Mainnet",
+- *   agentAddress: "0x...",
+- *   agentName: "Agent",
+- *   nonce: Date.now(),
+- * });
+- *
+- * const signature = await signUserSignedAction({ wallet, action, types: ApproveAgentTypes });
+- *
+- * // Send the signed action to the Hyperliquid API
+- * const response = await fetch("https://api.hyperliquid.xyz/exchange", {
+- *   method: "POST",
+- *   headers: { "Content-Type": "application/json" },
+- *   body: JSON.stringify({ action, signature, nonce: action.nonce }),
+- * });
+- * const body = await response.json();
+- * ```
+  */
+ async function signUserSignedAction(args) {
+-    let { wallet, action, types } = args;
+-    if (action.type === "approveAgent" && !action.agentName) { // special case for `approveAgent`
+-        action = { ...action, agentName: "" }; // set to empty string instead of null
+-    }
+-    if ("payloadMultiSigUser" in action && "outerSigner" in action) { // special case for multi-sign payload
+-        types = structuredClone(types); // for safe mutation
+-        Object.values(types)[0].splice(// array mutation
+-        1, // after `hyperliquidChain`
+-        0, // do not remove any elements
+-        { name: "payloadMultiSigUser", type: "address" }, { name: "outerSigner", type: "address" });
+-    }
+-    return await (0, _signTypedData_js_1.signTypedData)({
+-        wallet,
+-        domain: {
+-            name: "HyperliquidSignTransaction",
+-            version: "1",
+-            chainId: parseInt(action.signatureChainId),
+-            verifyingContract: "0x0000000000000000000000000000000000000000",
+-        },
+-        types,
+-        primaryType: Object.keys(types)[0],
+-        message: action,
+-    });
++  let { wallet, action, types } = args;
++
++  if (action.type === "approveAgent" && !action.agentName) {
++    // special case for `approveAgent`
++    action = { ...action, agentName: "" }; // set to empty string instead of null
++  }
++
++  if ("payloadMultiSigUser" in action && "outerSigner" in action) {
++    // special case for multi-sign payload
++    types = structuredClone(types); // for safe mutation
++    Object.values(types)[0].splice(
++      1, // after `hyperliquidChain`
++      0, // do not remove any elements
++      { name: "payloadMultiSigUser", type: "address" },
++      { name: "outerSigner", type: "address" }
++    );
++  }
++
++  return await signTypedData({
++    wallet,
++    domain: {
++      name: "HyperliquidSignTransaction",
++      version: "1",
++      chainId: parseInt(action.signatureChainId),
++      verifyingContract: "0x0000000000000000000000000000000000000000",
++    },
++    types,
++    primaryType: Object.keys(types)[0],
++    message: action,
++  });
+ }
++
+ /**
+  * Sign a multi-signature action.
+- * @example
+- * ```ts
+- * import { signL1Action, signMultiSigAction } from "@nktkas/hyperliquid/signing";
+- * import { MultiSigRequest, parser, ScheduleCancelRequest } from "@nktkas/hyperliquid/api/exchange";
+- * import { privateKeyToAccount } from "npm:viem/accounts";
+- *
+- * const wallet = privateKeyToAccount("0x..."); // viem or ethers
+- * const multiSigUser = "0x...";
+- *
+- * const nonce = Date.now();
+- * const action = parser(ScheduleCancelRequest.entries.action)({ // for correct signature generation
+- *   type: "scheduleCancel",
+- *   time: Date.now() + 10000,
+- * });
+- *
+- * // Create the required number of signatures
+- * const signatures = await Promise.all(["0x...", "0x..."].map(async (signerPrivKey) => {
+- *   return await signL1Action({
+- *     wallet: privateKeyToAccount(signerPrivKey as `0x${string}`), // viem or ethers
+- *     action: [multiSigUser.toLowerCase(), wallet.address.toLowerCase(), action],
+- *     nonce,
+- *   });
+- * }));
+- *
+- * // // or user-signed action
+- * // const signatures = await Promise.all(["0x...", "0x..."].map(async (signerPrivKey) => {
+- * //   return await signUserSignedAction({
+- * //     wallet: privateKeyToAccount(signerPrivKey as `0x${string}`), // viem or ethers
+- * //     action: {
+- * //       ...action,
+- * //       payloadMultiSigUser: multiSigUser,
+- * //       outerSigner: wallet.address,
+- * //     },
+- * //     types: SomeTypes,
+- * //   });
+- * // }));
+- *
+- * // Then use signatures in the multi-sig action
+- * const multiSigAction = parser(MultiSigRequest.entries.action)({
+- *   type: "multiSig",
+- *   signatureChainId: "0x66eee",
+- *   signatures,
+- *   payload: {
+- *     multiSigUser,
+- *     outerSigner: wallet.address,
+- *     action,
+- *   },
+- * });
+- * const multiSigSignature = await signMultiSigAction({ wallet, action: multiSigAction, nonce });
+- *
+- * // Send the multi-sig action to the Hyperliquid API
+- * const response = await fetch("https://api.hyperliquid.xyz/exchange", {
+- *   method: "POST",
+- *   headers: { "Content-Type": "application/json" },
+- *   body: JSON.stringify({ action: multiSigAction, signature: multiSigSignature, nonce }),
+- * });
+- * const body = await response.json();
+- * ```
+  */
+ async function signMultiSigAction(args) {
+-    let { wallet, action, nonce, isTestnet = false, vaultAddress, expiresAfter, } = args;
+-    if ("type" in action) {
+-        action = structuredClone(action); // for safe mutation
+-        delete action.type;
+-    }
+-    const multiSigActionHash = createL1ActionHash({ action, nonce, vaultAddress, expiresAfter });
+-    const message = {
+-        hyperliquidChain: isTestnet ? "Testnet" : "Mainnet",
+-        multiSigActionHash,
+-        nonce,
+-    };
+-    return await (0, _signTypedData_js_1.signTypedData)({
+-        wallet,
+-        domain: {
+-            name: "HyperliquidSignTransaction",
+-            version: "1",
+-            chainId: parseInt(action.signatureChainId),
+-            verifyingContract: "0x0000000000000000000000000000000000000000",
+-        },
+-        types: {
+-            "HyperliquidTransaction:SendMultiSig": [
+-                { name: "hyperliquidChain", type: "string" },
+-                { name: "multiSigActionHash", type: "bytes32" },
+-                { name: "nonce", type: "uint64" },
+-            ],
+-        },
+-        primaryType: "HyperliquidTransaction:SendMultiSig",
+-        message,
+-    });
++  let {
++    wallet,
++    action,
++    nonce,
++    isTestnet = false,
++    vaultAddress,
++    expiresAfter,
++  } = args;
++
++  if ("type" in action) {
++    action = structuredClone(action); // for safe mutation
++    delete action.type;
++  }
++
++  const multiSigActionHash = await createL1ActionHash({
++    action,
++    nonce,
++    vaultAddress,
++    expiresAfter,
++  });
++  const message = {
++    hyperliquidChain: isTestnet ? "Testnet" : "Mainnet",
++    multiSigActionHash,
++    nonce,
++  };
++
++  return await signTypedData({
++    wallet,
++    domain: {
++      name: "HyperliquidSignTransaction",
++      version: "1",
++      chainId: parseInt(action.signatureChainId),
++      verifyingContract: "0x0000000000000000000000000000000000000000",
++    },
++    types: {
++      "HyperliquidTransaction:SendMultiSig": [
++        { name: "hyperliquidChain", type: "string" },
++        { name: "multiSigActionHash", type: "bytes32" },
++        { name: "nonce", type: "uint64" },
++      ],
++    },
++    primaryType: "HyperliquidTransaction:SendMultiSig",
++    message,
++  });
+ }
+ //# sourceMappingURL=mod.js.map
+diff --git a/script/src/utils/minimalEIP712Signer.js b/script/src/utils/minimalEIP712Signer.js
+index 7a1cfca85f7b4dbdad0edb9453ad182f76290355..d03fc89cb816108d5f1173f16493addd3b0b952a 100644
+--- a/script/src/utils/minimalEIP712Signer.js
++++ b/script/src/utils/minimalEIP712Signer.js
+@@ -1,209 +1,248 @@
+ "use strict";
+ // -------------------- EIP-712 --------------------
+-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+-    if (k2 === undefined) k2 = k;
+-    var desc = Object.getOwnPropertyDescriptor(m, k);
+-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+-      desc = { enumerable: true, get: function() { return m[k]; } };
+-    }
+-    Object.defineProperty(o, k2, desc);
+-}) : (function(o, m, k, k2) {
+-    if (k2 === undefined) k2 = k;
+-    o[k2] = m[k];
+-}));
+-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+-    Object.defineProperty(o, "default", { enumerable: true, value: v });
+-}) : function(o, v) {
+-    o["default"] = v;
+-});
+-var __importStar = (this && this.__importStar) || (function () {
+-    var ownKeys = function(o) {
+-        ownKeys = Object.getOwnPropertyNames || function (o) {
+-            var ar = [];
+-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+-            return ar;
+-        };
+-        return ownKeys(o);
+-    };
+-    return function (mod) {
+-        if (mod && mod.__esModule) return mod;
+-        var result = {};
+-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+-        __setModuleDefault(result, mod);
+-        return result;
+-    };
+-})();
++var __createBinding =
++  (this && this.__createBinding) ||
++  (Object.create
++    ? function (o, m, k, k2) {
++        if (k2 === undefined) k2 = k;
++        var desc = Object.getOwnPropertyDescriptor(m, k);
++        if (
++          !desc ||
++          ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)
++        ) {
++          desc = {
++            enumerable: true,
++            get: function () {
++              return m[k];
++            },
++          };
++        }
++        Object.defineProperty(o, k2, desc);
++      }
++    : function (o, m, k, k2) {
++        if (k2 === undefined) k2 = k;
++        o[k2] = m[k];
++      });
++var __setModuleDefault =
++  (this && this.__setModuleDefault) ||
++  (Object.create
++    ? function (o, v) {
++        Object.defineProperty(o, "default", { enumerable: true, value: v });
++      }
++    : function (o, v) {
++        o["default"] = v;
++      });
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.PrivateKeyEIP712Signer = void 0;
+-const sha3_js_1 = require("@noble/hashes/sha3.js");
+-const secp = __importStar(require("@noble/secp256k1"));
++
++// 🔄 Dynamic imports for ESM-only libs
++let nobleHashes;
++async function getHashes() {
++  if (!nobleHashes) {
++    nobleHashes = await import("@noble/hashes/sha3.js");
++  }
++  return nobleHashes;
++}
++
++let nobleSecp;
++async function getSecp() {
++  if (!nobleSecp) {
++    nobleSecp = await import("@noble/secp256k1.js");
++  }
++  return nobleSecp;
++}
++
+ /** Signs typed data with a private key. */
+ async function signTypedData(args) {
+-    const { privateKey, domain = {}, types, primaryType, message, } = args;
+-    const hash = hashTypedData({ domain, types, primaryType, message });
+-    const signature = await secp.signAsync(hash, privateKey instanceof Uint8Array ? privateKey : secp.etc.hexToBytes(cleanHex(privateKey)), { prehash: false, format: "recovered" });
+-    const r = secp.etc.bytesToHex(signature.slice(1, 33));
+-    const s = secp.etc.bytesToHex(signature.slice(33, 65));
+-    const v = (signature[0] + 27).toString(16).padStart(2, "0");
+-    return `0x${r}${s}${v}`;
++  const secp = await getSecp();
++  const { privateKey, domain = {}, types, primaryType, message } = args;
++  const hash = await hashTypedData({ domain, types, primaryType, message });
++  const signature = await secp.signAsync(
++    hash,
++    privateKey instanceof Uint8Array
++      ? privateKey
++      : secp.etc.hexToBytes(cleanHex(privateKey)),
++    { prehash: false, format: "recovered" }
++  );
++  const r = secp.etc.bytesToHex(signature.slice(1, 33));
++  const s = secp.etc.bytesToHex(signature.slice(33, 65));
++  const v = (signature[0] + 27).toString(16).padStart(2, "0");
++  return `0x${r}${s}${v}`;
+ }
+-function hashTypedData(args) {
+-    const { domain, types: types_, primaryType, message } = args;
+-    const domainFields = [];
+-    if (domain.name !== undefined) {
+-        domainFields.push({ name: "name", type: "string" });
+-    }
+-    if (domain.version !== undefined) {
+-        domainFields.push({ name: "version", type: "string" });
+-    }
+-    if (domain.chainId !== undefined) {
+-        domainFields.push({ name: "chainId", type: "uint256" });
+-    }
+-    if (domain.verifyingContract !== undefined) {
+-        domainFields.push({ name: "verifyingContract", type: "address" });
+-    }
+-    if (domain.salt !== undefined) {
+-        domainFields.push({ name: "salt", type: "bytes32" });
+-    }
+-    const types = {
+-        EIP712Domain: domainFields,
+-        ...types_,
+-    };
+-    const bytes = [new Uint8Array([0x19, 0x01])];
+-    bytes.push(hashStruct("EIP712Domain", domain, types));
+-    if (primaryType !== "EIP712Domain")
+-        bytes.push(hashStruct(primaryType, message, types));
+-    return (0, sha3_js_1.keccak_256)(secp.etc.concatBytes(...bytes));
++
++async function hashTypedData(args) {
++  const { keccak_256 } = await getHashes();
++  const secp = await getSecp();
++  const { domain, types: types_, primaryType, message } = args;
++
++  const domainFields = [];
++  if (domain.name !== undefined)
++    domainFields.push({ name: "name", type: "string" });
++  if (domain.version !== undefined)
++    domainFields.push({ name: "version", type: "string" });
++  if (domain.chainId !== undefined)
++    domainFields.push({ name: "chainId", type: "uint256" });
++  if (domain.verifyingContract !== undefined)
++    domainFields.push({ name: "verifyingContract", type: "address" });
++  if (domain.salt !== undefined)
++    domainFields.push({ name: "salt", type: "bytes32" });
++
++  const types = { EIP712Domain: domainFields, ...types_ };
++  const bytes = [new Uint8Array([0x19, 0x01])];
++  bytes.push(await hashStruct("EIP712Domain", domain, types));
++  if (primaryType !== "EIP712Domain")
++    bytes.push(await hashStruct(primaryType, message, types));
++  return keccak_256(secp.etc.concatBytes(...bytes));
+ }
+-function hashStruct(primaryType, data, types) {
+-    const typeHash = (0, sha3_js_1.keccak_256)(new TextEncoder().encode(encodeType(primaryType, types)));
+-    const encodedValues = types[primaryType].map((field) => encodeValue(field.type, data[field.name], types));
+-    return (0, sha3_js_1.keccak_256)(secp.etc.concatBytes(typeHash, ...encodedValues));
++
++async function hashStruct(primaryType, data, types) {
++  const { keccak_256 } = await getHashes();
++  const secp = await getSecp();
++  const typeHash = keccak_256(
++    new TextEncoder().encode(encodeType(primaryType, types))
++  );
++  const encodedValues = await Promise.all(
++    types[primaryType].map((field) =>
++      encodeValue(field.type, data[field.name], types)
++    )
++  );
++  return keccak_256(secp.etc.concatBytes(typeHash, ...encodedValues));
+ }
++
+ function encodeType(primaryType, types) {
+-    const deps = findTypeDependencies(primaryType, types);
+-    const sortedDeps = [primaryType, ...deps.filter((d) => d !== primaryType).sort()];
+-    return sortedDeps
+-        .map((type) => `${type}(${types[type].map((field) => `${resolveTypeAlias(field.type)} ${field.name}`).join(",")})`)
+-        .join("");
++  const deps = findTypeDependencies(primaryType, types);
++  const sortedDeps = [
++    primaryType,
++    ...deps.filter((d) => d !== primaryType).sort(),
++  ];
++  return sortedDeps
++    .map(
++      (type) =>
++        `${type}(${types[type]
++          .map((field) => `${resolveTypeAlias(field.type)} ${field.name}`)
++          .join(",")})`
++    )
++    .join("");
+ }
++
+ function resolveTypeAlias(type) {
+-    if (type === "uint")
+-        return "uint256";
+-    if (type === "int")
+-        return "int256";
+-    return type;
++  if (type === "uint") return "uint256";
++  if (type === "int") return "int256";
++  return type;
+ }
++
+ function findTypeDependencies(primaryType, types, _found = new Set()) {
+-    if (_found.has(primaryType) || !types[primaryType])
+-        return [];
+-    _found.add(primaryType);
+-    for (const field of types[primaryType]) {
+-        const baseType = field.type.replace(/\[.*?\]/g, "");
+-        if (types[baseType]) {
+-            findTypeDependencies(baseType, types, _found);
+-        }
+-    }
+-    return Array.from(_found);
++  if (_found.has(primaryType) || !types[primaryType]) return [];
++  _found.add(primaryType);
++  for (const field of types[primaryType]) {
++    const baseType = field.type.replace(/\[.*?\]/g, "");
++    if (types[baseType]) findTypeDependencies(baseType, types, _found);
++  }
++  return Array.from(_found);
+ }
+-function encodeValue(type, value, types) {
+-    const arrayMatch = type.match(/^(.*)\[(\d*)\]$/);
+-    if (arrayMatch) {
+-        // Extract type info: base type and optional length
+-        const [, baseType, len] = arrayMatch;
+-        if (!Array.isArray(value)) {
+-            throw new Error(`Expected array for ${type}. Received: ${typeof value}`);
+-        }
+-        if (len && value.length !== +len) {
+-            throw new Error(`Invalid length for ${type}: expected ${len}. Received: ${value.length}`);
+-        }
+-        // Encode each element in the array and hash them together
+-        const encodedElements = value.map((v) => encodeValue(baseType, v, types));
+-        return (0, sha3_js_1.keccak_256)(secp.etc.concatBytes(...encodedElements));
+-    }
+-    if (types[type]) {
+-        if (value === undefined)
+-            return new Uint8Array(32);
+-        return hashStruct(type, value, types);
+-    }
+-    if (type === "string") {
+-        return (0, sha3_js_1.keccak_256)(new TextEncoder().encode(value));
+-    }
+-    if (type === "address") {
+-        const bytes = secp.etc.hexToBytes(cleanHex(value));
+-        if (bytes.length !== 20) {
+-            throw new Error(`Address must be 20 bytes.`);
+-        }
+-        const padded = new Uint8Array(32);
+-        padded.set(bytes, 12);
+-        return padded;
+-    }
+-    if (type.startsWith("uint") || type.startsWith("int")) {
+-        // Extract type info: uint/int and bit size
+-        const isUint = type.startsWith("uint");
+-        const bitsStr = type.slice(isUint ? 4 : 3);
+-        const bits = parseInt(bitsStr || "256");
+-        if (bits > 256 || bits % 8 !== 0) {
+-            throw new Error(`Invalid ${isUint ? "uint" : "int"} size: ${bitsStr}. Must be 8-256 in steps of 8`);
+-        }
+-        // Apply Two's complement for specified bit size
+-        const bigIntValue = BigInt(value);
+-        const resizedValue = isUint ? BigInt.asUintN(bits, bigIntValue) : BigInt.asIntN(bits, bigIntValue);
+-        // Convert to 32-byte big-endian
+-        const hex = BigInt.asUintN(256, resizedValue).toString(16).padStart(64, "0");
+-        return secp.etc.hexToBytes(hex);
+-    }
+-    if (type === "bool") {
+-        const result = new Uint8Array(32);
+-        result[31] = value ? 1 : 0;
+-        return result;
+-    }
+-    if (type === "bytes") {
+-        const bytes = typeof value === "string" ? secp.etc.hexToBytes(cleanHex(value)) : value;
+-        return (0, sha3_js_1.keccak_256)(bytes);
+-    }
+-    const bytesMatch = type.match(/^bytes(\d+)$/);
+-    if (bytesMatch) {
+-        // Extract type info: bytes size
+-        const size = parseInt(bytesMatch[1]);
+-        if (size === 0 || size > 32) {
+-            throw new Error(`bytesN size must be 1-32. Received: ${size}`);
+-        }
+-        // Convert hex to bytes
+-        const bytes = secp.etc.hexToBytes(cleanHex(value));
+-        if (bytes.length !== size) {
+-            throw new Error(`${type} requires exactly ${size} bytes. Received: ${bytes.length} from '${value}'`);
+-        }
+-        // Pad to 32 bytes
+-        const padded = new Uint8Array(32);
+-        padded.set(bytes, 0);
+-        return padded;
+-    }
+-    throw new Error(`Unsupported type: '${type}'.`);
++
++async function encodeValue(type, value, types) {
++  const { keccak_256 } = await getHashes();
++  const secp = await getSecp();
++
++  const arrayMatch = type.match(/^(.*)\[(\d*)\]$/);
++  if (arrayMatch) {
++    const [, baseType, len] = arrayMatch;
++    if (!Array.isArray(value)) throw new Error(`Expected array for ${type}.`);
++    if (len && value.length !== +len)
++      throw new Error(
++        `Invalid length for ${type}: expected ${len}, got ${value.length}`
++      );
++    const encodedElements = await Promise.all(
++      value.map((v) => encodeValue(baseType, v, types))
++    );
++    return keccak_256(secp.etc.concatBytes(...encodedElements));
++  }
++  if (types[type]) {
++    if (value === undefined) return new Uint8Array(32);
++    return await hashStruct(type, value, types);
++  }
++  if (type === "string") return keccak_256(new TextEncoder().encode(value));
++  if (type === "address") {
++    const bytes = secp.etc.hexToBytes(cleanHex(value));
++    if (bytes.length !== 20) throw new Error(`Address must be 20 bytes.`);
++    const padded = new Uint8Array(32);
++    padded.set(bytes, 12);
++    return padded;
++  }
++  if (type.startsWith("uint") || type.startsWith("int")) {
++    const isUint = type.startsWith("uint");
++    const bits = parseInt(type.slice(isUint ? 4 : 3) || "256");
++    if (bits > 256 || bits % 8 !== 0)
++      throw new Error(`Invalid ${isUint ? "uint" : "int"} size: ${bits}.`);
++    const bigIntValue = BigInt(value);
++    const resizedValue = isUint
++      ? BigInt.asUintN(bits, bigIntValue)
++      : BigInt.asIntN(bits, bigIntValue);
++    const hex = BigInt.asUintN(256, resizedValue)
++      .toString(16)
++      .padStart(64, "0");
++    return secp.etc.hexToBytes(hex);
++  }
++  if (type === "bool") {
++    const result = new Uint8Array(32);
++    result[31] = value ? 1 : 0;
++    return result;
++  }
++  if (type === "bytes") {
++    const bytes =
++      typeof value === "string" ? secp.etc.hexToBytes(cleanHex(value)) : value;
++    return keccak_256(bytes);
++  }
++  const bytesMatch = type.match(/^bytes(\d+)$/);
++  if (bytesMatch) {
++    const size = parseInt(bytesMatch[1]);
++    if (size === 0 || size > 32) throw new Error(`bytesN size must be 1-32.`);
++    const bytes = secp.etc.hexToBytes(cleanHex(value));
++    if (bytes.length !== size)
++      throw new Error(
++        `${type} requires exactly ${size} bytes. Got ${bytes.length}.`
++      );
++    const padded = new Uint8Array(32);
++    padded.set(bytes, 0);
++    return padded;
++  }
++  throw new Error(`Unsupported type: '${type}'.`);
+ }
++
+ function cleanHex(hex) {
+-    return hex.startsWith("0x") ? hex.slice(2) : hex;
++  return hex.startsWith("0x") ? hex.slice(2) : hex;
+ }
++
+ /** A minimalist EIP-712 signer using a raw private key. */
+ class PrivateKeyEIP712Signer {
+-    #privateKey;
+-    address;
+-    constructor(privateKey) {
+-        this.#privateKey = privateKey;
+-        this.address = privateKeyToAddress(privateKey); // and validate the key
+-    }
+-    signTypedData(params) {
+-        return signTypedData({ privateKey: this.#privateKey, ...params });
+-    }
+-}
+-exports.PrivateKeyEIP712Signer = PrivateKeyEIP712Signer;
+-function privateKeyToAddress(privateKey) {
+-    const pk = typeof privateKey === "string" ? secp.etc.hexToBytes(cleanHex(privateKey)) : privateKey;
++  #privateKey;
++  address;
++  constructor(privateKey) {
++    this.#privateKey = privateKey;
++    // Address calculation needs secp, so defer until runtime
++    this.addressPromise = this.#computeAddress(privateKey);
++  }
++
++  async #computeAddress(privateKey) {
++    const { keccak_256 } = await getHashes();
++    const secp = await getSecp();
++    const pk =
++      typeof privateKey === "string"
++        ? secp.etc.hexToBytes(cleanHex(privateKey))
++        : privateKey;
+     const publicKey = secp.getPublicKey(pk, false);
+     const publicKeyWithoutPrefix = publicKey.slice(1);
+-    const hash = (0, sha3_js_1.keccak_256)(publicKeyWithoutPrefix);
++    const hash = keccak_256(publicKeyWithoutPrefix);
+     const addressBytes = hash.slice(-20);
+     const address = secp.etc.bytesToHex(addressBytes);
+-    return `0x${address}`;
++    this.address = `0x${address}`;
++    return this.address;
++  }
++
++  async signTypedData(params) {
++    return signTypedData({ privateKey: this.#privateKey, ...params });
++  }
+ }
++exports.PrivateKeyEIP712Signer = PrivateKeyEIP712Signer;
+ //# sourceMappingURL=minimalEIP712Signer.js.map

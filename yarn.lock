@@ -792,7 +792,7 @@
   dependencies:
     "@scure/base" "^1.2.6"
 
-"@nktkas/hyperliquid@^0.25.1":
+"@nktkas/hyperliquid@patch:@nktkas/hyperliquid@npm%3A0.25.1#~/.yarn/patches/@nktkas-hyperliquid-npm-0.25.1-8a4d415def.patch":
   version "0.25.1"
   resolved "https://registry.yarnpkg.com/@nktkas/hyperliquid/-/hyperliquid-0.25.1.tgz#60f49f009fc2c04255260c7d7583999e8b278a2b"
   integrity sha512-ghO8LGhYPhsiqSisCLc5k2N9yA7yeFj+0zvYEao7j8yE3YBOr5ihm5yU56JjDvTeO86RVhTwgUadXU4BcQZQLQ==

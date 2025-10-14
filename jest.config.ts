@@ -12,6 +12,8 @@ const config: Config = {
     "^.+\\.ts?$": "ts-jest",
   },
 
+  transformIgnorePatterns: ["node_modules/(?!(@noble)/)"],
+
   // globalSetup: "./test/setup.ts",
 };
 
