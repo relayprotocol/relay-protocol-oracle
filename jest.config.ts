@@ -8,10 +8,6 @@ import type { Config } from "jest";
 const config: Config = {
   verbose: true,
 
-  transform: {
-    "^.+\\.(ts|js)$": "babel-jest",
-  },
-
   transformIgnorePatterns: ["node_modules/(?!(@nktkas/hyperliquid|@noble)/)"],
 
   // globalSetup: "./test/setup.ts",
