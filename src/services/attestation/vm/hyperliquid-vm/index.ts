@@ -76,7 +76,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
           payment.currency.slice(0, 34),
           payment.currency.slice(34) === ""
             ? "spot"
-            : payment.currency.slice(34),
+            : Buffer.from(payment.currency.slice(34), "hex").toString("ascii"),
         ];
         const [actualPaymentCurrency, actualPaymentDex] = [
           txParameters.token.split(":")[1],
