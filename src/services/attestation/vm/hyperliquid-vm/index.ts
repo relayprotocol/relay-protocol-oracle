@@ -43,11 +43,11 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const txDetails = await rpc.txDetails({
       hash: transactionId as Hex,
     });
-    if (!txDetails || txDetails.error) {
+    if (!txDetails || txDetails.tx.error) {
       throw externalError(`Missing or reverted transaction ${transactionId}`);
     }
 
-    const transactionTimestamp = Math.floor(txDetails.time / 1000);
+    const transactionTimestamp = Math.floor(txDetails.tx.time / 1000);
     if (transactionTimestamp > payment.deadline) {
       throw externalError(
         `Transaction ${transactionId} executed after deadline`
@@ -55,9 +55,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
     }
 
     if (payment.currency === getVmTypeNativeCurrency(VM_TYPE)) {
-      if (txDetails.action.type === "usdSend") {
-        const txParameters =
-          txDetails.action as unknown as hl.UsdSendParameters;
+      if (txDetails.tx.action.type === "usdSend") {
+        const txParameters = txDetails.tx
+          .action as unknown as hl.UsdSendParameters;
         if (
           txParameters.destination.toLowerCase() ===
           payment.recipient.toLowerCase()
@@ -66,9 +66,46 @@ export class HyperliquidVmAttestor extends VmAttestor {
         }
       }
 
-      return BigInt(0);
+      throw externalError("Could not detect payment");
     } else {
-      throw internalError("Unsupported payment currency");
+      if (txDetails.tx.action.type === "sendAsset") {
+        const txParameters = txDetails.tx
+          .action as unknown as hl.SendAssetParameters;
+
+        const [orderPaymentCurrency, orderPaymentDex] = [
+          payment.currency.slice(0, 34),
+          payment.currency.slice(34) === ""
+            ? "spot"
+            : payment.currency.slice(34),
+        ];
+        const [actualPaymentCurrency, actualPaymentDex] = [
+          txParameters.token.split(":")[1],
+          txParameters.destinationDex,
+        ];
+
+        if (
+          txParameters.destination.toLowerCase() ===
+            payment.recipient.toLowerCase() &&
+          orderPaymentCurrency.toLowerCase() ===
+            actualPaymentCurrency.toLowerCase() &&
+          orderPaymentDex === actualPaymentDex
+        ) {
+          const currencyDecimals = await rpc
+            .spotMeta()
+            .then(
+              (r) =>
+                r.tokens.find((t) => t.tokenId === actualPaymentCurrency)
+                  ?.szDecimals
+            );
+          if (currencyDecimals === undefined) {
+            throw externalError("Could not retrieve payment currency decimals");
+          }
+
+          return parseUnits(Number(txParameters.amount).toFixed(8), 8);
+        }
+      }
+
+      throw externalError("Could not detect payment");
     }
   }
 
