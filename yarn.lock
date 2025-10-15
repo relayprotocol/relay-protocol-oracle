@@ -861,6 +861,18 @@
   resolved "https://registry.yarnpkg.com/@noble/secp256k1/-/secp256k1-3.0.0.tgz#29711361db8f37b1b7e0b8d80c933013fc887475"
   integrity sha512-NJBaR352KyIvj3t6sgT/+7xrNyF9Xk9QlLSIqUGVUYlsnDTAUqY8LOmwpcgEx4AMJXRITQ5XEVHD+mMaPfr3mg==
 
+"@relay-protocol/hub-utils@^0.1.1":
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/hub-utils/-/hub-utils-0.1.1.tgz#eca6b7cb4f718f37e0b9e9e94633d2424cf76403"
+  integrity sha512-farJ8uHg462XwCHMs0RJppv1gpLFZ5Wj/P23NrK91lqiG2efoTgpU7AQ71j7ruc6st/S0s9CvPxCPqrXpU+5lA==
+  dependencies:
+    "@relay-protocol/types" "workspace:*"
+
+"@relay-protocol/types@workspace:*":
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/types/-/types-0.0.1.tgz#24f91420659662e0fee327f0d433da1d6749491e"
+  integrity sha512-muZNF0al+cXf8ZwnbH9L04e3PHaHNkapHOEwP1k8VfBoAXuuYVsOtMh0J/WjxEC3HIWz/JRrEWvUQzZaVDAXnQ==
+
 "@reservoir0x/relay-protocol-sdk@^0.0.44":
   version "0.0.44"
   resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.44.tgz#c33277fd7fdad76a8e72f7ca25075939319b908b"
