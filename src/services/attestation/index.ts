@@ -30,8 +30,6 @@ import {
   getChainHubChainId,
   getChainVmType,
   getSdkChainsConfig,
-  HUB_CHAIN_ID,
-  HUB_VM_TYPE,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
 
@@ -534,7 +532,7 @@ export class AttestationService {
               hubToAddress,
               amount,
             },
-          })
+          }),
         );
       }
     }
