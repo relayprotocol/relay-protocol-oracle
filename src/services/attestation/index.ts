@@ -29,8 +29,6 @@ import {
   getChainHubChainId,
   getChainVmType,
   getSdkChainsConfig,
-  HUB_CHAIN_ID,
-  HUB_VM_TYPE,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
 
@@ -64,12 +62,7 @@ export class AttestationService {
                   encodeAction({
                     type: ActionType.MINT,
                     data: {
-                      currencyVmType: await getChainVmType(m.data.chainId),
-                      currencyChainId: await getChainHubChainId(m.data.chainId),
-                      currency: m.result.currency,
-                      toVmType: HUB_VM_TYPE,
-                      toChainId: HUB_CHAIN_ID,
-                      to: m.result.depositId !== zeroHash ? 
+                      hubToAddress: m.result.depositId !== zeroHash ? 
                         await this._getOrderAddress({
                           chainId: m.data.chainId,
                           timestamp: m.extraData.timestamp,
@@ -78,6 +71,7 @@ export class AttestationService {
                         }) 
                         : 
                         m.result.depositor,
+                      hubTokenId: m.result.currency,
                       amount: m.result.amount,
                     },
                   }),
@@ -454,20 +448,14 @@ export class AttestationService {
         encodeAction({
           type: ActionType.TRANSFER,
           data: {
-            currencyVmType: await getChainVmType(deposit.data.chainId),
-            currencyChainId: await getChainHubChainId(deposit.data.chainId),
-            currency: deposit.result.currency,
-            fromVmType: HUB_VM_TYPE,
-            fromChainId: HUB_CHAIN_ID,
-            from: await this._getOrderAddress({
+            hubTokenId: deposit.result.currency,
+            hubFromAddress: await this._getOrderAddress({
               chainId: deposit.data.chainId,
               timestamp: deposit.extraData.timestamp,
               depositor: deposit.result.depositor,
               depositId: deposit.result.depositId,
             }),
-            toVmType: await getChainVmType(data.order.solverChainId),
-            toChainId: await getChainHubChainId(data.order.solverChainId),
-            to: data.order.solver,
+            hubToAddress: data.order.solver,
             amount: maxUint256.toString(),
           },
         })
@@ -481,15 +469,9 @@ export class AttestationService {
           encodeAction({
             type: ActionType.TRANSFER,
             data: {
-              currencyVmType: await getChainVmType(fee.currencyChainId),
-              currencyChainId: await getChainHubChainId(fee.currencyChainId),
-              currency: fee.currency,
-              fromVmType: await getChainVmType(data.order.solverChainId),
-              fromChainId: await getChainHubChainId(data.order.solverChainId),
-              from: data.order.solver,
-              toVmType: await getChainVmType(fee.recipientChainId),
-              toChainId: await getChainHubChainId(fee.recipientChainId),
-              to: fee.recipient,
+              hubTokenId: fee.currency,
+              hubFromAddress: data.order.solver,
+              hubToAddress: fee.recipient,
               amount: String(
                 BigInt(fee.amount) +
                   (BigInt(fee.amount) *
@@ -497,7 +479,7 @@ export class AttestationService {
                     10n ** 18n
               ),
             },
-          })
+          }),
         );
       }
     }
