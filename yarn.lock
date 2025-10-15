@@ -861,19 +861,22 @@
   resolved "https://registry.yarnpkg.com/@noble/secp256k1/-/secp256k1-3.0.0.tgz#29711361db8f37b1b7e0b8d80c933013fc887475"
   integrity sha512-NJBaR352KyIvj3t6sgT/+7xrNyF9Xk9QlLSIqUGVUYlsnDTAUqY8LOmwpcgEx4AMJXRITQ5XEVHD+mMaPfr3mg==
 
-"@relay-protocol/hub-utils@^0.1.2":
-  version "0.1.2"
-  resolved "https://registry.yarnpkg.com/@relay-protocol/hub-utils/-/hub-utils-0.1.2.tgz#0bbc4e2bb9b99d0343d2b9ec49ac6e27b2299e32"
-  integrity sha512-YFi5dMehM5gozox3jJRokOUvi1X/MTEGzHtdIcMlNeaknsVbMbEEY5sqMpRmyG0zHOdpcaU4NLgc0Ny8NqbFsQ==
+"@relay-protocol/hub-utils@0.1.3":
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/hub-utils/-/hub-utils-0.1.3.tgz#f59e0c2378cc7c40121024333a559b5c2f64d954"
+  integrity sha512-l7A5JQcnSWKeykYxBbR6ItCiabwkHbB5w2Wq5zuaT8d3ejX2S3UV42EPT6j2NrcT96YU10Tzazbcf84sGf928g==
   dependencies:
-    "@relay-protocol/types" "0.0.1"
+    "@relay-protocol/types" "0.0.2"
+    "@reservoir0x/relay-protocol-sdk" "0.0.44"
 
-"@relay-protocol/types@0.0.1":
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/@relay-protocol/types/-/types-0.0.1.tgz#24f91420659662e0fee327f0d433da1d6749491e"
-  integrity sha512-muZNF0al+cXf8ZwnbH9L04e3PHaHNkapHOEwP1k8VfBoAXuuYVsOtMh0J/WjxEC3HIWz/JRrEWvUQzZaVDAXnQ==
+"@relay-protocol/types@0.0.2":
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/types/-/types-0.0.2.tgz#14d12991a92e3370119c968eb0da5bcccfde7a38"
+  integrity sha512-aIe7NclVeLcuYtauxYZIJFplbyq8ebNLKZU5Aff0MU1QrqdUz5Z3NNv6/r+1fgFdXKl2TybQ1UsUZGyYE9P+jA==
+  dependencies:
+    "@reservoir0x/relay-protocol-sdk" "0.0.44"
 
-"@reservoir0x/relay-protocol-sdk@^0.0.44":
+"@reservoir0x/relay-protocol-sdk@0.0.44", "@reservoir0x/relay-protocol-sdk@^0.0.44":
   version "0.0.44"
   resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.44.tgz#c33277fd7fdad76a8e72f7ca25075939319b908b"
   integrity sha512-NypB+c3xedT4e22lApXitgxFj50LEZVE68HPogFR0bsz4qCKrWhBc32I2amZUFYbCsNC5OuVHjJbGdJO6jDAlw==
