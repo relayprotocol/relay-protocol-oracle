@@ -18,7 +18,6 @@ import {
   encodePacked,
   Hex,
   keccak256,
-  maxUint256,
   verifyMessage,
   zeroHash,
 } from "viem";
