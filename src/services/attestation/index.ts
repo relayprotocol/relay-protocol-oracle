@@ -12,6 +12,7 @@ import {
   SolverRefundMessage,
   SolverRefundStatus,
 } from "@reservoir0x/relay-protocol-sdk";
+import { generateTokenId, generateAddress } from "@relay-protocol/hub-utils";
 import {
   Address,
   encodePacked,
@@ -59,26 +60,34 @@ export class AttestationService {
             ),
             actions: await Promise.all(
               messages.map(async (m) => {
-                // Mint directly to order
+
+                const hubTokenId = generateTokenId({
+                  address: m.result.currency,
+                  chainId: await getChainHubChainId(m.data.chainId),
+                  family: await getChainVmType(m.data.chainId),
+                })
+
+                const hubToAddress = m.result.depositId !== zeroHash ? 
+                // This order lives only on the hub
+                // do we need to hash it as a hub address?
+                  await this._getOrderAddress({
+                    chainId: m.data.chainId,
+                    timestamp: m.extraData.timestamp,
+                    depositor: m.result.depositor,
+                    depositId: m.result.depositId,
+                  }) 
+                  : 
+                  m.result.depositor
+                
+                const amount = m.result.amount;
+
                 const results = [
                   encodeAction({
                     type: ActionType.MINT,
                     data: {
-                      currencyVmType: await getChainVmType(m.data.chainId),
-                      currencyChainId: await getChainHubChainId(m.data.chainId),
-                      currency: m.result.currency,
-                      toVmType: HUB_VM_TYPE,
-                      toChainId: HUB_CHAIN_ID,
-                      to: m.result.depositId !== zeroHash ? 
-                        await this._getOrderAddress({
-                          chainId: m.data.chainId,
-                          timestamp: m.extraData.timestamp,
-                          depositor: m.result.depositor,
-                          depositId: m.result.depositId,
-                        }) 
-                        : 
-                        m.result.depositor,
-                      amount: m.result.amount,
+                      hubTokenId,
+                      hubToAddress,
+                      amount,
                     },
                   }),
                 ];
@@ -450,25 +459,38 @@ export class AttestationService {
 
     // Transfer from order to solver
     for (const deposit of data.depositoryDeposits) {
+
+      const hubTokenId = generateTokenId({
+        address: deposit.result.currency,
+        chainId: await getChainHubChainId(deposit.data.chainId),
+        family: await getChainVmType(deposit.data.chainId),
+      })
+
+      const hubFromAddress = await this._getOrderAddress({
+        chainId: deposit.data.chainId,
+        timestamp: deposit.extraData.timestamp,
+        depositor: deposit.result.depositor,
+        depositId: deposit.result.depositId,
+      })
+
+      // solver address on the hub
+      const hubToAddress = generateAddress({
+        address: data.order.solver,
+        chainId: await getChainHubChainId(data.order.solverChainId),
+        family: await getChainVmType(data.order.solverChainId),
+      })
+      
+      // ?? why maxUint256?
+      const amount = maxUint256.toString();
+
       actions.push(
         encodeAction({
           type: ActionType.TRANSFER,
           data: {
-            currencyVmType: await getChainVmType(deposit.data.chainId),
-            currencyChainId: await getChainHubChainId(deposit.data.chainId),
-            currency: deposit.result.currency,
-            fromVmType: HUB_VM_TYPE,
-            fromChainId: HUB_CHAIN_ID,
-            from: await this._getOrderAddress({
-              chainId: deposit.data.chainId,
-              timestamp: deposit.extraData.timestamp,
-              depositor: deposit.result.depositor,
-              depositId: deposit.result.depositId,
-            }),
-            toVmType: await getChainVmType(data.order.solverChainId),
-            toChainId: await getChainHubChainId(data.order.solverChainId),
-            to: data.order.solver,
-            amount: maxUint256.toString(),
+            hubTokenId,
+            hubFromAddress,
+            hubToAddress,
+            amount,
           },
         })
       );
@@ -477,25 +499,40 @@ export class AttestationService {
     // Only when the solver filled, transfer from solver to fee recipients
     if (data.type === "fill") {
       for (const fee of data.order.fees) {
+
+        const hubTokenId = generateTokenId({
+          address: fee.currency,
+          chainId: await getChainHubChainId(fee.currencyChainId),
+          family: await getChainVmType(fee.currencyChainId),
+        })
+
+        // solver address on the hub
+        const hubFromAddress = generateAddress({
+          address: data.order.solver,
+          chainId: await getChainHubChainId(data.order.solverChainId),
+          family: await getChainVmType(data.order.solverChainId),
+        })
+
+        const hubToAddress = generateAddress({
+          address: fee.recipient,
+          chainId: await getChainHubChainId(fee.recipientChainId),
+          family: await getChainVmType(fee.recipientChainId),
+        })
+
+        const amount = String(
+          BigInt(fee.amount) +
+            (BigInt(fee.amount) *
+              BigInt(data.totalWeightedInputPaymentBpsDiff)) /
+              10n ** 18n
+        )
         actions.push(
           encodeAction({
             type: ActionType.TRANSFER,
             data: {
-              currencyVmType: await getChainVmType(fee.currencyChainId),
-              currencyChainId: await getChainHubChainId(fee.currencyChainId),
-              currency: fee.currency,
-              fromVmType: await getChainVmType(data.order.solverChainId),
-              fromChainId: await getChainHubChainId(data.order.solverChainId),
-              from: data.order.solver,
-              toVmType: await getChainVmType(fee.recipientChainId),
-              toChainId: await getChainHubChainId(fee.recipientChainId),
-              to: fee.recipient,
-              amount: String(
-                BigInt(fee.amount) +
-                  (BigInt(fee.amount) *
-                    BigInt(data.totalWeightedInputPaymentBpsDiff)) /
-                    10n ** 18n
-              ),
+              hubTokenId,
+              hubFromAddress,
+              hubToAddress,
+              amount,
             },
           })
         );
