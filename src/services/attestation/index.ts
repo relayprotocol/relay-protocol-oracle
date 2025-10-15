@@ -75,6 +75,7 @@ export class AttestationService {
                     depositId: m.result.depositId,
                   }) 
                   : 
+                  // incase no known deposit is attached, the depositor can directly retrieve the deposit on the hub 
                   m.result.depositor
                 
                 const amount = m.result.amount;
