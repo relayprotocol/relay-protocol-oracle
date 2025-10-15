@@ -58,7 +58,7 @@ export const getChainHubChainId = async (chainId: string) => {
     throw externalError(`Chain ${chainId} has no hub chain id configured`);
   }
 
-  return hubChainId;
+  return BigInt(hubChainId);
 };
 
 export const getSdkChainsConfig = async () => {
