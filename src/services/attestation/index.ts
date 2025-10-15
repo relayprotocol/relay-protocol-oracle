@@ -30,6 +30,8 @@ import {
   getChainHubChainId,
   getChainVmType,
   getSdkChainsConfig,
+  HUB_CHAIN_ID,
+  HUB_VM_TYPE
 } from "../../common/chains";
 import { externalError } from "../../common/error";
 
@@ -67,7 +69,7 @@ export class AttestationService {
 
                 const hubToAddress = m.result.depositId !== zeroHash ? 
                 // This order lives only on the hub
-                // do we need to hash it as a hub address?
+                // so we do not need to hash it
                   await this._getOrderAddress({
                     chainId: m.data.chainId,
                     timestamp: m.extraData.timestamp,
@@ -75,8 +77,12 @@ export class AttestationService {
                     depositId: m.result.depositId,
                   }) 
                   : 
-                  // incase no known deposit is attached, the depositor can directly retrieve the deposit on the hub 
-                  m.result.depositor
+                  // in case no deposit info is attached, use the depositor alias on the hub 
+                  generateAddress({
+                    address: m.result.depositor,
+                    chainId: HUB_CHAIN_ID,
+                    family: HUB_VM_TYPE,
+                  })
                 
                 const amount = m.result.amount;
 

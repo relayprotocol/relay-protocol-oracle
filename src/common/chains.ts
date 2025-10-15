@@ -15,7 +15,7 @@ export type Chain = {
 };
 
 export const HUB_VM_TYPE = "hub-vm" as any as VmType;
-export const HUB_CHAIN_ID = "0";
+export const HUB_CHAIN_ID = 0n;
 
 let _chains: { [id: string]: Chain } | undefined;
 export const getChains = async () => {
