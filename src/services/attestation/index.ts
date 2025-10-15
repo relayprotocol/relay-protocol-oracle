@@ -485,8 +485,7 @@ export class AttestationService {
         family: await getChainVmType(data.order.solverChainId),
       })
       
-      // ?? why maxUint256?
-      const amount = maxUint256.toString();
+      const amount = deposit.result.amount;
 
       actions.push(
         encodeAction({
