@@ -15,7 +15,7 @@ export type Chain = {
 };
 
 export const HUB_VM_TYPE = "hub-vm" as any as VmType;
-export const HUB_CHAIN_ID = "0";
+export const HUB_CHAIN_ID = 0n;
 
 let _chains: { [id: string]: Chain } | undefined;
 export const getChains = async () => {
@@ -58,7 +58,7 @@ export const getChainHubChainId = async (chainId: string) => {
     throw externalError(`Chain ${chainId} has no hub chain id configured`);
   }
 
-  return hubChainId;
+  return BigInt(hubChainId);
 };
 
 export const getSdkChainsConfig = async () => {
