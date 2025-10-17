@@ -861,10 +861,39 @@
   resolved "https://registry.yarnpkg.com/@noble/secp256k1/-/secp256k1-3.0.0.tgz#29711361db8f37b1b7e0b8d80c933013fc887475"
   integrity sha512-NJBaR352KyIvj3t6sgT/+7xrNyF9Xk9QlLSIqUGVUYlsnDTAUqY8LOmwpcgEx4AMJXRITQ5XEVHD+mMaPfr3mg==
 
-"@reservoir0x/relay-protocol-sdk@^0.0.43":
-  version "0.0.43"
-  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.43.tgz#9851289f3c3a5c100a41ae7620a8a54a8a249c7c"
-  integrity sha512-wHb2wB1TwVYZvUr1qzMOOX0rbSTz/5FXMNML198J9+AATEOlUMPOY75EpMeE4J3mRqGh8GEZ2hWYulLimS2TLg==
+"@relay-protocol/hub-utils@0.1.4":
+  version "0.1.4"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/hub-utils/-/hub-utils-0.1.4.tgz#287e489a4667d910f3d382844d53e700d16d1264"
+  integrity sha512-+E/TSnPwf5kppOvW+Fo5c9DEFbMmkoPsaTGDVDLMaINj38d3pFxnFPLneSLdtTfajA6yTdJxuOWJC9L64vjMOg==
+  dependencies:
+    "@relay-protocol/types" "0.0.2"
+    "@reservoir0x/relay-protocol-sdk" "0.0.44"
+
+"@relay-protocol/types@0.0.2":
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/types/-/types-0.0.2.tgz#14d12991a92e3370119c968eb0da5bcccfde7a38"
+  integrity sha512-aIe7NclVeLcuYtauxYZIJFplbyq8ebNLKZU5Aff0MU1QrqdUz5Z3NNv6/r+1fgFdXKl2TybQ1UsUZGyYE9P+jA==
+  dependencies:
+    "@reservoir0x/relay-protocol-sdk" "0.0.44"
+
+"@reservoir0x/relay-protocol-sdk@0.0.44":
+  version "0.0.44"
+  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.44.tgz#c33277fd7fdad76a8e72f7ca25075939319b908b"
+  integrity sha512-NypB+c3xedT4e22lApXitgxFj50LEZVE68HPogFR0bsz4qCKrWhBc32I2amZUFYbCsNC5OuVHjJbGdJO6jDAlw==
+  dependencies:
+    "@coral-xyz/anchor" "^0.31.1"
+    "@mysten/sui" "^1.24.0"
+    bech32 "^2.0.0"
+    bitcoinjs-lib "^6.1.7"
+    bs58 "^6.0.0"
+    js-sha256 "^0.11.0"
+    tronweb "^6.0.4"
+    viem "^2.26.3"
+
+"@reservoir0x/relay-protocol-sdk@^0.0.45":
+  version "0.0.45"
+  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.45.tgz#77958ae3defb7a5226113da1f66d6776a8bffb2a"
+  integrity sha512-hHjvx+cWjbRwYRpPDz/9/TdURHRHDT/7BtSqhLoP1Vgl0Mpg0Q/pqX4kXdXALL4+9kYeA/y6ABRUVr0tjI1JoA==
   dependencies:
     "@coral-xyz/anchor" "^0.31.1"
     "@mysten/sui" "^1.24.0"
@@ -3519,8 +3548,16 @@ string-length@^4.0.1:
     char-regex "^1.0.2"
     strip-ansi "^6.0.0"
 
-"string-width-cjs@npm:string-width@^4.2.0", string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.3:
-  name string-width-cjs
+"string-width-cjs@npm:string-width@^4.2.0":
+  version "4.2.3"
+  resolved "https://registry.yarnpkg.com/string-width/-/string-width-4.2.3.tgz#269c7117d27b05ad2e536830a8ec895ef9c6d010"
+  integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
+  dependencies:
+    emoji-regex "^8.0.0"
+    is-fullwidth-code-point "^3.0.0"
+    strip-ansi "^6.0.1"
+
+string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.3:
   version "4.2.3"
   resolved "https://registry.yarnpkg.com/string-width/-/string-width-4.2.3.tgz#269c7117d27b05ad2e536830a8ec895ef9c6d010"
   integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
@@ -3908,8 +3945,16 @@ wordwrap@^1.0.0:
   resolved "https://registry.yarnpkg.com/wordwrap/-/wordwrap-1.0.0.tgz#27584810891456a4171c8d0226441ade90cbcaeb"
   integrity sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q==
 
-"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0", wrap-ansi@^7.0.0:
-  name wrap-ansi-cjs
+"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0":
+  version "7.0.0"
+  resolved "https://registry.yarnpkg.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz#67e145cff510a6a6984bdf1152911d69d2eb9e43"
+  integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
+  dependencies:
+    ansi-styles "^4.0.0"
+    string-width "^4.1.0"
+    strip-ansi "^6.0.0"
+
+wrap-ansi@^7.0.0:
   version "7.0.0"
   resolved "https://registry.yarnpkg.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz#67e145cff510a6a6984bdf1152911d69d2eb9e43"
   integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
