@@ -23,3 +23,5 @@ Start the service via:
 ```sh
 yarn start
 ```
+
+(you can start things locally with `export $(cat .env | xargs) && yarn start` if you have first created `.env`. You also likely need to be connected using the VPN to access the RPC endpoints.)

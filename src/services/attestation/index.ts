@@ -43,8 +43,10 @@ export class AttestationService {
     messages: DepositoryDepositMessage[];
     execution?: ExecutionMessage;
   }> {
-    const messages = await getVmAttestor(data.chainId).then((attestor) =>
-      attestor.getDepositoryDepositMessages(data.chainId, data.transactionId)
+    const attestor = await getVmAttestor(data.chainId);
+    const messages = await attestor.getDepositoryDepositMessages(
+      data.chainId,
+      data.transactionId
     );
 
     // Generate onchain hub execution
@@ -69,15 +71,15 @@ export class AttestationService {
                       currency: m.result.currency,
                       toVmType: HUB_VM_TYPE,
                       toChainId: HUB_CHAIN_ID,
-                      to: m.result.depositId !== zeroHash ? 
-                        await this._getOrderAddress({
-                          chainId: m.data.chainId,
-                          timestamp: m.extraData.timestamp,
-                          depositor: m.result.depositor,
-                          depositId: m.result.depositId,
-                        }) 
-                        : 
-                        m.result.depositor,
+                      to:
+                        m.result.depositId !== zeroHash
+                          ? await this._getOrderAddress({
+                              chainId: m.data.chainId,
+                              timestamp: m.extraData.timestamp,
+                              depositor: m.result.depositor,
+                              depositId: m.result.depositId,
+                            })
+                          : m.result.depositor,
                       amount: m.result.amount,
                     },
                   }),
