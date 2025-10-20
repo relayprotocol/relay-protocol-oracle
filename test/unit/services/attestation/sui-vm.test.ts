@@ -13,6 +13,7 @@ jest.mock("../../../../src/common/chains", () => {
       httpRpcUrl: "http://127.0.0.1:9000",
       depository:
         "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e",
+      hubChainId: "0",
     },
   };
   return {

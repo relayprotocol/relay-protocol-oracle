@@ -30,9 +30,10 @@ import {
   getChainVmType,
   getSdkChainsConfig,
   HUB_CHAIN_ID,
-  HUB_VM_TYPE
+  HUB_VM_TYPE,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
+import { ExecutionMessageMetadata } from "@reservoir0x/relay-protocol-sdk/dist/messages/v2.2/execution";
 
 export class AttestationService {
   public async attestDepositoryDeposits(
@@ -51,56 +52,61 @@ export class AttestationService {
 
     // Generate onchain hub execution
     let execution: ExecutionMessage | undefined;
-    if (data.includeOnchainHubExecution) {
-      execution = !messages.length
-        ? undefined
-        : {
-            idempotencyKey: getDeterministicId(
-              data.chainId,
-              data.transactionId
-            ),
-            actions: await Promise.all(
-              messages.map(async (m) => {
+    if (data.includeOnchainHubExecution && messages.length) {
+      const actions: string[] = [];
+      const metadata: ExecutionMessageMetadata[] = [];
 
-                const hubTokenId = generateTokenId({
-                  address: m.result.currency,
-                  chainId: await getChainHubChainId(m.data.chainId),
-                  family: await getChainVmType(m.data.chainId),
-                })
-
-                const hubToAddress = m.result.depositId !== zeroHash ? 
-                // This order lives only on the hub
-                // so we do not need to hash it
-                  await this._getOrderAddress({
-                    chainId: m.data.chainId,
-                    timestamp: m.extraData.timestamp,
-                    depositor: m.result.depositor,
-                    depositId: m.result.depositId,
-                  }) 
-                  : 
-                  // in case no deposit info is attached, use the depositor alias on the hub 
-                  generateAddress({
-                    address: m.result.depositor,
-                    chainId: HUB_CHAIN_ID,
-                    family: HUB_VM_TYPE,
-                  })
-                
-                const amount = m.result.amount;
-
-                const results = [
-                  encodeAction({
-                    type: ActionType.MINT,
-                    data: {
-                      hubTokenId,
-                      hubToAddress,
-                      amount,
-                    },
-                  }),
-                ];
-                return results;
-              })
-            ).then((r) => r.flat()),
+      await Promise.all(
+        messages.map(async (m) => {
+          const origin = {
+            address: m.result.currency,
+            chainId: await getChainHubChainId(m.data.chainId),
+            family: await getChainVmType(m.data.chainId),
           };
+
+          const hubTokenId = generateTokenId(origin);
+          metadata.push({
+            hubTokenId,
+            origin,
+          });
+
+          const hubToAddress =
+            m.result.depositId !== zeroHash
+              ? // This order lives only on the hub
+                // so we do not need to hash it
+                await this._getOrderAddress({
+                  chainId: m.data.chainId,
+                  timestamp: m.extraData.timestamp,
+                  depositor: m.result.depositor,
+                  depositId: m.result.depositId,
+                })
+              : // in case no deposit info is attached, use the depositor alias on the hub
+                generateAddress({
+                  address: m.result.depositor,
+                  chainId: HUB_CHAIN_ID,
+                  family: HUB_VM_TYPE,
+                });
+
+          const amount = m.result.amount;
+
+          actions.push(
+            encodeAction({
+              type: ActionType.MINT,
+              data: {
+                hubTokenId,
+                hubToAddress,
+                amount,
+              },
+            })
+          );
+        })
+      );
+
+      execution = {
+        idempotencyKey: getDeterministicId(data.chainId, data.transactionId),
+        actions,
+        metadata,
+      };
     }
 
     return {
@@ -120,7 +126,6 @@ export class AttestationService {
     const message = await getVmAttestor(data.chainId).then((attestor) =>
       attestor.getDepositoryWithdrawalMessage(data.chainId, data.withdrawal)
     );
-
     // Generate onchain hub execution
     let execution: ExecutionMessage | undefined;
     if (data.includeOnchainHubExecution) {
@@ -198,6 +203,7 @@ export class AttestationService {
     // Verify any calls to be executed
     if (data.order.output.calls.length) {
       const attestor = await getVmAttestor(data.order.output.chainId);
+
       if (
         !(await attestor.verifySolverCalls(
           data.order.output.chainId,
@@ -454,8 +460,8 @@ export class AttestationService {
       )
     );
 
-    const orderAddress = orderHash.slice(2).slice(-40)
-    return `0x${orderAddress}` as `0x${string}`
+    const orderAddress = orderHash.slice(2).slice(-40);
+    return `0x${orderAddress}` as `0x${string}`;
   }
 
   private async _getSolverFillOrRefundExecution(data: {
@@ -468,27 +474,26 @@ export class AttestationService {
 
     // Transfer from order to solver
     for (const deposit of data.depositoryDeposits) {
-
       const hubTokenId = generateTokenId({
         address: deposit.result.currency,
         chainId: await getChainHubChainId(deposit.data.chainId),
         family: await getChainVmType(deposit.data.chainId),
-      })
+      });
 
       const hubFromAddress = await this._getOrderAddress({
         chainId: deposit.data.chainId,
         timestamp: deposit.extraData.timestamp,
         depositor: deposit.result.depositor,
         depositId: deposit.result.depositId,
-      })
+      });
 
       // solver address on the hub
       const hubToAddress = generateAddress({
         address: data.order.solver,
         chainId: await getChainHubChainId(data.order.solverChainId),
         family: await getChainVmType(data.order.solverChainId),
-      })
-      
+      });
+
       const amount = deposit.result.amount;
 
       actions.push(
@@ -507,32 +512,31 @@ export class AttestationService {
     // Only when the solver filled, transfer from solver to fee recipients
     if (data.type === "fill") {
       for (const fee of data.order.fees) {
-
         const hubTokenId = generateTokenId({
           address: fee.currency,
           chainId: await getChainHubChainId(fee.currencyChainId),
           family: await getChainVmType(fee.currencyChainId),
-        })
+        });
 
         // solver address on the hub
         const hubFromAddress = generateAddress({
           address: data.order.solver,
           chainId: await getChainHubChainId(data.order.solverChainId),
           family: await getChainVmType(data.order.solverChainId),
-        })
+        });
 
         const hubToAddress = generateAddress({
           address: fee.recipient,
           chainId: await getChainHubChainId(fee.recipientChainId),
           family: await getChainVmType(fee.recipientChainId),
-        })
+        });
 
         const amount = String(
           BigInt(fee.amount) +
             (BigInt(fee.amount) *
               BigInt(data.totalWeightedInputPaymentBpsDiff)) /
               10n ** 18n
-        )
+        );
         actions.push(
           encodeAction({
             type: ActionType.TRANSFER,
@@ -542,7 +546,7 @@ export class AttestationService {
               hubToAddress,
               amount,
             },
-          }),
+          })
         );
       }
     }

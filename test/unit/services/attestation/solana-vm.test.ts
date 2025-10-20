@@ -896,12 +896,15 @@ jest.mock("../../../../src/common/chains", () => {
       vmType: "solana-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
       depository: "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
+      hubChainId:
+        "50176979118388105370421134508366610418687875236156196470082648173271157915018",
     },
     ethereum: {
       id: "ethereum",
       vmType: "ethereum-vm",
       httpRpcUrl: "http://127.0.0.1:8546",
       depository: "0x2e988a386a799f506693793c6a5af6b54dfaabfb",
+      hubChainId: "1",
     },
   };
   return {

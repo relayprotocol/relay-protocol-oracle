@@ -47,6 +47,7 @@ jest.mock("../../../../src/common/chains", () => {
       vmType: "tron-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
       depository: "TXtEs6t2oUWQsNos7m68gbHdE9Q5n6x2oN",
+      hubChainId: "0",
     },
   };
   return {

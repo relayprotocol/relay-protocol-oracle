@@ -80,6 +80,10 @@ export const errorWrapper = (
 
 // Shared schemas
 
+// BigInt is serialized as string in JSON, but TypeBox doesn't have a native BigInt type
+// This creates a custom type that tells TypeScript to expect bigint while serializing as string
+export const BigIntString = Type.Unsafe<bigint>({ type: "string" });
+
 export const signatureSchema = Type.Object({
   oracle: Type.String({
     description: "The address of the signing oracle",
@@ -94,6 +98,18 @@ export const executionSchema = Type.Optional(
     {
       idempotencyKey: Type.String(),
       actions: Type.Array(Type.String(), { minItems: 1 }),
+      metadata: Type.Optional(
+        Type.Array(
+          Type.Object({
+            hubTokenId: BigIntString,
+            origin: Type.Object({
+              address: Type.String(),
+              chainId: BigIntString,
+              family: Type.String(),
+            }),
+          })
+        )
+      ),
       signature: signatureSchema,
     },
     {
