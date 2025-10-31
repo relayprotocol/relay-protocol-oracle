@@ -12,7 +12,7 @@ import {
 import { createWalletClient, Hex, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { getSdkChainsConfig } from "./chains";
+import { getHubChain, getHubChains, getSdkChainsConfig } from "./chains";
 import { config } from "../config";
 
 const getSigningWallet = () => {
@@ -53,13 +53,29 @@ export const signSolverRefundMessage = async (m: SolverRefundMessage) =>
   sign(getSolverRefundMessageId(m, await getSdkChainsConfig()));
 
 export const signExecutionMessage = async (m: ExecutionMessage) => {
+  const signatures = await Promise.all(
+    Object.values(await getHubChains()).map(async (chain) => {
+      return signExecutionMessageForChain(m, chain.id);
+    })
+  );
+  return signatures;
+};
+
+export const signExecutionMessageForChain = async (
+  m: ExecutionMessage,
+  chainId: string
+) => {
   const walletClient = getSigningWallet();
+  const {
+    hubChainId: oracleChainId,
+    additionalData: { oracleAddress },
+  } = await getHubChain(chainId);
 
   const signature = await walletClient.signTypedData({
     domain: {
-      chainId: BigInt(config.onChainOracleChainId),
+      chainId: BigInt(oracleChainId!),
       name: "RelayOracle",
-      verifyingContract: config.onChainOracleAddress as `0x${string}`,
+      verifyingContract: oracleAddress as `0x${string}`,
       version: "1",
     },
     message: {
@@ -82,7 +98,9 @@ export const signExecutionMessage = async (m: ExecutionMessage) => {
   });
 
   return {
-    oracle: walletClient.account.address.toLowerCase(),
+    oracleChainId: BigInt(oracleChainId!),
+    oracleContract: oracleAddress as `0x${string}`,
+    oracleSigner: walletClient.account.address.toLowerCase(),
     signature,
   };
 };

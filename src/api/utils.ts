@@ -93,6 +93,20 @@ export const signatureSchema = Type.Object({
   }),
 });
 
+// Signature for the Hub execution
+export const hubExecutionSignatureSchema = Type.Object({
+  oracleChainId: BigIntString,
+  oracleContract: Type.String({
+    description: "The address of the oracle contract on the hub chain",
+  }),
+  oracleSigner: Type.String({
+    description: "The address of the oracle signer",
+  }),
+  signature: Type.String({
+    description: "The message signature",
+  })
+});
+
 export const executionSchema = Type.Optional(
   Type.Object(
     {
@@ -110,7 +124,7 @@ export const executionSchema = Type.Optional(
           })
         )
       ),
-      signature: signatureSchema,
+      signatures: Type.Array(hubExecutionSignatureSchema, { minItems: 1 }),
     },
     {
       description: "The 'execution' message to be relayed on the Hub",

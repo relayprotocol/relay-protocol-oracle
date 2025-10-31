@@ -182,7 +182,7 @@ export default {
       execution: execution
         ? {
             ...execution,
-            signature: await signExecutionMessage(execution),
+            signatures: await signExecutionMessage(execution),
           }
         : undefined,
     });

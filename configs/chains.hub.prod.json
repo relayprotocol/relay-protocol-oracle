@@ -1,0 +1,11 @@
+[
+    {
+        "id": "arbitrum-sepolia",
+        "vmType": "hub-vm",
+        "httpRpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+        "chainId": "421614",
+        "additionalData": {
+            "oracleAddress": "0x3b26D06Ea8252a73742d2125D1ACEb594ECEE5c6"
+        }
+    }
+]

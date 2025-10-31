@@ -1,0 +1,20 @@
+[
+    {
+        "id": "arbitrum-sepolia",
+        "vmType": "hub-vm",
+        "httpRpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+        "chainId": "421614",
+        "additionalData": {
+            "oracleAddress": "0x53db93710C8d80ADa59db2b5ee63d7A4783fcD98"
+        }
+    },
+    {
+        "id": "conduit-testnet",
+        "vmType": "hub-vm",
+        "httpRpcUrl": "https://rpc-relay-settlement-testnet-7ht8qhd7mf.t.conduit.xyz",
+        "chainId": "35779",
+        "additionalData": {
+            "oracleAddress": "0x64A3328Cf61025720c26dE2a87B6d913fA6e376a"
+        }
+    }
+]
