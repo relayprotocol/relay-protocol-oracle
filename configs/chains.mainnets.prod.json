@@ -49,6 +49,13 @@
     "hubChainId": "137"
   },
   {
+    "id": "monad",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://rpc-mainnet.monadinfra.com/rpc/dELACPvISYPJenyJNHoQ36qhdMXH9dPl",
+    "hubChainId": "143"
+  },
+  {
     "id": "sonic",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
