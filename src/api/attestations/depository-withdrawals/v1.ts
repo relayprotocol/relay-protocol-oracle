@@ -21,6 +21,11 @@ const MessageData = Type.Object({
   withdrawal: Type.String({
     description: "The withdrawal to attest",
   }),
+  transactionId: Type.Optional(
+    Type.String({
+      description: "The transaction id that executed the withdrawal (required for Hyperliquid VM)",
+    })
+  ),
   includeOnchainHubExecution: Type.Optional(
     Type.Boolean({
       description:

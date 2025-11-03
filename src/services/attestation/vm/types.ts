@@ -17,7 +17,8 @@ export abstract class VmAttestor {
 
   public abstract getDepositoryWithdrawalMessage(
     chainId: string,
-    withdrawal: string
+    withdrawal: string,
+    transactionId?: string
   ): Promise<DepositoryWithdrawalMessage>;
 
   public abstract getSolverPaidAmount(

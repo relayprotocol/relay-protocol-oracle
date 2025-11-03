@@ -118,13 +118,14 @@ export class AttestationService {
   public async attestDepositoryWithdrawal(
     data: DepositoryWithdrawalMessage["data"] & {
       includeOnchainHubExecution?: boolean;
+      transactionId?: string;
     }
   ): Promise<{
     message: DepositoryWithdrawalMessage;
     execution?: ExecutionMessage;
   }> {
     const message = await getVmAttestor(data.chainId).then((attestor) =>
-      attestor.getDepositoryWithdrawalMessage(data.chainId, data.withdrawal)
+      attestor.getDepositoryWithdrawalMessage(data.chainId, data.withdrawal, data.transactionId)
     );
     // Generate onchain hub execution
     let execution: ExecutionMessage | undefined;

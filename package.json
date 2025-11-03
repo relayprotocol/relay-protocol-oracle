@@ -18,7 +18,7 @@
     "@mysten/sui": "^1.26.1",
     "@nktkas/hyperliquid": "patch:@nktkas/hyperliquid@npm%3A0.25.1#~/.yarn/patches/@nktkas-hyperliquid-npm-0.25.1-8a4d415def.patch",
     "@relay-protocol/hub-utils": "0.1.4",
-    "@reservoir0x/relay-protocol-sdk": "^0.0.48",
+    "@reservoir0x/relay-protocol-sdk": "^0.0.49",
     "@sinclair/typebox": "^0.34.14",
     "@solana/spl-memo": "^0.2.5",
     "@solana/web3.js": "^1.98.0",
