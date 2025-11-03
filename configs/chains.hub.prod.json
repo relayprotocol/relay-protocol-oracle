@@ -7,5 +7,14 @@
         "additionalData": {
             "oracleAddress": "0x3b26D06Ea8252a73742d2125D1ACEb594ECEE5c6"
         }
+    },
+    {
+        "id": "conduit-testnet",
+        "vmType": "hub-vm",
+        "httpRpcUrl": "https://rpc-relay-settlement-testnet-7ht8qhd7mf.t.conduit.xyz",
+        "chainId": "35779",
+        "additionalData": {
+            "oracleAddress": "0x64A3328Cf61025720c26dE2a87B6d913fA6e376a"
+        }
     }
 ]
