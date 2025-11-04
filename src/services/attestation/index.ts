@@ -28,6 +28,7 @@ import { getDeterministicId } from "./vm/utils";
 import {
   getChainHubChainId,
   getChainVmType,
+  getHubChains,
   getSdkChainsConfig,
   HUB_CHAIN_ID,
   HUB_VM_TYPE,
@@ -35,6 +36,10 @@ import {
 import { externalError } from "../../common/error";
 import { ExecutionMessageMetadata } from "@reservoir0x/relay-protocol-sdk/dist/messages/v2.2/execution";
 
+type ExecutionMetadata = Omit<
+  ExecutionMessageMetadata,
+  "oracleContract" | "oracleChainId"
+>;
 export class AttestationService {
   public async attestDepositoryDeposits(
     data: DepositoryDepositMessage["data"] & {
@@ -54,7 +59,7 @@ export class AttestationService {
     let execution: ExecutionMessage | undefined;
     if (data.includeOnchainHubExecution && messages.length) {
       const actions: string[] = [];
-      const metadata: ExecutionMessageMetadata[] = [];
+      const metadata: ExecutionMetadata[] = [];
 
       await Promise.all(
         messages.map(async (m) => {
@@ -102,10 +107,24 @@ export class AttestationService {
         })
       );
 
+      // parse metadata for all oracle chains
+      const metadataForAllOracles: ExecutionMessageMetadata[] = [];
+      const hubChains = await getHubChains();
+      if (hubChains) {
+        Object.values(hubChains).map((chain) => {
+          const metadataWithOracleInfo = metadata.map((md) => ({
+            ...md,
+            oracleChainId: chain.hubChainId || "",
+            oracleContract: chain.additionalData.oracleAddress as `0x${string}`,
+          }));
+          metadataForAllOracles.push(...metadataWithOracleInfo);
+        });
+      }
+
       execution = {
         idempotencyKey: getDeterministicId(data.chainId, data.transactionId),
         actions,
-        metadata,
+        metadata: metadataForAllOracles,
       };
     }
 
@@ -125,7 +144,11 @@ export class AttestationService {
     execution?: ExecutionMessage;
   }> {
     const message = await getVmAttestor(data.chainId).then((attestor) =>
-      attestor.getDepositoryWithdrawalMessage(data.chainId, data.withdrawal, data.transactionId)
+      attestor.getDepositoryWithdrawalMessage(
+        data.chainId,
+        data.withdrawal,
+        data.transactionId
+      )
     );
     // Generate onchain hub execution
     let execution: ExecutionMessage | undefined;

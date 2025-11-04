@@ -104,7 +104,7 @@ export const hubExecutionSignatureSchema = Type.Object({
   }),
   signature: Type.String({
     description: "The message signature",
-  })
+  }),
 });
 
 export const executionSchema = Type.Optional(
@@ -120,6 +120,11 @@ export const executionSchema = Type.Optional(
               address: Type.String(),
               chainId: BigIntString,
               family: Type.String(),
+            }),
+            oracleChainId: Type.String(),
+            oracleContract: Type.String({
+              description:
+                "The address of the oracle contract on the hub chain",
             }),
           })
         )
