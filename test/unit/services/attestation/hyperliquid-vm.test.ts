@@ -486,7 +486,7 @@ describe("HyperliquidVmAttestor", () => {
         });
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
-        expect(error.message).toContain("No depositId found");
+        expect(error.message).toContain("No nonce mapping found");
       }
     });
   });

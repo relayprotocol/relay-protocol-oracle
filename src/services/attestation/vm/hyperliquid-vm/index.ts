@@ -375,12 +375,12 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
     const data = await axios
       .get(
-        `${hubApiUrl}/queries/deposit-bindings/by-nonce/${nonce}/${depositor}/${chainId}/v1`
+        `${hubApiUrl}/queries/nonce-mappings/${chainId}/${depositor}/${nonce}/v1`
       )
       .then((response) => response.data as { depositId?: string });
     if (!data.depositId) {
       throw externalError(
-        `No depositId found for nonce ${nonce} and depositor ${depositor}`
+        `No nonce mapping found for nonce ${nonce} and depositor ${depositor}`
       );
     }
 
