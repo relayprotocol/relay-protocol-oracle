@@ -73,7 +73,7 @@ describe("HyperliquidVmAttestor", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { depositId: randomHex(32) } })
+        Promise.resolve({ data: { id: randomHex(32) } })
       );
     });
 
@@ -99,7 +99,7 @@ describe("HyperliquidVmAttestor", () => {
 
       // Mock the hub API response for deposit lookup
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { depositId: expectedDepositId } })
+        Promise.resolve({ data: { id: expectedDepositId } })
       );
 
       setupRpcMock({
@@ -152,7 +152,7 @@ describe("HyperliquidVmAttestor", () => {
       };
 
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { depositId: expectedDepositId } })
+        Promise.resolve({ data: { id: expectedDepositId } })
       );
 
       setupRpcMock({
@@ -374,7 +374,7 @@ describe("HyperliquidVmAttestor", () => {
       };
 
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { depositId: expectedDepositId } })
+        Promise.resolve({ data: { id: expectedDepositId } })
       );
 
       setupRpcMock({
@@ -420,7 +420,7 @@ describe("HyperliquidVmAttestor", () => {
       };
 
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { depositId: expectedDepositId } })
+        Promise.resolve({ data: { id: expectedDepositId } })
       );
 
       setupRpcMock({

@@ -56,7 +56,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
         // Check if this is a deposit to the depository
         if (action.destination.toLowerCase() === depository.toLowerCase()) {
           const depositor = txDetails.tx.user.toLowerCase();
-          const depositId = await this._lookupDepositId(
+          const depositId = await this._lookupId(
             chainId,
             depositor,
             Number(txDetails.tx.action.time)
@@ -121,7 +121,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
             throw externalError("Could not retrieve payment currency decimals");
           }
 
-          const depositId = await this._lookupDepositId(
+          const depositId = await this._lookupId(
             chainId,
             depositor,
             Number(txDetails.tx.action.nonce)
@@ -361,7 +361,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
     throw internalError("Not implemented (verifySolverCalls)");
   }
 
-  private async _lookupDepositId(
+  private async _lookupId(
     chainId: string,
     depositor: string,
     nonce: number
@@ -383,14 +383,14 @@ export class HyperliquidVmAttestor extends VmAttestor {
           timeout: 10000,
         }
       )
-      .then((response) => response.data as { depositId?: string });
-    if (!data.depositId) {
+      .then((response) => response.data as { id?: string });
+    if (!data.id) {
       throw externalError(
         `No nonce mapping found for nonce ${nonce} and depositor ${depositor}`
       );
     }
 
-    return data.depositId;
+    return data.id;
   }
 
   private _getMessageHash(action: any): string | undefined {
