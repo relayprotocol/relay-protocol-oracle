@@ -375,7 +375,13 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
     const data = await axios
       .get(
-        `${hubApiUrl}/queries/nonce-mappings/${chainId}/${depositor}/${nonce}/v1`
+        `${hubApiUrl}/queries/nonce-mappings/${chainId}/${depositor}/${nonce}/v1`,
+        {
+          headers: {
+            "x-api-key": process.env.HUB_API_KEY,
+          },
+          timeout: 10000,
+        }
       )
       .then((response) => response.data as { depositId?: string });
     if (!data.depositId) {
