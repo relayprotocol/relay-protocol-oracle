@@ -25,5 +25,14 @@
         "additionalData": {
             "oracleAddress": "0x259813B665C8f6074391028ef782e27B65840d89"
         }
+    },
+    {
+        "id": "sovereign-testnet",
+        "vmType": "hub-vm",
+        "httpRpcUrl": "http://23.22.122.118/rpc",
+        "chainId": "6669",
+        "additionalData": {
+            "oracleAddress": "0x259813B665C8f6074391028ef782e27B65840d89"
+        }
     }
 ]
