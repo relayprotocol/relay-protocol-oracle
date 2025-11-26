@@ -608,6 +608,138 @@ describe("EthereumVmAttestor", () => {
     expect(msg.result.depositId).toEqual(id);
   });
 
+  it("attestDepositoryDeposits - direct deposit bundled with explicit deposit", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const depositor = randomHex(20);
+    const from = randomHex(20);
+    const token = randomHex(20);
+    const amount = randomNumber(1e10).toString();
+    const id = randomHex(32);
+
+    const params = {
+      transactionHash,
+      from,
+      to: chain.depository!,
+      token,
+      amount,
+    };
+
+    const firstTransferLog = generateTransferLog({ ...params, logIndex: 0 });
+    const secondTransferLog = generateTransferLog({ ...params, logIndex: 1 });
+    const depositLog = generateErc20DepositLog({
+      ...params,
+      id,
+      from: depositor,
+      logIndex: 3,
+    });
+    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+      firstTransferLog,
+      secondTransferLog,
+      depositLog,
+    ]);
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
+    }));
+
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
+    expect(messages.length === 2).toBeTruthy();
+
+    const firstMsg = messages[0];
+    expect(firstMsg.data.chainId).toEqual(chain.id);
+    expect(firstMsg.data.transactionId).toEqual(transactionHash);
+    expect(firstMsg.result.depositor).toEqual(from);
+    expect(firstMsg.result.depository).toEqual(chain.depository);
+    expect(firstMsg.result.currency).toEqual(token);
+    expect(firstMsg.result.amount).toEqual(amount);
+    expect(firstMsg.result.depositId).toEqual(zeroHash);
+
+    const secondMsg = messages[1];
+    expect(secondMsg.data.chainId).toEqual(chain.id);
+    expect(secondMsg.data.transactionId).toEqual(transactionHash);
+    expect(secondMsg.result.depositor).toEqual(depositor);
+    expect(secondMsg.result.depository).toEqual(chain.depository);
+    expect(secondMsg.result.currency).toEqual(token);
+    expect(secondMsg.result.amount).toEqual(amount);
+    expect(secondMsg.result.depositId).toEqual(id);
+  });
+
+  it("attestDepositoryDeposits - explicit deposit bundled with direct deposit", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const depositor = randomHex(20);
+    const from = randomHex(20);
+    const token = randomHex(20);
+    const amount = randomNumber(1e10).toString();
+    const id = randomHex(32);
+
+    const params = {
+      transactionHash,
+      from,
+      to: chain.depository!,
+      token,
+      amount,
+    };
+
+    const firstTransferLog = generateTransferLog({ ...params, logIndex: 1 });
+    const depositLog = generateErc20DepositLog({
+      ...params,
+      id,
+      from: depositor,
+      logIndex: 4,
+    });
+    const secondTransferLog = generateTransferLog({ ...params, logIndex: 5 });
+    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+      firstTransferLog,
+      depositLog,
+      secondTransferLog,
+    ]);
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
+    }));
+
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
+    expect(messages.length === 2).toBeTruthy();
+
+    const firstMsg = messages[0];
+    expect(firstMsg.data.chainId).toEqual(chain.id);
+    expect(firstMsg.data.transactionId).toEqual(transactionHash);
+    expect(firstMsg.result.depositor).toEqual(depositor);
+    expect(firstMsg.result.depository).toEqual(chain.depository);
+    expect(firstMsg.result.currency).toEqual(token);
+    expect(firstMsg.result.amount).toEqual(amount);
+    expect(firstMsg.result.depositId).toEqual(id);
+
+    const secondMsg = messages[1];
+    expect(secondMsg.data.chainId).toEqual(chain.id);
+    expect(secondMsg.data.transactionId).toEqual(transactionHash);
+    expect(secondMsg.result.depositor).toEqual(from);
+    expect(secondMsg.result.depository).toEqual(chain.depository);
+    expect(secondMsg.result.currency).toEqual(token);
+    expect(secondMsg.result.amount).toEqual(amount);
+    expect(secondMsg.result.depositId).toEqual(zeroHash);
+  });
+
   it("attestDepositoryDeposits - Transfer event with non-matching RelayErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 

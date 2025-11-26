@@ -151,6 +151,12 @@ export class EthereumVmAttestor extends VmAttestor {
         let depositId: string | undefined;
         for (let j = nextLogIndex; j < parsedLogs.length; j++) {
           const nextLog = parsedLogs[j];
+
+          // Stop as soon as we encounter a different `Transfer` event
+          if (nextLog.eventName === "Transfer") {
+            break;
+          }
+
           if (
             nextLog.eventName === "RelayErc20Deposit" &&
             nextLog.args.token.toLowerCase() ===
