@@ -563,6 +563,7 @@
     "id": "hyperliquid",
     "vmType": "hyperliquid-vm",
     "httpRpcUrl": "https://api.hyperliquid.xyz",
+    "depository": "0x865eb9baa5492cef598adf7afb1038654fcb7081",
     "hubChainId": "111378472430415857054556056192544272316610524417112732947551032542507639335976",
     "additionalData": {
       "hubApiUrl": "http://relay-protocol-hub.platform.svc.cluster.local"
