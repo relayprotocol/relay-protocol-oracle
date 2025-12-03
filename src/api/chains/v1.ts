@@ -14,6 +14,7 @@ const Schema = {
               Type.Literal("bitcoin-vm"),
               Type.Literal("ethereum-vm"),
               Type.Literal("hyperliquid-vm"),
+              Type.Literal("lighter-vm"),
               Type.Literal("solana-vm"),
               Type.Literal("sui-vm"),
               Type.Literal("ton-vm"),

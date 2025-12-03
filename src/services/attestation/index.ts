@@ -12,6 +12,7 @@ import {
   SolverRefundMessage,
   SolverRefundStatus,
 } from "@reservoir0x/relay-protocol-sdk";
+import { ExecutionMessageMetadata } from "@reservoir0x/relay-protocol-sdk/dist/messages/v2.2/execution";
 import { generateTokenId, generateAddress } from "@relay-protocol/hub-utils";
 import {
   Address,
@@ -34,7 +35,6 @@ import {
   HUB_VM_TYPE,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
-import { ExecutionMessageMetadata } from "@reservoir0x/relay-protocol-sdk/dist/messages/v2.2/execution";
 
 type ExecutionMetadata = Omit<
   ExecutionMessageMetadata,

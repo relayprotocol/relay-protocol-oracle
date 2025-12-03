@@ -5,6 +5,7 @@ import { externalError } from "../../../common/error";
 import { EthereumVmAttestor } from "./ethereum-vm";
 import { BitcoinVmAttestor } from "./bitcoin-vm";
 import { HyperliquidVmAttestor } from "./hyperliquid-vm";
+import { LighterVmAttestor } from "./lighter-vm";
 import { SolanaVmAttestor } from "./solana-vm";
 import { SuiVmAttestor } from "./sui-vm";
 import { TronVmAttestor } from "./tron-vm";
@@ -17,6 +18,9 @@ export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
 
     case "hyperliquid-vm":
       return new HyperliquidVmAttestor();
+
+    case "lighter-vm":
+      return new LighterVmAttestor();
 
     case "solana-vm":
       return new SolanaVmAttestor();
