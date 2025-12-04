@@ -593,7 +593,7 @@ export class AttestationService {
         // so we use the depository chain id
         const [deposit] = data.depositoryDeposits;
         const hubToAddress = generateAddress({
-          address: fee.recipient,
+          address: data.order.solver,
           chainId: await getChainHubChainId(deposit.data.chainId),
           family: await getChainVmType(deposit.data.chainId),
         });
