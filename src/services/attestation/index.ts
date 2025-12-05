@@ -545,8 +545,10 @@ export class AttestationService {
     // solver address on the hub
     const solverAddress = generateAddress({
       address: data.order.solver,
-      chainId: await getChainHubChainId(data.order.solverChainId),
-      family: await getChainVmType(data.order.solverChainId),
+      chainId: await getChainHubChainId(
+        data.depositoryDeposits[0].data.chainId
+      ),
+      family: await getChainVmType(data.depositoryDeposits[0].data.chainId),
     });
 
     // Transfer from order to solver
@@ -588,12 +590,9 @@ export class AttestationService {
           family: await getChainVmType(fee.currencyChainId),
         });
 
-        // TODO: use the hashed withdrawal address
-        // for now, we dont know the origin chain when witnessing the withdrawal
-        // so we use the depository chain id
         const [deposit] = data.depositoryDeposits;
         const hubToAddress = generateAddress({
-          address: data.order.solver,
+          address: fee.recipient,
           chainId: await getChainHubChainId(deposit.data.chainId),
           family: await getChainVmType(deposit.data.chainId),
         });
