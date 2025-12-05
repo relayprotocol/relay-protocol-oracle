@@ -296,7 +296,23 @@ export class HyperliquidVmAttestor extends VmAttestor {
     }
 
     if (payment.currency === getVmTypeNativeCurrency(VM_TYPE)) {
-      if (txDetails.tx.action.type === "usdSend") {
+      if (txDetails.tx.action.type === "sendAsset") {
+        const txParameters = txDetails.tx
+          .action as unknown as hl.SendAssetParameters;
+        const [tokenSymbol, tokenAddress] = txParameters.token.split(":");
+        const tokenDex = txParameters.destinationDex;
+
+        // Native currency is USDC on perps (destinationDex === "")
+        if (
+          tokenSymbol === "USDC" &&
+          tokenAddress === SPOT_USDC &&
+          tokenDex === "" &&
+          txParameters.destination.toLowerCase() ===
+            payment.recipient.toLowerCase()
+        ) {
+          return parseUnits(Number(txParameters.amount).toFixed(8), 8);
+        }
+      } else if (txDetails.tx.action.type === "usdSend") {
         const txParameters = txDetails.tx
           .action as unknown as hl.UsdSendParameters;
         if (
