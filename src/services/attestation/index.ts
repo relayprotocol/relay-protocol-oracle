@@ -8,7 +8,6 @@ import {
   ExecutionMessage,
   getDecodedWithdrawalAmount,
   getDecodedWithdrawalCurrency,
-  getDecodedWithdrawalRecipient,
   getOrderId,
   Order,
   SolverFillMessage,
@@ -166,9 +165,6 @@ export class AttestationService {
         const withdrawalCurrency =
           getDecodedWithdrawalCurrency(decodedWithdrawal);
 
-        const recipientAddress =
-          getDecodedWithdrawalRecipient(decodedWithdrawal);
-
         const amount = getDecodedWithdrawalAmount(decodedWithdrawal);
 
         // generate for hub
@@ -178,11 +174,13 @@ export class AttestationService {
           family: await getChainVmType(data.chainId),
         });
 
-        // TODO: withdrawal address
-        const recipientHubAddress = generateAddress({
-          address: recipientAddress,
-          chainId: await getChainHubChainId(data.chainId),
-          family: await getChainVmType(data.chainId),
+        // TODO: replace by computed withdrawal address
+        const BASE_SOLVER_ADDRESS =
+          "0xf70da97812cb96acdf810712aa562db8dfa3dbef";
+        const baseSolverAlias = generateAddress({
+          address: BASE_SOLVER_ADDRESS,
+          chainId: BigInt(8453),
+          family: "ethereum-vm",
         });
 
         execution = {
@@ -195,7 +193,7 @@ export class AttestationService {
               type: ActionType.BURN,
               data: {
                 hubTokenId,
-                hubFromAddress: recipientHubAddress,
+                hubFromAddress: baseSolverAlias,
                 amount,
               },
             }),
@@ -543,12 +541,10 @@ export class AttestationService {
     const actions: string[] = [];
 
     // solver address on the hub
-    const solverAddress = generateAddress({
+    const baseSolverAlias = generateAddress({
       address: data.order.solver,
-      chainId: await getChainHubChainId(
-        data.depositoryDeposits[0].data.chainId
-      ),
-      family: await getChainVmType(data.depositoryDeposits[0].data.chainId),
+      chainId: await getChainHubChainId(data.order.solverChainId),
+      family: await getChainVmType(data.order.solverChainId),
     });
 
     // Transfer from order to solver
@@ -574,7 +570,7 @@ export class AttestationService {
           data: {
             hubTokenId,
             hubFromAddress,
-            hubToAddress: solverAddress,
+            hubToAddress: baseSolverAlias,
             amount,
           },
         })
@@ -608,7 +604,7 @@ export class AttestationService {
             type: ActionType.TRANSFER,
             data: {
               hubTokenId,
-              hubFromAddress: solverAddress,
+              hubFromAddress: baseSolverAlias,
               hubToAddress,
               amount,
             },

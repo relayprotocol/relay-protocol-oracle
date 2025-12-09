@@ -28,6 +28,37 @@ jest.mock("viem", () => {
   };
 });
 
+jest.mock("../../../../src/common/chains", () => ({
+  getChainVmType: jest.fn().mockImplementation(async (chainId: string) => {
+    if (chainId === "ethereum") return "ethereum-vm";
+    if (chainId === "solana") return "solana-vm";
+    throw new Error("Unknown chain");
+  }),
+  getChainHubChainId: jest.fn().mockImplementation(async (chainId: string) => {
+    if (chainId === "ethereum") return 1;
+    if (chainId === "solana") return 101;
+    throw new Error("Unknown chain");
+  }),
+  getHubChains: jest.fn().mockImplementation(async () => [
+    {
+      chainId: "ethereum",
+      vmType: "ethereum-vm",
+      hubChainId: "1",
+      additionalData: { oracleAddress: "0xoracleETH" },
+    },
+    {
+      chainId: "solana",
+      hubChainId: "101",
+      vmType: "solana-vm",
+      additionalData: { oracleAddress: "0xoracleSOL" },
+    },
+  ]),
+  getSdkChainsConfig: jest.fn(() => ({
+    ethereum: "ethereum-vm",
+    solana: "solana-vm",
+  })),
+}));
+
 const mockGetVmAttestor = jest.mocked(getVmAttestor);
 
 describe("AttestationService", () => {
@@ -35,16 +66,6 @@ describe("AttestationService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Mock chain configuration functions
-    const {
-      getSdkChainsConfig,
-      getChainHubChainId,
-      getChainVmType,
-    } = require("../../../../src/common/chains");
-    getSdkChainsConfig.mockResolvedValue({ ethereum: "ethereum-vm" });
-    getChainHubChainId.mockResolvedValue(BigInt("1"));
-    getChainVmType.mockResolvedValue("ethereum-vm");
   });
 
   describe("attestDepositoryDeposits", () => {
@@ -113,8 +134,16 @@ describe("AttestationService", () => {
   });
 
   describe("attestDepositoryWithdrawals", () => {
+    // TODO: replace with computed withdrawal address
+    const BASE_SOLVER_ADDRESS = "0xf70da97812cb96acdf810712aa562db8dfa3dbef";
+    const baseSolverAlias = generateAddress({
+      address: BASE_SOLVER_ADDRESS,
+      chainId: BigInt(8453),
+      family: "ethereum-vm",
+    });
+
     it(`returns correct execution data with withdrawal execution for ethereum-vm`, async () => {
-      const recipient = "0x1234567890123456789012345678901234567890";
+      const recipient = "0xf70da97812cb96acdf810712aa562db8dfa3dbef";
       const amount = "1000";
 
       // Create a valid ethereum-vm withdrawal
@@ -187,12 +216,6 @@ describe("AttestationService", () => {
         family: await getChainVmType(requestBody.chainId),
       });
 
-      const recipientHubAddress = generateAddress({
-        address: recipient,
-        chainId: await getChainHubChainId(requestBody.chainId),
-        family: await getChainVmType(requestBody.chainId),
-      });
-
       const [action] = result.execution?.actions || [];
       expect(result.message).toEqual(mockMessage);
       expect(result.execution).toBeDefined();
@@ -202,7 +225,7 @@ describe("AttestationService", () => {
         type: ActionType.BURN,
         data: {
           hubTokenId,
-          hubFromAddress: recipientHubAddress,
+          hubFromAddress: baseSolverAlias,
           amount,
         },
       });
@@ -257,14 +280,6 @@ describe("AttestationService", () => {
 
       mockGetVmAttestor.mockResolvedValue(mockAttestor);
 
-      // Update mocks for solana-vm
-      const {
-        getChainVmType: mockGetChainVmType,
-        getChainHubChainId: mockGetChainHubChainId,
-      } = require("../../../../src/common/chains");
-      mockGetChainVmType.mockResolvedValue("solana-vm");
-      mockGetChainHubChainId.mockResolvedValue(BigInt("1"));
-
       const result = await service.attestDepositoryWithdrawal(requestBody);
       const idempotencyKey = getDeterministicId(
         mockMessage.result.withdrawalId,
@@ -273,12 +288,6 @@ describe("AttestationService", () => {
 
       const hubTokenId = generateTokenId({
         address: currency,
-        chainId: await getChainHubChainId(requestBody.chainId),
-        family: await getChainVmType(requestBody.chainId),
-      });
-
-      const recipientHubAddress = generateAddress({
-        address: recipient,
         chainId: await getChainHubChainId(requestBody.chainId),
         family: await getChainVmType(requestBody.chainId),
       });
@@ -292,7 +301,7 @@ describe("AttestationService", () => {
         type: ActionType.BURN,
         data: {
           hubTokenId,
-          hubFromAddress: recipientHubAddress,
+          hubFromAddress: baseSolverAlias,
           amount,
         },
       });
