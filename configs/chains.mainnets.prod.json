@@ -126,6 +126,13 @@
     "hubChainId": "747"
   },
   {
+    "id": "stable",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "http://proxy-stable.nodes.svc.cluster.local:8545/stable",
+    "hubChainId": "988"
+  },
+  {
     "id": "hyperevm",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
@@ -236,6 +243,13 @@
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-hychain.nodes.svc.cluster.local:8545/hychain",
     "hubChainId": "2911"
+  },
+  {
+    "id": "megaeth",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://alpha.megaeth.com/rpc?user=relay+v1&token=1763427813-qx5yROYcmgsnXf6tFi%2FP1MLyfjlkqLFZBC06tZXNdbA%3D",
+    "hubChainId": "4326"
   },
   {
     "id": "mantle",
@@ -495,6 +509,13 @@
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-forma.nodes.svc.cluster.local:8545/forma",
     "hubChainId": "984122"
+  },
+  {
+    "id": "ethereal",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://rpc-ethereal-mainnet-0.t.conduit.xyz/FkJa1BMrbHboCvbfrCZJH9U5CHWpr3skv",
+    "hubChainId": "5064014"
   },
   {
     "id": "zora",
