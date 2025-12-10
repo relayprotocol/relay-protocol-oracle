@@ -217,13 +217,6 @@
     "hubChainId": "2020"
   },
   {
-    "id": "game7",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-game7.nodes.svc.cluster.local:8545/game7",
-    "hubChainId": "2187"
-  },
-  {
     "id": "abstract",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
@@ -236,13 +229,6 @@
     "vmType": "ethereum-vm",
     "httpRpcUrl": "https://rpc.morphl2.io",
     "hubChainId": "2818"
-  },
-  {
-    "id": "hychain",
-    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-hychain.nodes.svc.cluster.local:8545/hychain",
-    "hubChainId": "2911"
   },
   {
     "id": "megaeth",
@@ -313,13 +299,6 @@
     "vmType": "ethereum-vm",
     "httpRpcUrl": "https://rpc.plasma.to",
     "hubChainId": "9745"
-  },
-  {
-    "id": "onchain_points",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-onchain-points.nodes.svc.cluster.local:8545/onchainpoints",
-    "hubChainId": "17071"
   },
   {
     "id": "apechain",
@@ -427,20 +406,6 @@
     "hubChainId": "69000"
   },
   {
-    "id": "apex",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-apex.nodes.svc.cluster.local:8545/apex",
-    "hubChainId": "70700"
-  },
-  {
-    "id": "boss",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-boss.nodes.svc.cluster.local:8545/boss",
-    "hubChainId": "70701"
-  },
-  {
     "id": "berachain",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
@@ -530,13 +495,6 @@
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-corn.nodes.svc.cluster.local:8545/corn",
     "hubChainId": "21000000"
-  },
-  {
-    "id": "lordchain",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "https://lordchain-rpc.appchain.base.org",
-    "hubChainId": "84530008"
   },
   {
     "id": "degen",
