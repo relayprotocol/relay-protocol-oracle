@@ -10,6 +10,7 @@ node_modules
 
 # Local configs
 *.local.json
+*.local.ts
 
 # Error files
 yarn-error.log

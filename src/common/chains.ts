@@ -1,8 +1,10 @@
 import { VmType } from "@reservoir0x/relay-protocol-sdk";
-
 import { externalError } from "./error";
 import { readConfigValue } from "./utils";
 import { config } from "../config";
+import path from "path";
+export const HUB_VM_TYPE = "hub-vm" as any as VmType;
+export const HUB_CHAIN_ID = 0n;
 
 export type Chain = {
   id: string;
@@ -12,17 +14,18 @@ export type Chain = {
   additionalData?: any;
   // The numeric chain id in the onchain hub contract
   hubChainId?: string;
+  chainId?: string;
 };
-
-export const HUB_VM_TYPE = "hub-vm" as any as VmType;
-export const HUB_CHAIN_ID = 0n;
 
 let _chains: { [id: string]: Chain } | undefined;
 export const getChains = async () => {
   if (!_chains) {
     const __chains: { [id: string]: Chain } = {};
-
-    const chains = require(`../../configs/chains.${config.environment}.json`);
+    const chainsConfigPah = path.join(
+      __dirname,
+      `../configs/chains.${config.environment}`
+    );
+    const chains = require(chainsConfigPah);
     for (const chain of chains) {
       __chains[chain.id] = {
         id: readConfigValue(chain.id),
@@ -61,14 +64,19 @@ export const getSdkChainsConfig = async () => {
 // helpers for hub chains
 export const getHubChains = async () => {
   const hubEnv = config.environment.includes("prod") ? "prod" : "dev";
-  const chains = require(`../../configs/chains.hub.${hubEnv}.json`);
+  const hubChainsConfigPath = path.join(
+    __dirname,
+    `../configs/chains.hub.${hubEnv}`
+  );
+  const chains = require(hubChainsConfigPath);
+
   const __chains: { [id: string]: Chain } = {};
   for (const chain of chains) {
     __chains[chain.id] = {
       id: readConfigValue(chain.id),
       vmType: readConfigValue(chain.vmType),
       httpRpcUrl: readConfigValue(chain.httpRpcUrl),
-      hubChainId: readConfigValue(chain.chainId),
+      hubChainId: readConfigValue(chain.hubChainId),
       additionalData: readConfigValue(chain.additionalData) || {},
     };
   }
