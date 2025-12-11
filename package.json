@@ -18,7 +18,6 @@
     "@mysten/sui": "^1.26.1",
     "@nktkas/hyperliquid": "patch:@nktkas/hyperliquid@npm%3A0.25.1#~/.yarn/patches/@nktkas-hyperliquid-npm-0.25.1-8a4d415def.patch",
     "@relay-protocol/hub-utils": "^0.1.5",
-    "@relay-protocol/networks": "2.1.4",
     "@reservoir0x/lighter-ts-sdk": "^1.0.7-alpha8",
     "@reservoir0x/relay-protocol-sdk": "^0.0.56",
     "@sinclair/typebox": "^0.34.14",
