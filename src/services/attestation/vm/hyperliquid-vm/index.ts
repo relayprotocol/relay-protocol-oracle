@@ -8,7 +8,7 @@ import {
   getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
 import axios from "axios";
-import { Hex, parseUnits, hashStruct } from "viem";
+import { parseUnits, hashStruct } from "viem";
 
 import { getDeterministicId } from "../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
@@ -20,6 +20,42 @@ const VM_TYPE = "hyperliquid-vm";
 
 const SPOT_USDC = "0x6d1e7cde53ba9467b783cb7c530ce054";
 
+const getTxDetailsWithFallback = async (
+  chainId: string,
+  txId: string
+): Promise<hl.TxDetailsResponse["tx"]> => {
+  const rpc = await httpRpc(chainId);
+  return rpc
+    .txDetails({
+      hash: txId as any,
+    })
+    .then((tx) => tx?.tx)
+    .catch(async (error) => {
+      if (
+        (error as any).body ===
+        "More than 100 archived blocks queried in one day"
+      ) {
+        return axios
+          .post(
+            "https://nfttools.pro",
+            {
+              type: "txDetails",
+              hash: txId,
+            },
+            {
+              headers: {
+                "X-Nft-Api-Key": "039f6b70-3799-40a1-afd7-63087faddaed",
+                url: "https://rpc.hyperliquid.xyz/explorer",
+              },
+            }
+          )
+          .then((response) => response.data.tx);
+      }
+
+      throw error;
+    });
+};
+
 export class HyperliquidVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
@@ -28,15 +64,13 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const rpc = await httpRpc(chainId);
 
     // Get transaction details
-    const txDetails = await rpc.txDetails({
-      hash: transactionId as Hex,
-    });
+    const txDetails = await getTxDetailsWithFallback(chainId, transactionId);
     if (!txDetails) {
       throw externalError(
         `Missing transaction ${transactionId} on chain ${chainId}`
       );
     }
-    if (txDetails.tx.error) {
+    if (txDetails.error) {
       throw externalError(`Transaction failed: ${transactionId}`);
     }
 
@@ -47,19 +81,19 @@ export class HyperliquidVmAttestor extends VmAttestor {
     }
 
     const messages: EnhancedDepositoryDepositMessage[] = [];
-    const timestamp = Math.floor(txDetails.tx.time / 1000).toString();
+    const timestamp = Math.floor(txDetails.time / 1000).toString();
 
-    switch (txDetails.tx.action.type) {
+    switch (txDetails.action.type) {
       case "usdSend": {
-        const action = txDetails.tx.action as unknown as hl.UsdSendParameters;
+        const action = txDetails.action as unknown as hl.UsdSendParameters;
 
         // Check if this is a deposit to the depository
         if (action.destination.toLowerCase() === depository.toLowerCase()) {
-          const depositor = txDetails.tx.user.toLowerCase();
+          const depositor = txDetails.user.toLowerCase();
           const depositId = await this._lookupId(
             chainId,
             depositor,
-            Number(txDetails.tx.action.time)
+            Number(txDetails.action.time)
           );
 
           messages.push({
@@ -88,11 +122,11 @@ export class HyperliquidVmAttestor extends VmAttestor {
       }
 
       case "sendAsset": {
-        const action = txDetails.tx.action as unknown as hl.SendAssetParameters;
+        const action = txDetails.action as unknown as hl.SendAssetParameters;
 
         // Check if this is a deposit to the depository
         if (action.destination.toLowerCase() === depository.toLowerCase()) {
-          const depositor = txDetails.tx.user.toLowerCase();
+          const depositor = txDetails.user.toLowerCase();
           const tokenAddress = action.token.split(":")[1];
           const tokenDex = action.destinationDex;
           if (tokenDex === "" && tokenAddress !== SPOT_USDC) {
@@ -124,7 +158,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
           const depositId = await this._lookupId(
             chainId,
             depositor,
-            Number(txDetails.tx.action.nonce)
+            Number(txDetails.action.nonce)
           );
 
           messages.push({
@@ -199,22 +233,20 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
     // If the withdrawal was not found in recent transactions but `transactionId` is provided, check that specific transaction
     if (status === DepositoryWithdrawalStatus.PENDING && transactionId) {
-      const txDetails = await rpc.txDetails({
-        hash: transactionId as Hex,
-      });
+      const txDetails = await getTxDetailsWithFallback(chainId, transactionId);
       if (!txDetails) {
         throw externalError(
           `Missing transaction ${transactionId} on chain ${chainId}`
         );
       }
-      if (txDetails.tx.error) {
+      if (txDetails.error) {
         throw externalError(`Transaction failed: ${transactionId}`);
       }
 
       // Verify transaction is from depository
-      if (txDetails.tx.user.toLowerCase() === depository.toLowerCase()) {
+      if (txDetails.user.toLowerCase() === depository.toLowerCase()) {
         // Verify the transaction's message hash matches the withdrawal id
-        const txMessageHash = this._getMessageHash(txDetails.tx.action);
+        const txMessageHash = this._getMessageHash(txDetails.action);
         if (txMessageHash && withdrawalId === txMessageHash) {
           status = DepositoryWithdrawalStatus.EXECUTED;
         }
@@ -281,14 +313,12 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
-    const txDetails = await rpc.txDetails({
-      hash: transactionId as Hex,
-    });
-    if (!txDetails || txDetails.tx.error) {
+    const txDetails = await getTxDetailsWithFallback(chainId, transactionId);
+    if (!txDetails || txDetails.error) {
       throw externalError(`Missing or reverted transaction ${transactionId}`);
     }
 
-    const transactionTimestamp = Math.floor(txDetails.tx.time / 1000);
+    const transactionTimestamp = Math.floor(txDetails.time / 1000);
     if (transactionTimestamp > payment.deadline) {
       throw externalError(
         `Transaction ${transactionId} executed after deadline`
@@ -296,9 +326,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
     }
 
     if (payment.currency === getVmTypeNativeCurrency(VM_TYPE)) {
-      if (txDetails.tx.action.type === "sendAsset") {
-        const txParameters = txDetails.tx
-          .action as unknown as hl.SendAssetParameters;
+      if (txDetails.action.type === "sendAsset") {
+        const txParameters =
+          txDetails.action as unknown as hl.SendAssetParameters;
         const [tokenSymbol, tokenAddress] = txParameters.token.split(":");
         const tokenDex = txParameters.destinationDex;
 
@@ -312,9 +342,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
         ) {
           return parseUnits(Number(txParameters.amount).toFixed(8), 8);
         }
-      } else if (txDetails.tx.action.type === "usdSend") {
-        const txParameters = txDetails.tx
-          .action as unknown as hl.UsdSendParameters;
+      } else if (txDetails.action.type === "usdSend") {
+        const txParameters =
+          txDetails.action as unknown as hl.UsdSendParameters;
         if (
           txParameters.destination.toLowerCase() ===
           payment.recipient.toLowerCase()
@@ -325,9 +355,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
       throw externalError("Could not detect payment");
     } else {
-      if (txDetails.tx.action.type === "sendAsset") {
-        const txParameters = txDetails.tx
-          .action as unknown as hl.SendAssetParameters;
+      if (txDetails.action.type === "sendAsset") {
+        const txParameters =
+          txDetails.action as unknown as hl.SendAssetParameters;
 
         const [orderPaymentCurrency, orderPaymentDex] = [
           payment.currency.slice(0, 34),
