@@ -1,4 +1,6 @@
 import { describe, expect, it, jest, beforeEach } from "@jest/globals";
+import { zeroHash } from "viem";
+
 import { AttestationService } from "../../../../src/services/attestation";
 import { getVmAttestor } from "../../../../src/services/attestation/vm";
 import { getDeterministicId } from "../../../../src/services/attestation/vm/utils";
@@ -240,11 +242,13 @@ describe("AttestationService", () => {
       const decodedWithdrawal = {
         vmType: "solana-vm" as const,
         withdrawal: {
+          domain: zeroHash,
           recipient,
           token: currency,
           amount,
           nonce: "0",
           expiration: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+          vaultAddress: currency,
         },
       };
 
