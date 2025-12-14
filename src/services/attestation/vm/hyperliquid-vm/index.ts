@@ -33,7 +33,10 @@ const getTxDetailsWithFallback = async (
     .catch(async (error) => {
       if (
         (error as any).body ===
-        "More than 100 archived blocks queried in one day"
+          "More than 100 archived blocks queried in one day" ||
+        (error as any).stack?.startsWith(
+          "HttpRequestError: 429 Too Many Requests"
+        )
       ) {
         return axios
           .post(
