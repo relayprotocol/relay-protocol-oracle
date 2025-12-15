@@ -322,6 +322,13 @@
     "hubChainId": "34443"
   },
   {
+    "id": "mythos",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://mythos-mainnet.g.alchemy.com/v2/V_x4FTsUg_UnRMnr5P_28_ca5m26JcL_",
+    "hubChainId": "42018"
+  },
+  {
     "id": "arbitrum",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
