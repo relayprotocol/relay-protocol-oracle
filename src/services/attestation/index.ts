@@ -461,25 +461,24 @@ export class AttestationService {
         }
 
         // Get the depository deposit corresponding to the current order input payment
-        const depositoryDeposit = await getVmAttestor(
+        const depositoryDeposits = await getVmAttestor(
           orderInput.payment.chainId
-        )
-          .then((attestor) =>
-            attestor.getDepositoryDepositMessages(
-              orderInput.payment.chainId,
-              inputInformation.transactionId
-            )
+        ).then((attestor) =>
+          attestor.getDepositoryDepositMessages(
+            orderInput.payment.chainId,
+            inputInformation.transactionId
           )
-          .then((depositoryDeposits) =>
-            depositoryDeposits.find(
-              (d) =>
-                d.result.depositId === orderId &&
-                d.result.onchainId === inputInformation.onchainId
-            )
-          );
+        );
+        const depositoryDeposit = depositoryDeposits.find(
+          (d) =>
+            d.result.depositId === orderId &&
+            d.result.onchainId === inputInformation.onchainId
+        );
         if (!depositoryDeposit) {
           throw externalError(
-            `Invalid input information for order input payment ${inputPaymentIndex}`
+            `Invalid input information for order input payment ${inputPaymentIndex} (orderId=${orderId} onchainId=${
+              inputInformation.onchainId
+            } depositoryDeposits=${JSON.stringify(depositoryDeposits)})`
           );
         }
 
