@@ -18,15 +18,6 @@
         }
     },
     {
-        "id": "caldera-testnet",
-        "vmType": "hub-vm",
-        "httpRpcUrl": "https://relay-settlement-testnet.rpc.caldera.xyz/http",
-        "chainId": "5377137",
-        "additionalData": {
-            "oracleAddress": "0xF241F12506fb6Bf1909c6bC176A199166414007a"
-        }
-    },
-    {
         "id": "sovereign-testnet",
         "vmType": "hub-vm",
         "httpRpcUrl": "http://23.22.122.118/rpc",
