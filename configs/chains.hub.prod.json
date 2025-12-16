@@ -5,7 +5,7 @@
         "httpRpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
         "chainId": "421614",
         "additionalData": {
-            "oracleAddress": "0x3b26D06Ea8252a73742d2125D1ACEb594ECEE5c6"
+            "oracleAddress": "0x5eBD15e2Bb5EdB8d95c5d6e7275B0c511a46D7D8"
         }
     },
     {
@@ -14,7 +14,7 @@
         "httpRpcUrl": "https://rpc-relay-settlement-testnet-7ht8qhd7mf.t.conduit.xyz",
         "chainId": "35779",
         "additionalData": {
-            "oracleAddress": "0x64A3328Cf61025720c26dE2a87B6d913fA6e376a"
+            "oracleAddress": "0xaB82D702A4e0cD165072C005dc504A21c019718F"
         }
     },
     {
@@ -23,7 +23,7 @@
         "httpRpcUrl": "https://relay-settlement-testnet.rpc.caldera.xyz/http",
         "chainId": "5377137",
         "additionalData": {
-            "oracleAddress": "0x259813B665C8f6074391028ef782e27B65840d89"
+            "oracleAddress": "0x440d9D4E66d39bb28FB58729Cb4D3ead2A595591"
         }
     },
     {
@@ -32,7 +32,7 @@
         "httpRpcUrl": "http://23.22.122.118/rpc",
         "chainId": "6669",
         "additionalData": {
-            "oracleAddress": "0x259813B665C8f6074391028ef782e27B65840d89"
+            "oracleAddress": "0x32Eb84EbDFB89A7957c86ec4396bae489Cfe4549"
         }
     }
 ]
