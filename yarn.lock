@@ -876,10 +876,10 @@
   dependencies:
     "@reservoir0x/relay-protocol-sdk" "0.0.55"
 
-"@reservoir0x/lighter-ts-sdk@^1.0.7-alpha8":
-  version "1.0.7-alpha8"
-  resolved "https://registry.yarnpkg.com/@reservoir0x/lighter-ts-sdk/-/lighter-ts-sdk-1.0.7-alpha8.tgz#a46477d7ee43dae2e98d46585beff5fb77fc2db4"
-  integrity sha512-JqiVn10zVe25fdjL5TeTAZESJ9JHUm/+5JoZkCD1DhOcvrJJihR9ABhe7WjxkSquAW4TVPVFsck1uskYp8XGgw==
+"@reservoir0x/lighter-ts-sdk@^1.0.7-alpha11":
+  version "1.0.7-alpha11"
+  resolved "https://registry.yarnpkg.com/@reservoir0x/lighter-ts-sdk/-/lighter-ts-sdk-1.0.7-alpha11.tgz#b678072bd3495701064dc06447ff4560e4f6031d"
+  integrity sha512-VvyOMKT4evPXeKMU8nI4NaD8yqa7QQ72nlnhGKcVHrIyeleskIpexmRPj2IM9+j4HnkJMp1K149PMgegBIqcRw==
   dependencies:
     axios "^1.6.0"
     dotenv "^17.2.0"

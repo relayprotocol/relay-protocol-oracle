@@ -566,6 +566,11 @@
     }
   },
   {
+    "id": "lighter",
+    "vmType": "lighter-vm",
+    "httpRpcUrl": "https://lighter.fun.xyz"
+  },
+  {
     "id": "tron",
     "depository": "TXtEs6t2oUWQsNos7m68gbHdE9Q5n6x2oN",
     "vmType": "tron-vm",
