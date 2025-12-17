@@ -461,7 +461,7 @@ export class AttestationService {
         }
 
         // Get the depository deposit corresponding to the current order input payment
-        const depositoryDeposits = await getVmAttestor(
+        const fetchedDeposits = await getVmAttestor(
           orderInput.payment.chainId
         ).then((attestor) =>
           attestor.getDepositoryDepositMessages(
@@ -469,7 +469,7 @@ export class AttestationService {
             inputInformation.transactionId
           )
         );
-        const depositoryDeposit = depositoryDeposits.find(
+        const depositoryDeposit = fetchedDeposits.find(
           (d) =>
             d.result.depositId === orderId &&
             d.result.onchainId === inputInformation.onchainId
@@ -478,7 +478,7 @@ export class AttestationService {
           throw externalError(
             `Invalid input information for order input payment ${inputPaymentIndex} (orderId=${orderId} onchainId=${
               inputInformation.onchainId
-            } depositoryDeposits=${JSON.stringify(depositoryDeposits)})`
+            } depositoryDeposits=${JSON.stringify(fetchedDeposits)})`
           );
         }
 
@@ -491,7 +491,6 @@ export class AttestationService {
         depositoryDeposits.push(depositoryDeposit);
       }
     }
-
     // Compare the total weighted requested amount to the total weighted paid amount in order to determine any under/over-payment
     const totalWeightedRequestedAmount = data.order.inputs
       .map(
