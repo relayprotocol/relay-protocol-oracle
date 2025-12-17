@@ -1,5 +1,5 @@
 import { describe, expect, it, jest, beforeEach } from "@jest/globals";
-import { zeroHash } from "viem";
+import { zeroHash, keccak256, encodePacked, Hex } from "viem";
 
 import { AttestationService } from "../../../../src/services/attestation";
 import { getVmAttestor } from "../../../../src/services/attestation/vm";
@@ -11,10 +11,13 @@ import {
   encodeWithdrawal,
   decodeWithdrawal,
   getDecodedWithdrawalCurrency,
+  getOrderId,
+  Order,
 } from "@reservoir0x/relay-protocol-sdk";
 import {
   getChainHubChainId,
   getChainVmType,
+  getSdkChainsConfig,
 } from "../../../../src/common/chains";
 import { generateTokenId, generateAddress } from "@relay-protocol/hub-utils";
 
@@ -309,6 +312,156 @@ describe("AttestationService", () => {
           amount,
         },
       });
+    });
+  });
+
+  describe("attestSolverFill", () => {
+    it(`returns correct execution data with solver fill execution`, async () => {
+      const solverAddress = "0x1234567890123456789012345678901234567890";
+      const depositor = "0x0987654321098765432109876543210987654321";
+      const currency = "0x1111111111111111111111111111111111111111";
+      const amount = "1000";
+      const timestamp = "1234567890";
+      const transactionId =
+        "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e";
+      const fillTransactionId =
+        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+      const onchainId =
+        "0x0000000000000000000000000000000000000000000000000000000000000999";
+
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: {
+              chainId: "ethereum",
+              currency,
+              amount,
+              weight: "1",
+            },
+            refunds: [],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: "0x3333333333333333333333333333333333333333",
+              currency,
+              minimumAmount: amount,
+              expectedAmount: amount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [],
+      };
+
+      const orderId = getOrderId(order, await getSdkChainsConfig());
+
+      const mockDepositMessage = {
+        data: {
+          chainId: "ethereum",
+          transactionId,
+        },
+        result: {
+          depositor,
+          depository: "0x4444444444444444444444444444444444444444",
+          currency,
+          amount,
+          onchainId,
+          depositId: orderId,
+        },
+        extraData: { timestamp },
+      };
+
+      const mockAttestor: any = {
+        getDepositoryDepositMessages: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve([mockDepositMessage])),
+        getSolverPaidAmount: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(BigInt(amount))),
+        verifySolverCalls: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(true)),
+      };
+
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      const requestBody = {
+        order,
+        orderSignature: "0x" + "00".repeat(65), // Mock signature
+        inputs: [
+          {
+            transactionId,
+            onchainId,
+            inputIndex: 0,
+          },
+        ],
+        fill: {
+          transactionId: fillTransactionId,
+        },
+        includeOnchainHubExecution: true,
+      };
+
+      const result = await service.attestSolverFill(requestBody);
+
+      expect(result.message).toBeDefined();
+      expect(result.message.data).toEqual(requestBody);
+      expect(result.message.result.orderId).toBe(orderId);
+
+      expect(result.execution).toBeDefined();
+      expect(result.execution?.idempotencyKey).toBe(orderId);
+      expect(result.execution?.actions.length).toBeGreaterThan(0);
+
+      // TRANSFER actions from order to solver
+      const hubTokenId = generateTokenId({
+        address: currency,
+        chainId: await getChainHubChainId("ethereum"),
+        family: await getChainVmType("ethereum"),
+      });
+
+      const solverAlias = generateAddress({
+        address: solverAddress,
+        chainId: await getChainHubChainId("ethereum"),
+        family: await getChainVmType("ethereum"),
+      });
+
+      // miror _getOrderAddress
+      const orderHash = keccak256(
+        encodePacked(
+          ["string", "uint256", "uint256", "string", "bytes32"],
+          [
+            await getChainVmType("ethereum"),
+            BigInt(await getChainHubChainId("ethereum")),
+            BigInt(timestamp),
+            depositor,
+            orderId as Hex,
+          ]
+        )
+      );
+      const expectedOrderAddress = `0x${orderHash
+        .slice(2)
+        .slice(-40)}` as `0x${string}`;
+
+      // fill = TRANSFER from order to solver
+      const [firstAction] = result.execution?.actions || [];
+      const decodedFirstAction = decodeAction(firstAction);
+      expect(decodedFirstAction.type).toBe(ActionType.TRANSFER);
+      if (decodedFirstAction.type === ActionType.TRANSFER) {
+        expect(decodedFirstAction.data.hubTokenId).toBe(hubTokenId);
+        expect(decodedFirstAction.data.hubFromAddress.toLowerCase()).toBe(
+          expectedOrderAddress.toLowerCase()
+        );
+        expect(decodedFirstAction.data.hubToAddress).toBe(solverAlias);
+        expect(decodedFirstAction.data.amount).toBe(amount);
+      }
     });
   });
 });
