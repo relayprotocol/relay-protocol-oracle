@@ -228,14 +228,33 @@ describe("AttestationService", () => {
         family: await getChainVmType(withdrawalAddressRequest.ownerChainId),
       });
 
+      const depositoryAddressAlias = generateAddress({
+        address: withdrawalAddressRequest.depositoryAddress,
+        chainId: await getChainHubChainId(
+          withdrawalAddressRequest.depositoryChainSlug
+        ),
+        family: await getChainVmType(
+          withdrawalAddressRequest.depositoryChainSlug
+        ),
+      });
+
+      const recipientAddressAddressAlias = generateAddress({
+        address: withdrawalAddressRequest.recipientAddress,
+        chainId: await getChainHubChainId(
+          withdrawalAddressRequest.depositoryChainSlug
+        ),
+        family: await getChainVmType(
+          withdrawalAddressRequest.depositoryChainSlug
+        ),
+      });
+
       const withdrawalAddress = getWithdrawalAddress({
-        depositoryAddress:
-          withdrawalAddressRequestWithCurrency.depositoryAddress,
+        depositoryAddress: depositoryAddressAlias,
         depositoryChainId: BigInt(1),
         currency: withdrawalAddressRequestWithCurrency.currency,
         owner: withdrawerAlias,
         ownerChainId: withdrawalAddressRequestWithCurrency.ownerChainId,
-        recipientAddress: withdrawalAddressRequestWithCurrency.recipientAddress,
+        recipientAddress: recipientAddressAddressAlias,
         amount: BigInt(withdrawalAddressRequestWithCurrency.amount),
         withdrawalNonce: withdrawalAddressRequestWithCurrency.withdrawalNonce,
       });
@@ -338,13 +357,33 @@ describe("AttestationService", () => {
         ),
       });
 
+      const depositoryAddressAlias = generateAddress({
+        address: solanaWithdrawalAddressRequest.depositoryAddress,
+        chainId: await getChainHubChainId(
+          solanaWithdrawalAddressRequest.depositoryChainSlug
+        ),
+        family: await getChainVmType(
+          solanaWithdrawalAddressRequest.depositoryChainSlug
+        ),
+      });
+
+      const recipientAddressAddressAlias = generateAddress({
+        address: solanaWithdrawalAddressRequest.recipientAddress,
+        chainId: await getChainHubChainId(
+          solanaWithdrawalAddressRequest.depositoryChainSlug
+        ),
+        family: await getChainVmType(
+          solanaWithdrawalAddressRequest.depositoryChainSlug
+        ),
+      });
+
       const withdrawalAddress = getWithdrawalAddress({
-        depositoryAddress: solanaWithdrawalAddressRequest.depositoryAddress,
+        depositoryAddress: depositoryAddressAlias,
         depositoryChainId: BigInt(101),
         currency: solanaWithdrawalAddressRequest.currency,
         owner: withdrawerAlias,
         ownerChainId: solanaWithdrawalAddressRequest.ownerChainId,
-        recipientAddress: solanaWithdrawalAddressRequest.recipientAddress,
+        recipientAddress: recipientAddressAddressAlias,
         amount: BigInt(solanaWithdrawalAddressRequest.amount),
         withdrawalNonce: solanaWithdrawalAddressRequest.withdrawalNonce,
       });

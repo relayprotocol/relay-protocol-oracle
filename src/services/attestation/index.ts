@@ -729,11 +729,23 @@ export class AttestationService {
       family: await getChainVmType(data.ownerChainId),
     });
 
+    const depositoryAddressAlias = generateAddress({
+      address: data.depositoryAddress,
+      chainId: await getChainHubChainId(data.depositoryChainSlug),
+      family: await getChainVmType(data.depositoryChainSlug),
+    });
+
+    const recipientAddressAddressAlias = generateAddress({
+      address: data.recipientAddress,
+      chainId: await getChainHubChainId(data.depositoryChainSlug),
+      family: await getChainVmType(data.depositoryChainSlug),
+    });
+
     // compute address
     const withdrawalAddress = getWithdrawalAddress({
-      depositoryAddress: data.depositoryAddress,
+      depositoryAddress: depositoryAddressAlias,
       depositoryChainId: await getChainHubChainId(data.depositoryChainSlug),
-      recipientAddress: data.recipientAddress, // on destination chain
+      recipientAddress: recipientAddressAddressAlias, // on destination chain
       currency: data.currency,
       owner: withdrawerAlias,
       ownerChainId: data.ownerChainId,

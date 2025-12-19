@@ -63,16 +63,37 @@ describe("HubAttestationService - attestWithdrawalAddressBalance", () => {
       family: await getChainVmType(withdrawalAddressRequest.ownerChainId),
     });
 
+    const depositoryAddressAlias = generateAddress({
+      address: withdrawalAddressRequest.depositoryAddress,
+      chainId: await getChainHubChainId(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+      family: await getChainVmType(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+    });
+
+    const recipientAddressAddressAlias = generateAddress({
+      address: withdrawalAddressRequest.recipientAddress,
+      chainId: await getChainHubChainId(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+      family: await getChainVmType(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+    });
+
     const withdrawalAddress = getWithdrawalAddress({
-      depositoryAddress: withdrawalAddressRequest.depositoryAddress,
+      depositoryAddress: depositoryAddressAlias,
       depositoryChainId: BigInt(1),
       currency: withdrawalAddressRequest.currency,
       owner: withdrawerAlias,
       ownerChainId: withdrawalAddressRequest.ownerChainId,
-      recipientAddress: withdrawalAddressRequest.recipientAddress,
+      recipientAddress: recipientAddressAddressAlias,
       amount: BigInt(withdrawalAddressRequest.amount),
       withdrawalNonce: withdrawalAddressRequest.withdrawalNonce,
     });
+
     const fundedAmount = "2000000000000000000"; // 2 ETH - sufficient
     const blockNumber = 12345n;
 
@@ -153,13 +174,33 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
       family: await getChainVmType(withdrawalAddressRequest.ownerChainId),
     });
 
+    const depositoryAddressAlias = generateAddress({
+      address: withdrawalAddressRequest.depositoryAddress,
+      chainId: await getChainHubChainId(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+      family: await getChainVmType(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+    });
+
+    const recipientAddressAddressAlias = generateAddress({
+      address: withdrawalAddressRequest.recipientAddress,
+      chainId: await getChainHubChainId(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+      family: await getChainVmType(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+    });
+
     const withdrawalAddress = getWithdrawalAddress({
-      depositoryAddress: withdrawalAddressRequest.depositoryAddress,
+      depositoryAddress: depositoryAddressAlias,
       depositoryChainId: BigInt(1),
       currency: withdrawalAddressRequest.currency,
       owner: withdrawerAlias,
       ownerChainId: withdrawalAddressRequest.ownerChainId,
-      recipientAddress: withdrawalAddressRequest.recipientAddress,
+      recipientAddress: recipientAddressAddressAlias,
       amount: BigInt(withdrawalAddressRequest.amount),
       withdrawalNonce: withdrawalAddressRequest.withdrawalNonce,
     });
@@ -232,13 +273,33 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
       family: await getChainVmType(withdrawalAddressRequest.ownerChainId),
     });
 
+    const depositoryAddressAlias = generateAddress({
+      address: withdrawalAddressRequest.depositoryAddress,
+      chainId: await getChainHubChainId(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+      family: await getChainVmType(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+    });
+
+    const recipientAddressAddressAlias = generateAddress({
+      address: withdrawalAddressRequest.recipientAddress,
+      chainId: await getChainHubChainId(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+      family: await getChainVmType(
+        withdrawalAddressRequest.depositoryChainSlug
+      ),
+    });
+
     const withdrawalAddress = getWithdrawalAddress({
-      depositoryAddress: withdrawalAddressRequest.depositoryAddress,
+      depositoryAddress: depositoryAddressAlias,
       depositoryChainId: BigInt(1),
       currency: withdrawalAddressRequest.currency,
       owner: withdrawerAlias,
       ownerChainId: withdrawalAddressRequest.ownerChainId,
-      recipientAddress: withdrawalAddressRequest.recipientAddress,
+      recipientAddress: recipientAddressAddressAlias,
       amount: BigInt(withdrawalAddressRequest.amount),
       withdrawalNonce: withdrawalAddressRequest.withdrawalNonce,
     });
