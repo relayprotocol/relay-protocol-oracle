@@ -136,3 +136,34 @@ export const executionSchema = Type.Optional(
     }
   )
 );
+
+// fastify schema for the params needed to create a withdrawal address
+export const WithdrawalAddressSchema = Type.Object({
+  depositoryAddress: Type.String({
+    description: "The depository contract holding the funds on origin chain",
+  }),
+  depositoryChainSlug: Type.String({
+    description:
+      "The hub chain id of the depository contract currently holding the funds",
+  }),
+  currency: Type.String({
+    description: "The id of the currency as expressed on origin chain (string)",
+  }),
+  owner: Type.String({
+    description: "The address that originally owns the funds",
+  }),
+  ownerChainId: Type.String({
+    description: "The chain id where the address originally owns the funds",
+  }),
+  recipientAddress: Type.String({
+    description:
+      "The address that will receive the withdrawn funds on destination chain",
+  }),
+  amount: Type.String({
+    description: "The balance to withdraw",
+  }),
+  withdrawalNonce: Type.String({
+    description:
+      "Optional nonce to prevent collisions for similar withdrawals in the same block",
+  }),
+});

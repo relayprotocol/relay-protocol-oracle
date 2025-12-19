@@ -11,15 +11,19 @@ import {
   encodeWithdrawal,
   decodeWithdrawal,
   getDecodedWithdrawalCurrency,
+  getWithdrawalAddress,
   getOrderId,
   Order,
 } from "@reservoir0x/relay-protocol-sdk";
+
 import {
   getChainHubChainId,
   getChainVmType,
   getSdkChainsConfig,
 } from "../../../../src/common/chains";
 import { generateTokenId, generateAddress } from "@relay-protocol/hub-utils";
+import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
+import { getAddress } from "viem";
 
 jest.mock("../../../../src/services/attestation/vm");
 jest.mock("../../../../src/common/chains");
@@ -37,12 +41,14 @@ jest.mock("../../../../src/common/chains", () => ({
   getChainVmType: jest.fn().mockImplementation(async (chainId: string) => {
     if (chainId === "ethereum") return "ethereum-vm";
     if (chainId === "solana") return "solana-vm";
-    throw new Error("Unknown chain");
+    if (chainId === "base") return "ethereum-vm";
+    throw new Error(`Unknown chain: ${chainId}`);
   }),
   getChainHubChainId: jest.fn().mockImplementation(async (chainId: string) => {
     if (chainId === "ethereum") return 1;
     if (chainId === "solana") return 101;
-    throw new Error("Unknown chain");
+    if (chainId === "base") return 8543;
+    throw new Error(`Unknown chain: ${chainId}`);
   }),
   getHubChains: jest.fn().mockImplementation(async () => [
     {
@@ -139,12 +145,9 @@ describe("AttestationService", () => {
   });
 
   describe("attestDepositoryWithdrawals", () => {
-    // TODO: replace with computed withdrawal address
-    const BASE_SOLVER_ADDRESS = "0xf70da97812cb96acdf810712aa562db8dfa3dbef";
-    const baseSolverAlias = generateAddress({
-      address: BASE_SOLVER_ADDRESS,
-      chainId: BigInt(8453),
-      family: "ethereum-vm",
+    const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
+      depositoryAddress: "0x0987654321098765432109876543210987654321",
+      depositoryChainSlug: "ethereum",
     });
 
     it(`returns correct execution data with withdrawal execution for ethereum-vm`, async () => {
@@ -170,12 +173,28 @@ describe("AttestationService", () => {
 
       const withdrawal = encodeWithdrawal(decodedWithdrawal);
 
+      // Decode the withdrawal to get the actual currency
+      const actualDecodedWithdrawal = decodeWithdrawal(
+        withdrawal,
+        "ethereum-vm"
+      );
+      const actualCurrency = getDecodedWithdrawalCurrency(
+        actualDecodedWithdrawal
+      );
+
+      // Update withdrawalAddressRequest with the actual currency
+      const withdrawalAddressRequestWithCurrency = {
+        ...withdrawalAddressRequest,
+        currency: actualCurrency,
+      };
+
       const requestBody = {
         chainId: "ethereum",
         withdrawal,
         transactionId:
           "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e",
         includeOnchainHubExecution: true,
+        withdrawalAddressRequest: withdrawalAddressRequestWithCurrency,
       };
 
       const withdrawalId =
@@ -200,14 +219,26 @@ describe("AttestationService", () => {
 
       mockGetVmAttestor.mockResolvedValue(mockAttestor);
 
-      // Decode the withdrawal to get the actual currency
-      const actualDecodedWithdrawal = decodeWithdrawal(
-        withdrawal,
-        "ethereum-vm"
-      );
-      const actualCurrency = getDecodedWithdrawalCurrency(
-        actualDecodedWithdrawal
-      );
+      // the alias for withdrawer address on origin chain
+      const withdrawerAlias = generateAddress({
+        address: withdrawalAddressRequest.owner,
+        chainId: await getChainHubChainId(
+          withdrawalAddressRequest.ownerChainId
+        ),
+        family: await getChainVmType(withdrawalAddressRequest.ownerChainId),
+      });
+
+      const withdrawalAddress = getWithdrawalAddress({
+        depositoryAddress:
+          withdrawalAddressRequestWithCurrency.depositoryAddress,
+        depositoryChainId: BigInt(1),
+        currency: withdrawalAddressRequestWithCurrency.currency,
+        owner: withdrawerAlias,
+        ownerChainId: withdrawalAddressRequestWithCurrency.ownerChainId,
+        recipientAddress: withdrawalAddressRequestWithCurrency.recipientAddress,
+        amount: BigInt(withdrawalAddressRequestWithCurrency.amount),
+        withdrawalNonce: withdrawalAddressRequestWithCurrency.withdrawalNonce,
+      });
 
       const result = await service.attestDepositoryWithdrawal(requestBody);
       const idempotencyKey = getDeterministicId(
@@ -230,7 +261,7 @@ describe("AttestationService", () => {
         type: ActionType.BURN,
         data: {
           hubTokenId,
-          hubFromAddress: baseSolverAlias,
+          hubFromAddress: getAddress(withdrawalAddress),
           amount,
         },
       });
@@ -257,12 +288,29 @@ describe("AttestationService", () => {
 
       const withdrawal = encodeWithdrawal(decodedWithdrawal);
 
+      // Get the actual currency from the withdrawal
+      const actualDecodedWithdrawal = decodeWithdrawal(withdrawal, "solana-vm");
+      const actualCurrency = getDecodedWithdrawalCurrency(
+        actualDecodedWithdrawal
+      );
+
+      const solanaDepositoryAddress =
+        "0x1234567890123456789012345678901234567890"; // Use valid hex address for test
+      const solanaWithdrawalAddressRequest = createMockWithdrawalAddressRequest(
+        {
+          depositoryAddress: solanaDepositoryAddress,
+          depositoryChainSlug: "solana",
+          currency: actualCurrency,
+        }
+      );
+
       const requestBody = {
         chainId: "solana",
         withdrawal,
         transactionId:
           "5j7s8K9j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0c1d2e3f4g5h6i7j8k9l0m1n2o3p4",
         includeOnchainHubExecution: true,
+        withdrawalAddressRequest: solanaWithdrawalAddressRequest,
       };
 
       const withdrawalId =
@@ -274,10 +322,32 @@ describe("AttestationService", () => {
         },
         result: {
           withdrawalId,
-          depository: "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ",
+          depository: "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ", // Solana base58 address for the mock message
           status: DepositoryWithdrawalStatus.EXECUTED,
         },
       };
+
+      // the alias for withdrawer address on origin chain
+      const withdrawerAlias = generateAddress({
+        address: solanaWithdrawalAddressRequest.owner,
+        chainId: await getChainHubChainId(
+          solanaWithdrawalAddressRequest.ownerChainId
+        ),
+        family: await getChainVmType(
+          solanaWithdrawalAddressRequest.ownerChainId
+        ),
+      });
+
+      const withdrawalAddress = getWithdrawalAddress({
+        depositoryAddress: solanaWithdrawalAddressRequest.depositoryAddress,
+        depositoryChainId: BigInt(101),
+        currency: solanaWithdrawalAddressRequest.currency,
+        owner: withdrawerAlias,
+        ownerChainId: solanaWithdrawalAddressRequest.ownerChainId,
+        recipientAddress: solanaWithdrawalAddressRequest.recipientAddress,
+        amount: BigInt(solanaWithdrawalAddressRequest.amount),
+        withdrawalNonce: solanaWithdrawalAddressRequest.withdrawalNonce,
+      });
 
       const mockAttestor: any = {
         getDepositoryWithdrawalMessage: jest
@@ -294,7 +364,7 @@ describe("AttestationService", () => {
       );
 
       const hubTokenId = generateTokenId({
-        address: currency,
+        address: actualCurrency,
         chainId: await getChainHubChainId(requestBody.chainId),
         family: await getChainVmType(requestBody.chainId),
       });
@@ -308,7 +378,7 @@ describe("AttestationService", () => {
         type: ActionType.BURN,
         data: {
           hubTokenId,
-          hubFromAddress: baseSolverAlias,
+          hubFromAddress: getAddress(withdrawalAddress),
           amount,
         },
       });

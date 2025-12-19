@@ -7,12 +7,17 @@ import attestationsDepositoryDepositsV1 from "./attestations/depository-deposits
 import attestationsDepositoryWithdrawalsV1 from "./attestations/depository-withdrawals/v1";
 import attestationsSolverFillV1 from "./attestations/solver-fills/v1";
 import attestationsSolverRefundV1 from "./attestations/solver-refunds/v1";
+import attestationsWithdrawalsInitiationV1 from "./attestations/withdrawal-initiation/v1";
+import attestationsWithdrawalsInitiatedV1 from "./attestations/withdrawal-initiated/v1";
+
 import chainsV1 from "./chains/v1";
 
 // Initialize all endpoints
 const endpoints = [
   attestationsDepositoryDepositsV1,
   attestationsDepositoryWithdrawalsV1,
+  attestationsWithdrawalsInitiationV1,
+  attestationsWithdrawalsInitiatedV1,
   attestationsSolverFillV1,
   attestationsSolverRefundV1,
   chainsV1,

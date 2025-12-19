@@ -7,6 +7,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
   signatureSchema,
+  WithdrawalAddressSchema,
 } from "../../utils";
 import {
   signDepositoryWithdrawalMessage,
@@ -23,9 +24,11 @@ const MessageData = Type.Object({
   }),
   transactionId: Type.Optional(
     Type.String({
-      description: "The transaction id that executed the withdrawal (required for Hyperliquid VM)",
+      description:
+        "The transaction id that executed the withdrawal (required for Hyperliquid VM)",
     })
   ),
+  withdrawalAddressRequest: Type.Optional(WithdrawalAddressSchema),
   includeOnchainHubExecution: Type.Optional(
     Type.Boolean({
       description:
@@ -79,7 +82,10 @@ export default {
 
     return reply.send({
       message: {
-        data: message.data,
+        data: {
+          ...message.data,
+          withdrawalAddressRequest: req.body.withdrawalAddressRequest,
+        },
         result: message.result,
         signature: await signDepositoryWithdrawalMessage(message),
       },

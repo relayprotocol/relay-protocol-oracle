@@ -31,6 +31,7 @@ import { AttestationService } from "../../../../src/services/attestation";
 import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
 
 import { ONE_BILLION, randomHex, randomNumber } from "../../../common/utils";
+import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
 
 const testSolverPrivateKey =
   "0x1234567890123456789012345678901234567890123456789012345678901234";
@@ -1055,6 +1056,11 @@ describe("EthereumVmAttestor", () => {
 
     const chain = chains[randomNumber(chains.length)];
 
+    const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
+      depositoryChainSlug: chain.id,
+      depositoryAddress: chain.depository!,
+    });
+
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
       vmType: "ethereum-vm",
       withdrawal: {
@@ -1081,6 +1087,7 @@ describe("EthereumVmAttestor", () => {
       await new AttestationService().attestDepositoryWithdrawal({
         chainId: chain.id,
         withdrawal: encodeWithdrawal(decodedWithdrawal),
+        withdrawalAddressRequest,
       });
     expect(message.result.depository).toEqual(chain.depository);
     expect(message.result.status).toEqual(DepositoryWithdrawalStatus.EXECUTED);
@@ -1090,6 +1097,11 @@ describe("EthereumVmAttestor", () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
+
+    const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
+      depositoryChainSlug: chain.id,
+      depositoryAddress: chain.depository!,
+    });
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
       vmType: "ethereum-vm",
@@ -1122,6 +1134,7 @@ describe("EthereumVmAttestor", () => {
       await new AttestationService().attestDepositoryWithdrawal({
         chainId: chain.id,
         withdrawal: encodeWithdrawal(decodedWithdrawal),
+        withdrawalAddressRequest,
       });
     expect(message.result.depository).toEqual(chain.depository);
     expect(message.result.status).toEqual(DepositoryWithdrawalStatus.EXPIRED);
@@ -1131,6 +1144,11 @@ describe("EthereumVmAttestor", () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
+
+    const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
+      depositoryChainSlug: chain.id,
+      depositoryAddress: chain.depository!,
+    });
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
       vmType: "ethereum-vm",
@@ -1163,6 +1181,7 @@ describe("EthereumVmAttestor", () => {
       await new AttestationService().attestDepositoryWithdrawal({
         chainId: chain.id,
         withdrawal: encodeWithdrawal(decodedWithdrawal),
+        withdrawalAddressRequest,
       });
     expect(message.result.depository).toEqual(chain.depository);
     expect(message.result.status).toEqual(DepositoryWithdrawalStatus.PENDING);

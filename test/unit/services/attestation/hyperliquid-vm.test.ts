@@ -10,6 +10,7 @@ import { httpRpc } from "../../../../src/common/vm/hyperliquid-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 
 import { randomHex } from "../../../common/utils";
+import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
 
 const testDepositoryAddress = "0x1234567890abcdef1234567890abcdef12345678";
 const testUserAddress = "0xabcdef1234567890abcdef1234567890abcdef12";
@@ -492,6 +493,11 @@ describe("HyperliquidVmAttestor", () => {
   });
 
   describe("getDepositoryWithdrawalMessage", () => {
+    const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
+      depositoryChainSlug: "hyperliquid-mainnet",
+      depositoryAddress: testDepositoryAddress,
+    });
+
     it("should return PENDING status when withdrawal not found", async () => {
       setupRpcMock({
         userDetails: async () => ({ txs: [] }),
@@ -501,6 +507,7 @@ describe("HyperliquidVmAttestor", () => {
         await new AttestationService().attestDepositoryWithdrawal({
           chainId: "hyperliquid-mainnet",
           withdrawal: "0x1234",
+          withdrawalAddressRequest,
         });
       } catch (error) {
         expect(error).toBeDefined();
@@ -537,6 +544,7 @@ describe("HyperliquidVmAttestor", () => {
         await new AttestationService().attestDepositoryWithdrawal({
           chainId: "hyperliquid-mainnet",
           withdrawal: "0x1234",
+          withdrawalAddressRequest,
         });
       } catch (error) {
         expect(error).toBeDefined();
@@ -590,6 +598,7 @@ describe("HyperliquidVmAttestor", () => {
         await new AttestationService().attestDepositoryWithdrawal({
           chainId: "hyperliquid-mainnet",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
+          withdrawalAddressRequest,
         });
 
       expect(message.result.depository).toBe(testDepositoryAddress);
@@ -655,6 +664,7 @@ describe("HyperliquidVmAttestor", () => {
           chainId: "hyperliquid-mainnet",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           transactionId,
+          withdrawalAddressRequest,
         });
 
       expect(message.result.depository).toBe(testDepositoryAddress);
@@ -691,6 +701,7 @@ describe("HyperliquidVmAttestor", () => {
           chainId: "hyperliquid-mainnet",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           transactionId,
+          withdrawalAddressRequest,
         });
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
@@ -739,6 +750,7 @@ describe("HyperliquidVmAttestor", () => {
           chainId: "hyperliquid-mainnet",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           transactionId,
+          withdrawalAddressRequest,
         });
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
@@ -787,6 +799,7 @@ describe("HyperliquidVmAttestor", () => {
           chainId: "hyperliquid-mainnet",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           transactionId,
+          withdrawalAddressRequest,
         });
 
       expect(message.result.status).toBe(DepositoryWithdrawalStatus.PENDING);
@@ -829,6 +842,7 @@ describe("HyperliquidVmAttestor", () => {
         await new AttestationService().attestDepositoryWithdrawal({
           chainId: "hyperliquid-mainnet",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
+          withdrawalAddressRequest,
         });
 
       expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXECUTED);
@@ -881,6 +895,7 @@ describe("HyperliquidVmAttestor", () => {
         await new AttestationService().attestDepositoryWithdrawal({
           chainId: "hyperliquid-mainnet",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
+          withdrawalAddressRequest,
         });
 
       expect(message.result.status).toBe(DepositoryWithdrawalStatus.PENDING);

@@ -957,6 +957,11 @@
   resolved "https://registry.yarnpkg.com/@pkgr/core/-/core-0.2.9.tgz#d229a7b7f9dac167a156992ef23c7f023653f53b"
   integrity sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==
 
+"@relay-protocol/abis@2.0.0":
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/abis/-/abis-2.0.0.tgz#9ca557d72a568778e075a1ac30cebf35b1894b4a"
+  integrity sha512-37UFJshlAjVJ50WNpx5POIvNO1iyrziFZ7xo/cJP/hHjd9V+TfMl7d44TOsXmmIgfuU9LvSgM9Yeu6ANX6CbmA==
+
 "@relay-protocol/hub-utils@0.1.5":
   version "0.1.5"
   resolved "https://registry.yarnpkg.com/@relay-protocol/hub-utils/-/hub-utils-0.1.5.tgz#eb77e843d1df8e719d682278746f3fc66a0cae0a"
@@ -996,10 +1001,10 @@
     tronweb "^6.0.4"
     viem "^2.26.3"
 
-"@reservoir0x/relay-protocol-sdk@0.0.60":
-  version "0.0.60"
-  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.60.tgz#018ff519442494e8c66a687a789b7f0d9b963c9b"
-  integrity sha512-15/1Axrrnwls/dObW4youdlrxpE7Oj43TLipRHvnz5gLKX8HaIHKkbqEogEwAMWtP2W0RHwKj2zEL9/EkK+GZg==
+"@reservoir0x/relay-protocol-sdk@0.0.62":
+  version "0.0.62"
+  resolved "https://registry.yarnpkg.com/@reservoir0x/relay-protocol-sdk/-/relay-protocol-sdk-0.0.62.tgz#61757ecbf28927305ea73e2045d35dff07f1d727"
+  integrity sha512-D+eP1iQUfh8ncnB9sTrHe1BXFnEHt6IoQxFsNMBnu7mQCZZbqM1f/rmaZhy8grwY5dc4cDe+1JI/h8cj5A8XWQ==
   dependencies:
     "@coral-xyz/anchor" "^0.31.1"
     "@mysten/sui" "^1.24.0"

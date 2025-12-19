@@ -35,6 +35,7 @@ import {
 } from "../../../../src/services/attestation/vm/tron-vm";
 
 import { ONE_BILLION, randomHex, randomNumber } from "../../../common/utils";
+import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
 
 const testSolverPrivateKey =
   "0x1234567890123456789012345678901234567890123456789012345678901234";
@@ -927,6 +928,11 @@ describe("TronVmAttestor", () => {
 
     const chain = chains[randomNumber(chains.length)];
 
+    const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
+      depositoryChainSlug: chain.id,
+      depositoryAddress: chain.depository!,
+    });
+
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
       vmType: "tron-vm",
       withdrawal: {
@@ -953,6 +959,7 @@ describe("TronVmAttestor", () => {
       await new AttestationService().attestDepositoryWithdrawal({
         chainId: chain.id,
         withdrawal: encodeWithdrawal(decodedWithdrawal),
+        withdrawalAddressRequest,
       });
     expect(message.result.depository).toEqual(chain.depository);
     expect(message.result.status).toEqual(DepositoryWithdrawalStatus.EXECUTED);
@@ -962,6 +969,11 @@ describe("TronVmAttestor", () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
+
+    const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
+      depositoryChainSlug: chain.id,
+      depositoryAddress: chain.depository!,
+    });
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
       vmType: "tron-vm",
@@ -994,6 +1006,7 @@ describe("TronVmAttestor", () => {
       await new AttestationService().attestDepositoryWithdrawal({
         chainId: chain.id,
         withdrawal: encodeWithdrawal(decodedWithdrawal),
+        withdrawalAddressRequest,
       });
     expect(message.result.depository).toEqual(chain.depository);
     expect(message.result.status).toEqual(DepositoryWithdrawalStatus.EXPIRED);
@@ -1003,6 +1016,11 @@ describe("TronVmAttestor", () => {
     const chains = Object.values(await getChains());
 
     const chain = chains[randomNumber(chains.length)];
+
+    const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
+      depositoryChainSlug: chain.id,
+      depositoryAddress: chain.depository!,
+    });
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
       vmType: "tron-vm",
@@ -1035,6 +1053,7 @@ describe("TronVmAttestor", () => {
       await new AttestationService().attestDepositoryWithdrawal({
         chainId: chain.id,
         withdrawal: encodeWithdrawal(decodedWithdrawal),
+        withdrawalAddressRequest,
       });
     expect(message.result.depository).toEqual(chain.depository);
     expect(message.result.status).toEqual(DepositoryWithdrawalStatus.PENDING);

@@ -1,5 +1,12 @@
-import { createPublicClient, http, PublicClient } from "viem";
+import {
+  createPublicClient,
+  http,
+  PublicClient,
+  getContract,
+  Address,
+} from "viem";
 import { getHubChain } from "../../chains";
+import { RelayOracle, RelayHub } from "@relay-protocol/abis";
 
 export const httpRpc = async (chainId: string): Promise<PublicClient> => {
   const chain = await getHubChain(chainId);
@@ -21,4 +28,29 @@ export const httpRpc = async (chainId: string): Promise<PublicClient> => {
     },
     transport: http(),
   });
+};
+
+export const getOracleContract = async (chainId: string) => {
+  const chain = await getHubChain(chainId);
+  return getContract({
+    address: chain.additionalData.oracleAddress as Address,
+    abi: RelayOracle,
+    client: await httpRpc(chainId),
+  });
+};
+
+export const getHubContract = async (chainId: string) => {
+  const oracleContract = await getOracleContract(chainId);
+  const hubAddress = await oracleContract.read.HUB();
+  return getContract({
+    address: hubAddress as Address,
+    abi: RelayHub,
+    client: await httpRpc(chainId),
+  });
+};
+
+export const getHubBlockNumber = async (chainId: string) => {
+  const client = await httpRpc(chainId);
+  const blockNumber = await client.getBlockNumber();
+  return blockNumber;
 };

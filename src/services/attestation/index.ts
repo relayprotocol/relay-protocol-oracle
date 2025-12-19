@@ -7,15 +7,18 @@ import {
   encodeAction,
   ExecutionMessage,
   getDecodedWithdrawalAmount,
-  getDecodedWithdrawalCurrency,
   getOrderId,
   Order,
   SolverFillMessage,
   SolverFillStatus,
   SolverRefundMessage,
   SolverRefundStatus,
+  WithdrawalInitiationMessage,
+  WithdrawalInitiatedMessage,
+  getWithdrawalAddress,
+  ExecutionMessageMetadata,
+  WithdrawalAddressParams,
 } from "@reservoir0x/relay-protocol-sdk";
-import { ExecutionMessageMetadata } from "@reservoir0x/relay-protocol-sdk/dist/messages/v2.2/execution";
 import { generateTokenId, generateAddress } from "@relay-protocol/hub-utils";
 import {
   Address,
@@ -26,7 +29,7 @@ import {
   zeroHash,
 } from "viem";
 
-import { getVmAttestor } from "./vm";
+import { getVmAttestor, getHubAttestor } from "./vm";
 import { EnhancedDepositoryDepositMessage } from "./vm/types";
 import { getDeterministicId } from "./vm/utils";
 import {
@@ -38,11 +41,23 @@ import {
   HUB_VM_TYPE,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
+import { getHubBlockNumber } from "../../common/vm/hub-vm/rpc";
 
 type ExecutionMetadata = Omit<
   ExecutionMessageMetadata,
   "oracleContract" | "oracleChainId"
 >;
+
+// for oracle requests, we replace the hub chain id by a slug (e.g. 'base')
+// and we pass the amount as a string
+export type WithdrawalAddressRequest = Omit<
+  WithdrawalAddressParams,
+  "depositoryChainId" | "amount"
+> & {
+  depositoryChainSlug: string;
+  amount: string;
+};
+
 export class AttestationService {
   public async attestDepositoryDeposits(
     data: DepositoryDepositMessage["data"] & {
@@ -137,10 +152,108 @@ export class AttestationService {
     };
   }
 
+  public async attestWithdrawalOwnerBalance(
+    data: WithdrawalInitiationMessage["data"] & {
+      includeOnchainHubExecution?: boolean;
+    }
+  ): Promise<{
+    message: WithdrawalInitiationMessage;
+    execution?: ExecutionMessage;
+  }> {
+    const { hubTokenId, withdrawalAddress, withdrawerAlias } =
+      await this._getWithdrawalAddress(data);
+
+    const balance = await getHubAttestor().then((attestor) =>
+      attestor.getBalanceOnHub(
+        data.settlementChainId,
+        withdrawerAlias,
+        hubTokenId
+      )
+    );
+
+    if (!balance || BigInt(balance) < BigInt(data.amount)) {
+      throw externalError("Insufficient initial withdrawal balance");
+    }
+
+    let execution: ExecutionMessage | undefined;
+    if (data.includeOnchainHubExecution) {
+      execution = {
+        idempotencyKey: getDeterministicId(
+          data.settlementChainId,
+          hubTokenId.toString(),
+          withdrawalAddress
+        ),
+        actions: [
+          encodeAction({
+            type: ActionType.TRANSFER,
+            data: {
+              hubTokenId: hubTokenId,
+              hubFromAddress: withdrawerAlias,
+              hubToAddress: withdrawalAddress,
+              amount: balance,
+            },
+          }),
+        ],
+      };
+    }
+
+    return {
+      message: {
+        data,
+        result: {
+          withdrawalAddress,
+        },
+      },
+      execution,
+    };
+  }
+
+  public async attestWithdrawalAddressBalance(
+    data: WithdrawalInitiatedMessage["data"] & {
+      // TODO: require in sdk
+      ownerChainId: string;
+    }
+  ): Promise<{
+    message: WithdrawalInitiatedMessage & { data: { ownerChainId: string } };
+  }> {
+    const { hubTokenId, withdrawalAddress } = await this._getWithdrawalAddress(
+      data
+    );
+
+    const balance = await getHubAttestor().then((attestor) =>
+      attestor.getBalanceOnHub(
+        data.settlementChainId,
+        withdrawalAddress,
+        hubTokenId
+      )
+    );
+
+    if (!balance || BigInt(balance) < BigInt(data.amount)) {
+      throw externalError("Insufficient withdrawal address balance");
+    }
+
+    const proofOfWithdrawalAddressBalance = await this._getProofOfWithdrawal({
+      hubChainId: data.settlementChainId,
+      withdrawalAddress,
+      balance: BigInt(balance),
+    });
+
+    return {
+      message: {
+        data,
+        result: {
+          proofOfWithdrawalAddressBalance,
+          withdrawalAddress,
+        },
+      },
+    };
+  }
+
   public async attestDepositoryWithdrawal(
     data: DepositoryWithdrawalMessage["data"] & {
       includeOnchainHubExecution?: boolean;
       transactionId?: string;
+      withdrawalAddressRequest?: WithdrawalAddressRequest;
     }
   ): Promise<{
     message: DepositoryWithdrawalMessage;
@@ -156,32 +269,16 @@ export class AttestationService {
 
     // Generate onchain hub execution
     let execution: ExecutionMessage | undefined;
-    if (data.includeOnchainHubExecution) {
+    if (data.includeOnchainHubExecution && data.withdrawalAddressRequest) {
+      const { withdrawalAddress, hubTokenId } =
+        await this._getWithdrawalAddress(data.withdrawalAddressRequest);
+
       if (message.result.status === DepositoryWithdrawalStatus.EXECUTED) {
         const decodedWithdrawal = decodeWithdrawal(
           data.withdrawal,
           await getChainVmType(data.chainId)
         );
-        const withdrawalCurrency =
-          getDecodedWithdrawalCurrency(decodedWithdrawal);
-
         const amount = getDecodedWithdrawalAmount(decodedWithdrawal);
-
-        // generate for hub
-        const hubTokenId = generateTokenId({
-          address: withdrawalCurrency,
-          chainId: await getChainHubChainId(data.chainId),
-          family: await getChainVmType(data.chainId),
-        });
-
-        // TODO: replace by computed withdrawal address
-        const BASE_SOLVER_ADDRESS =
-          "0xf70da97812cb96acdf810712aa562db8dfa3dbef";
-        const baseSolverAlias = generateAddress({
-          address: BASE_SOLVER_ADDRESS,
-          chainId: BigInt(8453),
-          family: "ethereum-vm",
-        });
 
         execution = {
           idempotencyKey: getDeterministicId(
@@ -193,7 +290,7 @@ export class AttestationService {
               type: ActionType.BURN,
               data: {
                 hubTokenId,
-                hubFromAddress: baseSolverAlias,
+                hubFromAddress: withdrawalAddress,
                 amount,
               },
             }),
@@ -615,5 +712,52 @@ export class AttestationService {
       idempotencyKey: getOrderId(data.order, await getSdkChainsConfig()),
       actions,
     };
+  }
+
+  private async _getWithdrawalAddress(data: WithdrawalAddressRequest) {
+    // the token to be withdrawn from depository
+    const hubTokenId = generateTokenId({
+      address: data.currency,
+      chainId: await getChainHubChainId(data.depositoryChainSlug),
+      family: await getChainVmType(data.depositoryChainSlug),
+    });
+
+    // the alias for withdrawer address on origin chain
+    const withdrawerAlias = generateAddress({
+      address: data.owner,
+      chainId: await getChainHubChainId(data.ownerChainId),
+      family: await getChainVmType(data.ownerChainId),
+    });
+
+    // compute address
+    const withdrawalAddress = getWithdrawalAddress({
+      depositoryAddress: data.depositoryAddress,
+      depositoryChainId: await getChainHubChainId(data.depositoryChainSlug),
+      recipientAddress: data.recipientAddress, // on destination chain
+      currency: data.currency,
+      owner: withdrawerAlias,
+      ownerChainId: data.ownerChainId,
+      amount: BigInt(data.amount),
+      withdrawalNonce: data.withdrawalNonce,
+    });
+
+    return {
+      hubTokenId,
+      withdrawalAddress,
+      withdrawerAlias,
+    };
+  }
+
+  private async _getProofOfWithdrawal(data: {
+    hubChainId: string;
+    withdrawalAddress: string;
+    balance: bigint;
+  }): Promise<string> {
+    const blockNumber = await getHubBlockNumber(data.hubChainId);
+    const proof = encodePacked(
+      ["address", "uint256", "uint256"],
+      [data.withdrawalAddress as `0x${string}`, data.balance, blockNumber]
+    );
+    return proof;
   }
 }

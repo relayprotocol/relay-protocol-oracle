@@ -10,6 +10,8 @@ import { SolanaVmAttestor } from "./solana-vm";
 import { SuiVmAttestor } from "./sui-vm";
 import { TronVmAttestor } from "./tron-vm";
 
+import { HubVmAttestor } from "./hub-vm";
+
 export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
   const chain = await getChain(chainId);
   switch (chain.vmType) {
@@ -37,4 +39,8 @@ export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
     default:
       throw externalError("Vm type not implemented");
   }
+};
+
+export const getHubAttestor = async (): Promise<HubVmAttestor> => {
+  return new HubVmAttestor();
 };

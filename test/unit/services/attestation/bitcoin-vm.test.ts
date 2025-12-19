@@ -12,6 +12,7 @@ import { httpRpc } from "../../../../src/common/vm/bitcoin-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 
 import { randomHex } from "../../../common/utils";
+import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
 
 // Test Bitcoin addresses and private keys
 const testDepositoryAddress = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
@@ -355,6 +356,11 @@ describe("BitcoinVmAttestor", () => {
   });
 
   describe("getDepositoryWithdrawalMessage", () => {
+    const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
+      depositoryChainSlug: "bitcoin",
+      depositoryAddress: testDepositoryAddress,
+    });
+
     beforeEach(() => {
       // Reset all mocks before each test
       jest.clearAllMocks();
@@ -600,6 +606,7 @@ describe("BitcoinVmAttestor", () => {
         await new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
         });
 
       // Verify results
@@ -620,6 +627,7 @@ describe("BitcoinVmAttestor", () => {
         await new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
         });
 
       // Verify results
@@ -640,6 +648,7 @@ describe("BitcoinVmAttestor", () => {
         await new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
         });
 
       // Verify results
@@ -659,6 +668,7 @@ describe("BitcoinVmAttestor", () => {
         await new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
         });
 
       // Verify results
@@ -678,6 +688,7 @@ describe("BitcoinVmAttestor", () => {
         new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
         })
       ).rejects.toThrow("Chain has no depository configured");
     });
@@ -693,6 +704,7 @@ describe("BitcoinVmAttestor", () => {
         new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
         })
       ).rejects.toThrow("No Esplora-compatible API URL configured");
     });
@@ -708,6 +720,7 @@ describe("BitcoinVmAttestor", () => {
         new AttestationService().attestDepositoryWithdrawal({
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
         })
       ).rejects.toThrow(
         "No allocator UTXOs detected as part of the withdrawal request"

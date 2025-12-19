@@ -104,3 +104,7 @@ export const signExecutionMessageForChain = async (
     signature,
   };
 };
+
+export const signProofOfWithdrawalAddressBalance = async (
+  proofOfWithdrawalAddressBalance: string
+) => sign(proofOfWithdrawalAddressBalance as `0x${string}`);
