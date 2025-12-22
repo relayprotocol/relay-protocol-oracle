@@ -574,7 +574,7 @@
     "id": "tron",
     "depository": "TXtEs6t2oUWQsNos7m68gbHdE9Q5n6x2oN",
     "vmType": "tron-vm",
-    "httpRpcUrl": "https://api.trongrid.io/jsonrpc",
+    "httpRpcUrl": "https://greatest-compatible-emerald.tron-mainnet.quiknode.pro/0d5b1ca412fdf7b759d9e8e4d5b9dc24bd8241b6/jsonrpc",
     "hubChainId": "728126428"
   }
 ]
