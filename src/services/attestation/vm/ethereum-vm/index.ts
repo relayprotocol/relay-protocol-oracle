@@ -23,6 +23,7 @@ import { getDeterministicId } from "../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError } from "../../../../common/error";
+import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import { httpRpc } from "../../../../common/vm/ethereum-vm/rpc";
 
 export const ABI = parseAbi([
@@ -43,9 +44,12 @@ export class EthereumVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string
   ): Promise<EnhancedDepositoryDepositMessage[]> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
+    await logRpcUsage(chainId, "eth_getTransactionReceipt", trackingId);
     const receipt = await rpc
       .getTransactionReceipt({
         hash: transactionId as Hex,
@@ -65,13 +69,12 @@ export class EthereumVmAttestor extends VmAttestor {
       );
     }
 
-    // Get the timestamp of the transaction
-    const timestamp = await rpc
-      .getBlock({ blockNumber: receipt.blockNumber })
-      .then((b) => Number(b.timestamp));
-
     // Ensure the transaction is finalized
-    await this._ensureTxFinalization(chainId, receipt);
+    const timestamp = await this._ensureTxFinalization(
+      chainId,
+      receipt,
+      trackingId
+    );
 
     const chain = await getChain(chainId);
 
@@ -215,6 +218,7 @@ export class EthereumVmAttestor extends VmAttestor {
             return results;
           };
 
+          await logRpcUsage(chainId, "eth_getTransaction", trackingId);
           const transactionCalldata = (
             await rpc.getTransaction({ hash: transactionId as Hex })
           ).input;
@@ -263,6 +267,8 @@ export class EthereumVmAttestor extends VmAttestor {
     chainId: string,
     withdrawal: string
   ): Promise<DepositoryWithdrawalMessage> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId);
     const chain = await getChain(chainId);
 
@@ -282,6 +288,7 @@ export class EthereumVmAttestor extends VmAttestor {
       abi: ABI,
       client: rpc,
     });
+    await logRpcUsage(chainId, "eth_call", trackingId);
     const isExecuted = await depositoryContract.read.callRequests([
       withdrawalId as Hex,
     ]);
@@ -290,6 +297,7 @@ export class EthereumVmAttestor extends VmAttestor {
     if (isExecuted) {
       status = DepositoryWithdrawalStatus.EXECUTED;
     } else {
+      await logRpcUsage(chainId, "eth_getBlock", trackingId);
       const chainTimestamp = await rpc
         .getBlock()
         .then((block) => block.timestamp);
@@ -327,9 +335,12 @@ export class EthereumVmAttestor extends VmAttestor {
       deadline: number;
     }
   ): Promise<bigint> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
+    await logRpcUsage(chainId, "eth_getTransactionReceipt", trackingId);
     const receipt = await rpc
       .getTransactionReceipt({
         hash: transactionId as Hex,
@@ -350,17 +361,19 @@ export class EthereumVmAttestor extends VmAttestor {
     }
 
     // Ensure the transaction is finalized
-    await this._ensureTxFinalization(chainId, receipt);
+    const timestamp = await this._ensureTxFinalization(
+      chainId,
+      receipt,
+      trackingId
+    );
 
-    const transactionTimestamp = await rpc
-      .getBlock({ blockNumber: receipt.blockNumber })
-      .then((block) => block.timestamp);
-    if (transactionTimestamp > payment.deadline) {
+    if (timestamp > payment.deadline) {
       throw externalError(
         `Transaction ${transactionId} executed after deadline`
       );
     }
 
+    await logRpcUsage(chainId, "eth_getTransaction", trackingId);
     const transaction = await rpc.getTransaction({
       hash: transactionId as Hex,
     });
@@ -421,10 +434,13 @@ export class EthereumVmAttestor extends VmAttestor {
     calls: string[],
     extraData: string
   ): Promise<boolean> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId);
     const chain = await getChain(chainId);
 
     // Ensure the transaction was successfully included
+    await logRpcUsage(chainId, "eth_getTransactionReceipt", trackingId);
     const receipt = await rpc
       .getTransactionReceipt({
         hash: transactionId as Hex,
@@ -445,7 +461,7 @@ export class EthereumVmAttestor extends VmAttestor {
     }
 
     // Ensure the transaction is finalized
-    await this._ensureTxFinalization(chainId, receipt);
+    await this._ensureTxFinalization(chainId, receipt, trackingId);
 
     const fillContract = decodeOrderExtraData(extraData, VM_TYPE).extraData
       .fillContract;
@@ -489,15 +505,24 @@ export class EthereumVmAttestor extends VmAttestor {
 
   private _FINALIZATION_TIME = 60n;
 
-  private async _ensureTxFinalization(chainId: string, tx: TransactionReceipt) {
+  private async _ensureTxFinalization(
+    chainId: string,
+    tx: TransactionReceipt,
+    trackingId: string
+  ) {
     const rpc = await httpRpc(chainId);
 
+    await logRpcUsage(chainId, "eth_getBlock", trackingId);
     const latestBlockTimestamp = await rpc.getBlock().then((b) => b.timestamp);
+
+    await logRpcUsage(chainId, "eth_getBlock", trackingId);
     const txTimestamp = await rpc
       .getBlock({ blockNumber: tx.blockNumber })
       .then((b) => b.timestamp);
     if (latestBlockTimestamp - txTimestamp < this._FINALIZATION_TIME) {
       throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
     }
+
+    return txTimestamp;
   }
 }

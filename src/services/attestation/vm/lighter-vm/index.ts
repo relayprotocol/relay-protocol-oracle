@@ -9,6 +9,7 @@ import {
 
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../types";
 import { externalError, internalError } from "../../../../common/error";
+import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import { httpRpc } from "../../../../common/vm/lighter-vm/rpc";
 
 const VM_TYPE = "lighter-vm";
@@ -53,9 +54,12 @@ export class LighterVmAttestor extends VmAttestor {
       deadline: number;
     }
   ): Promise<bigint> {
+    const trackingId = getTrackingId();
+
     const { transactionApi } = await httpRpc(chainId);
 
     // Get transaction details
+    await logRpcUsage(chainId, "getTransaction", trackingId);
     const txDetail = await transactionApi.getTransaction({
       by: "hash",
       value: transactionId,

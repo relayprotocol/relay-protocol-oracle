@@ -22,6 +22,7 @@ import { getDeterministicId } from "../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
+import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 
 const VM_TYPE = "solana-vm";
@@ -41,8 +42,11 @@ export class SolanaVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string
   ): Promise<EnhancedDepositoryDepositMessage[]> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId, "finalized");
 
+    await logRpcUsage(chainId, "getTransaction", trackingId);
     const transaction = await rpc.getTransaction(transactionId, {
       maxSupportedTransactionVersion: 0,
       // Ensure the transaction is finalized
@@ -53,6 +57,7 @@ export class SolanaVmAttestor extends VmAttestor {
     }
 
     // Get the timestamp of the transaction
+    await logRpcUsage(chainId, "getBlock", trackingId);
     const timestamp = await rpc
       .getBlock(transaction.slot, {
         maxSupportedTransactionVersion: 0,
@@ -71,7 +76,12 @@ export class SolanaVmAttestor extends VmAttestor {
     }
 
     const { instructions, accountKeys } =
-      await this._extractInstructionsAndKeys(transaction, rpc);
+      await this._extractInstructionsAndKeys(
+        chainId,
+        transaction,
+        rpc,
+        trackingId
+      );
     if (!instructions.length) {
       return [];
     }
@@ -184,6 +194,8 @@ export class SolanaVmAttestor extends VmAttestor {
     chainId: string,
     withdrawal: string
   ): Promise<DepositoryWithdrawalMessage> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId, "finalized");
     const chain = await getChain(chainId);
 
@@ -216,6 +228,7 @@ export class SolanaVmAttestor extends VmAttestor {
 
     let usedRequestState: { isUsed: boolean } | undefined;
     try {
+      await logRpcUsage(chainId, "fetch", trackingId);
       usedRequestState = await (program.account as any).usedRequest.fetch(
         usedRequestPda
       );
@@ -227,6 +240,8 @@ export class SolanaVmAttestor extends VmAttestor {
     if (usedRequestState && usedRequestState.isUsed) {
       status = DepositoryWithdrawalStatus.EXECUTED;
     } else {
+      await logRpcUsage(chainId, "getSlot", trackingId);
+      await logRpcUsage(chainId, "getBlockTime", trackingId);
       const chainTimestamp = await rpc.getBlockTime(await rpc.getSlot());
       if (!chainTimestamp) {
         throw internalError("Failed to fetch Solana block time");
@@ -272,10 +287,13 @@ export class SolanaVmAttestor extends VmAttestor {
       deadline: number;
     }
   ): Promise<bigint> {
-    const connection = await httpRpc(chainId);
+    const trackingId = getTrackingId();
+
+    const rpc = await httpRpc(chainId);
 
     // Get the transaction details
-    const transaction = await connection.getTransaction(transactionId, {
+    await logRpcUsage(chainId, "getTransaction", trackingId);
+    const transaction = await rpc.getTransaction(transactionId, {
       maxSupportedTransactionVersion: 0,
       // Ensure the transaction is finalized
       commitment: "finalized",
@@ -295,7 +313,12 @@ export class SolanaVmAttestor extends VmAttestor {
     }
 
     const { instructions, accountKeys } =
-      await this._extractInstructionsAndKeys(transaction, connection);
+      await this._extractInstructionsAndKeys(
+        chainId,
+        transaction,
+        rpc,
+        trackingId
+      );
 
     let hasOrderId = false;
     for (const instruction of instructions) {
@@ -380,8 +403,10 @@ export class SolanaVmAttestor extends VmAttestor {
   }
 
   private async _extractInstructionsAndKeys(
+    chainId: string,
     transaction: VersionedTransactionResponse,
-    rpc: Connection
+    rpc: Connection,
+    trackingId: string
   ): Promise<{
     instructions: MessageCompiledInstruction[];
     accountKeys: PublicKey[];
@@ -411,10 +436,12 @@ export class SolanaVmAttestor extends VmAttestor {
       ...message.getAccountKeys({
         addressLookupTableAccounts: await Promise.all(
           (transaction.transaction.message.addressTableLookups ?? []).map(
-            async ({ accountKey }) =>
-              await rpc
+            async ({ accountKey }) => {
+              await logRpcUsage(chainId, "getAddressLookupTable", trackingId);
+              return rpc
                 .getAddressLookupTable(accountKey)
-                .then((res) => res.value!)
+                .then((res) => res.value!);
+            }
           )
         ),
       }).staticAccountKeys,

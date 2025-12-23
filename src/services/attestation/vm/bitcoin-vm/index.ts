@@ -15,6 +15,7 @@ import { getDeterministicId } from "../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
+import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import { httpRpc } from "../../../../common/vm/bitcoin-vm/rpc";
 
 const VM_TYPE = "bitcoin-vm";
@@ -24,9 +25,12 @@ export class BitcoinVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string
   ): Promise<EnhancedDepositoryDepositMessage[]> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId);
 
     // Get transaction details
+    await logRpcUsage(chainId, "getTransaction", trackingId);
     const transaction = await rpc.getTransaction(transactionId);
     if (!transaction) {
       throw externalError(`Missing transaction ${transactionId}`);
@@ -60,6 +64,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     // Get the depositor from the first transaction input
     let depositor: string | undefined;
     for (const input of transaction.vin) {
+      await logRpcUsage(chainId, "getTransaction", trackingId);
       const inputTransaction = await rpc.getTransaction(input.txid);
       const vout = inputTransaction.vout[input.vout];
       if (vout && vout.scriptPubKey && vout.scriptPubKey.address) {
@@ -113,6 +118,8 @@ export class BitcoinVmAttestor extends VmAttestor {
     chainId: string,
     withdrawal: string
   ): Promise<DepositoryWithdrawalMessage> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId);
     const chain = await getChain(chainId);
 
@@ -162,6 +169,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     // For every PSBT input, get the transaction that spent it
     const txidsSpendingPsbtInputs = new Set<string>();
     for (const input of psbtInputs) {
+      await logRpcUsage(chainId, "outspend", trackingId);
       const outspend: {
         spent: boolean;
         txid?: string;
@@ -197,6 +205,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     } else {
       // If we have exactly one tx spending the allocator inputs, confirm whether the PSBT matches that unique tx
 
+      await logRpcUsage(chainId, "getRawTransaction", trackingId);
       const tx = bitcoin.Transaction.fromHex(
         await rpc.getRawTransaction(
           txidsSpendingPsbtInputs.values().next().value
@@ -262,9 +271,12 @@ export class BitcoinVmAttestor extends VmAttestor {
       deadline: number;
     }
   ): Promise<bigint> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId);
 
     // Get transaction details
+    await logRpcUsage(chainId, "getTransaction", trackingId);
     const transaction = await rpc.getTransaction(transactionId);
     if (!transaction) {
       throw externalError(`Transaction ${transactionId} not found`);
@@ -273,6 +285,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     // Ensure the transaction is finalized
     this._ensureTxFinalization(transactionId, transaction);
 
+    await logRpcUsage(chainId, "getBlock", trackingId);
     const transactionTimestamp = await rpc
       .getBlock(transaction.blockhash)
       .then((block) => block.time);

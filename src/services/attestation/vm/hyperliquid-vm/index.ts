@@ -15,6 +15,7 @@ import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/hyperliquid-vm/rpc";
+import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 
 const VM_TYPE = "hyperliquid-vm";
 
@@ -22,8 +23,10 @@ const SPOT_USDC = "0x6d1e7cde53ba9467b783cb7c530ce054";
 
 const getTxDetailsWithFallback = async (
   chainId: string,
-  txId: string
+  txId: string,
+  trackingId: string
 ): Promise<hl.TxDetailsResponse["tx"]> => {
+  await logRpcUsage(chainId, "txDetails", trackingId);
   const rpc = await httpRpc(chainId);
   return rpc
     .txDetails({
@@ -64,10 +67,16 @@ export class HyperliquidVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string
   ): Promise<EnhancedDepositoryDepositMessage[]> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId);
 
     // Get transaction details
-    const txDetails = await getTxDetailsWithFallback(chainId, transactionId);
+    const txDetails = await getTxDetailsWithFallback(
+      chainId,
+      transactionId,
+      trackingId
+    );
     if (!txDetails) {
       throw externalError(
         `Missing transaction ${transactionId} on chain ${chainId}`
@@ -147,13 +156,16 @@ export class HyperliquidVmAttestor extends VmAttestor {
           const currencyDecimals =
             currency === getVmTypeNativeCurrency(VM_TYPE)
               ? 8
-              : await rpc
-                  .spotMeta()
-                  .then(
-                    (r) =>
-                      r.tokens.find((t) => t.tokenId === tokenAddress)
-                        ?.szDecimals
-                  );
+              : await (async () => {
+                  await logRpcUsage(chainId, "spotMeta", trackingId);
+                  return rpc
+                    .spotMeta()
+                    .then(
+                      (r) =>
+                        r.tokens.find((t) => t.tokenId === tokenAddress)
+                          ?.szDecimals
+                    );
+                })();
           if (currencyDecimals === undefined) {
             throw externalError("Could not retrieve payment currency decimals");
           }
@@ -201,6 +213,8 @@ export class HyperliquidVmAttestor extends VmAttestor {
     withdrawal: string,
     transactionId?: string
   ): Promise<DepositoryWithdrawalMessage> {
+    const trackingId = getTrackingId();
+
     const chain = await getChain(chainId);
 
     const depository = chain.depository;
@@ -218,6 +232,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
     // Get recent transactions for checking both execution and expiry
     const rpc = await httpRpc(chainId);
+    await logRpcUsage(chainId, "userDetails", trackingId);
     const userDetails = await rpc.userDetails({
       user: depository as any,
     });
@@ -236,7 +251,11 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
     // If the withdrawal was not found in recent transactions but `transactionId` is provided, check that specific transaction
     if (status === DepositoryWithdrawalStatus.PENDING && transactionId) {
-      const txDetails = await getTxDetailsWithFallback(chainId, transactionId);
+      const txDetails = await getTxDetailsWithFallback(
+        chainId,
+        transactionId,
+        trackingId
+      );
       if (!txDetails) {
         throw externalError(
           `Missing transaction ${transactionId} on chain ${chainId}`
@@ -313,10 +332,16 @@ export class HyperliquidVmAttestor extends VmAttestor {
       deadline: number;
     }
   ): Promise<bigint> {
+    const trackingId = getTrackingId();
+
     const rpc = await httpRpc(chainId);
 
     // Ensure the transaction was successfully included
-    const txDetails = await getTxDetailsWithFallback(chainId, transactionId);
+    const txDetails = await getTxDetailsWithFallback(
+      chainId,
+      transactionId,
+      trackingId
+    );
     if (!txDetails || txDetails.error) {
       throw externalError(`Missing or reverted transaction ${transactionId}`);
     }
@@ -380,6 +405,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
             actualPaymentCurrency.toLowerCase() &&
           orderPaymentDex === actualPaymentDex
         ) {
+          await logRpcUsage(chainId, "spotMeta", trackingId);
           const currencyDecimals = await rpc
             .spotMeta()
             .then(
