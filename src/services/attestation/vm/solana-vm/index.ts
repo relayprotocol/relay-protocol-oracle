@@ -27,6 +27,7 @@ import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 
 const VM_TYPE = "solana-vm";
 
+// dummy comment
 export class SolanaVmAttestor extends VmAttestor {
   private readonly instructionCoder: BorshInstructionCoder;
 

@@ -19,9 +19,6 @@
     ],
     "tsconfig*.json": [
       "eslint --max-warnings 0 --fix"
-    ],
-    "*.{js,ts}": [
-      "eslint --max-warnings 0 --fix"
     ]
   },
   "dependencies": {
