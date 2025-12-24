@@ -6,7 +6,6 @@ import Fastify from "fastify";
 import { setupEndpoints } from "./api";
 import { logger } from "./common/logger";
 import { config } from "./config";
-import { getSigningWallet } from "./signers";
 
 const COMPONENT = "http-server";
 
@@ -66,16 +65,6 @@ setupSwagger().then(() => {
 
   // Setup endpoints
   setupEndpoints(httpServer);
-
-  // Log the aws kms signing wallet
-  getSigningWallet("aws-kms").then((w) => {
-    logger.info(
-      "process",
-      JSON.stringify({
-        msg: `Aws kms signing wallet: ${w.address.toLowerCase()}`,
-      })
-    );
-  });
 
   // Start listening
   httpServer.listen(

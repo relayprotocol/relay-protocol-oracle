@@ -210,7 +210,7 @@ export class EthereumVmAttestor extends VmAttestor {
                 results.push({
                   to: `0x${match[7].slice(24)}`.toLowerCase(),
                   amount: hexToBigInt(`0x${match[8]}`).toString(),
-                  id: match[4] ? `0x${match[9]}`.toLowerCase() : undefined,
+                  id: match[9] ? `0x${match[9]}`.toLowerCase() : undefined,
                 });
               }
             }
@@ -231,7 +231,17 @@ export class EthereumVmAttestor extends VmAttestor {
               t.to.toLowerCase() === depository.toLowerCase() &&
               t.amount === uniqueDepositoryTransferEvent.args.amount.toString()
           );
-          if (transfersToDepository.length === 1) {
+          // We allow either a single matching transfer calldata or multiple ones that are all the same
+          if (
+            transfersToDepository.length === 1 ||
+            (transfersToDepository.length > 1 &&
+              transfersToDepository.every(
+                (t) =>
+                  t.to === transfersToDepository[0].to &&
+                  t.amount === transfersToDepository[0].amount &&
+                  t.id === transfersToDepository[0].id
+              ))
+          ) {
             depositId = transfersToDepository[0].id;
           }
         }
