@@ -19,6 +19,7 @@
     ]
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "3.958.0",
     "@coral-xyz/anchor": "0.31.1",
     "@fastify/swagger": "9.5.1",
     "@fastify/swagger-ui": "5.2.3",
@@ -32,8 +33,10 @@
     "@sinclair/typebox": "0.34.38",
     "@solana/spl-memo": "0.2.5",
     "@solana/web3.js": "1.98.4",
+    "asn1.js": "5.4.1",
     "axios": "1.11.0",
     "bitcoinjs-lib": "6.1.7",
+    "bn.js": "5.2.2",
     "bs58": "6.0.0",
     "fastify": "5.4.0",
     "tronweb": "6.0.4",

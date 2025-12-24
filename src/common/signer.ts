@@ -9,28 +9,20 @@ import {
   SolverFillMessage,
   SolverRefundMessage,
 } from "@reservoir0x/relay-protocol-sdk";
-import { createWalletClient, Hex, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { Hex } from "viem";
 
 import { getHubChain, getHubChains, getSdkChainsConfig } from "./chains";
 import { config } from "../config";
-
-const getSigningWallet = () => {
-  return createWalletClient({
-    account: privateKeyToAccount(config.ecdsaPrivateKey as Hex),
-    // Viem will error if we pass no URL to the `http` transport, so here we
-    // just pass a mock URL, which isn't even going to be used since we only
-    // use `walletClient` for signing messages offchain
-    transport: http("http://localhost:1"),
-  });
-};
+import { getSigningWallet, SigningModule } from "../signers";
 
 const sign = async (data: Hex) => {
-  const walletClient = getSigningWallet();
+  const wallet = await getSigningWallet(
+    (config.signingModule as SigningModule) ?? "raw-private-key"
+  );
 
   return {
-    oracle: walletClient.account.address.toLowerCase(),
-    signature: await walletClient.signMessage({
+    oracle: wallet.address.toLowerCase(),
+    signature: await wallet.signMessage({
       message: {
         raw: data,
       },
@@ -65,13 +57,16 @@ export const signExecutionMessageForChain = async (
   m: ExecutionMessage,
   chainId: string
 ) => {
-  const walletClient = getSigningWallet();
+  const wallet = await getSigningWallet(
+    (config.signingModule as SigningModule) ?? "raw-private-key"
+  );
+
   const {
     hubChainId: oracleChainId,
     additionalData: { oracleAddress },
   } = await getHubChain(chainId);
 
-  const signature = await walletClient.signTypedData({
+  const signature = await wallet.signTypedData({
     domain: {
       chainId: BigInt(oracleChainId!),
       name: "RelayOracle",
@@ -100,7 +95,7 @@ export const signExecutionMessageForChain = async (
   return {
     oracleChainId: BigInt(oracleChainId!),
     oracleContract: oracleAddress as `0x${string}`,
-    oracleSigner: walletClient.account.address.toLowerCase(),
+    oracleSigner: wallet.address.toLowerCase(),
     signature,
   };
 };
