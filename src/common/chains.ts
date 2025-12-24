@@ -22,6 +22,7 @@ export const getChains = async () => {
   if (!_chains) {
     const __chains: { [id: string]: Chain } = {};
 
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const chains = require(`../../configs/chains.${config.environment}.json`);
     for (const chain of chains) {
       __chains[chain.id] = {
@@ -61,6 +62,7 @@ export const getSdkChainsConfig = async () => {
 // helpers for hub chains
 export const getHubChains = async () => {
   const hubEnv = config.environment.includes("prod") ? "prod" : "dev";
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const chains = require(`../../configs/chains.hub.${hubEnv}.json`);
   const __chains: { [id: string]: Chain } = {};
   for (const chain of chains) {

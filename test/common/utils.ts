@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import bs58 from 'bs58';
+import bs58 from "bs58";
 
 export const ONE_BILLION = 1_000_000_000;
 
