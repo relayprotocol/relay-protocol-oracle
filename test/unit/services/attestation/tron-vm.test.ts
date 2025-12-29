@@ -54,6 +54,7 @@ jest.mock("../../../../src/common/chains", () => {
   return {
     getChains: async () => chains,
     getChain: async (chainId: string) => chains[chainId],
+    getChainVmType: async (chainId: string) => chains[chainId].vmType,
     getSdkChainsConfig: () =>
       Object.fromEntries(
         Object.values(chains).map((chain) => [chain.id, chain.vmType])

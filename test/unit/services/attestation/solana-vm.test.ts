@@ -910,6 +910,7 @@ jest.mock("../../../../src/common/chains", () => {
   return {
     getChains: async () => chains,
     getChain: async (chainId: string) => chains[chainId],
+    getChainVmType: async (chainId: string) => chains[chainId].vmType,
     getSdkChainsConfig: () =>
       Object.fromEntries(
         Object.values(chains).map((chain) => [chain.id, chain.vmType])
@@ -1204,7 +1205,7 @@ describe("SolanaVmAttestor", () => {
     });
   });
 
-  it("attestSolverFill - validates with ERC20 token payments", async () => {
+  it("attestSolverFill - validates with spl-token payments", async () => {
     await testAttestSolverFill({
       useSPLToken: true,
     });
@@ -1221,7 +1222,7 @@ describe("SolanaVmAttestor", () => {
     });
   });
 
-  it("attestSolverRefund - validates with ERC20 token payments", async () => {
+  it("attestSolverRefund - validates with spl-token payments", async () => {
     await testAttestSolverRefund({
       useSPLToken: true,
     });

@@ -42,6 +42,7 @@ jest.mock("../../../../src/common/chains", () => {
         hubApiUrl: mockHubApiUrl,
       },
     }),
+    getChainVmType: async () => "hyperliquid-vm",
     getSdkChainsConfig: () => ({
       "hyperliquid-mainnet": "hyperliquid-vm",
     }),

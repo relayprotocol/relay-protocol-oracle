@@ -1,5 +1,8 @@
 import { describe, expect, it, jest, beforeEach } from "@jest/globals";
-import { TransactionStatus, TransactionType } from "@reservoir0x/lighter-ts-sdk";
+import {
+  TransactionStatus,
+  TransactionType,
+} from "@reservoir0x/lighter-ts-sdk";
 
 import { LighterVmAttestor } from "../../../../src/services/attestation/vm/lighter-vm";
 import { httpRpc } from "../../../../src/common/vm/lighter-vm/rpc";
@@ -23,6 +26,7 @@ jest.mock("../../../../src/common/chains", () => {
       vmType: "lighter-vm",
       httpRpcUrl: "https://api.lighter.xyz",
     }),
+    getChainVmType: async () => "lighter-vm",
     getSdkChainsConfig: () => ({
       "lighter-mainnet": "lighter-vm",
     }),
@@ -136,12 +140,14 @@ describe("LighterVmAttestor", () => {
       const attestor = new LighterVmAttestor();
 
       try {
-        await attestor.getSolverPaidAmount("lighter-mainnet", transactionId, payment);
+        await attestor.getSolverPaidAmount(
+          "lighter-mainnet",
+          transactionId,
+          payment
+        );
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
-        expect(error.message).toContain(
-          `Missing transaction ${transactionId}`
-        );
+        expect(error.message).toContain(`Missing transaction ${transactionId}`);
       }
     });
 
@@ -173,7 +179,11 @@ describe("LighterVmAttestor", () => {
       const attestor = new LighterVmAttestor();
 
       try {
-        await attestor.getSolverPaidAmount("lighter-mainnet", transactionId, payment);
+        await attestor.getSolverPaidAmount(
+          "lighter-mainnet",
+          transactionId,
+          payment
+        );
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
         expect(error.message).toContain("Missing or reverted transaction");
@@ -214,7 +224,11 @@ describe("LighterVmAttestor", () => {
       const attestor = new LighterVmAttestor();
 
       try {
-        await attestor.getSolverPaidAmount("lighter-mainnet", transactionId, payment);
+        await attestor.getSolverPaidAmount(
+          "lighter-mainnet",
+          transactionId,
+          payment
+        );
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
         expect(error.message).toContain("executed after deadline");
@@ -283,6 +297,5 @@ describe("LighterVmAttestor", () => {
         expect(error.message).toContain("Could not detect payment");
       }
     });
-
   });
 });

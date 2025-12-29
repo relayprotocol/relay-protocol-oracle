@@ -18,6 +18,7 @@ import {
   getWithdrawalAddress,
   ExecutionMessageMetadata,
   WithdrawalAddressParams,
+  getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
 import { generateTokenId, generateAddress } from "@relay-protocol/hub-utils";
 import {
@@ -454,13 +455,20 @@ export class AttestationService {
       }
 
       const paidAmount = await getVmAttestor(orderRefund.chainId).then(
-        (attestor) =>
+        async (attestor) =>
           attestor.getSolverPaidAmount(
             orderRefund.chainId,
             refundInformation.transactionId,
             {
               currency: orderRefund.currency,
-              recipient: orderRefund.recipient,
+              // If the refund recipient matches the address of the native currency on the chain, refund to the depositor
+              recipient:
+                orderRefund.recipient ===
+                getVmTypeNativeCurrency(
+                  await getChainVmType(orderRefund.chainId)
+                )
+                  ? depositoryDeposits[inputPaymentIndex].result.depositor
+                  : orderRefund.recipient,
               orderId,
               extraData: orderRefund.extraData,
               deadline: orderRefund.deadline,
