@@ -12,10 +12,12 @@ import { parseUnits, hashStruct } from "viem";
 
 import { getDeterministicId } from "../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
+import { TxHints } from "../../../attestation";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/hyperliquid-vm/rpc";
 import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
+import { logger } from "../../../../common/logger";
 
 const VM_TYPE = "hyperliquid-vm";
 
@@ -24,10 +26,74 @@ const SPOT_USDC = "0x6d1e7cde53ba9467b783cb7c530ce054";
 const getTxDetailsWithFallback = async (
   chainId: string,
   txId: string,
-  trackingId: string
-): Promise<hl.TxDetailsResponse["tx"]> => {
-  await logRpcUsage(chainId, "txDetails", trackingId);
+  trackingId: string,
+  hints?: TxHints
+): Promise<Omit<hl.TxDetailsResponse["tx"], "block">> => {
   const rpc = await httpRpc(chainId);
+
+  // If tx hints are provided, we use the `userNonFundingLedgerUpdates` API to get the transaction details.
+  // That API is much less restrictive compared to the usual `txDetails` API.
+  if (hints?.["hyperliquid-vm"]) {
+    await logRpcUsage(chainId, "userNonFundingLedgerUpdates", trackingId);
+    const ledgerUpdates = await rpc.userNonFundingLedgerUpdates({
+      user: hints["hyperliquid-vm"].user as `0x${string}`,
+      startTime: hints["hyperliquid-vm"].timestamp,
+      endTime: hints["hyperliquid-vm"].timestamp,
+    });
+
+    const txEntry = ledgerUpdates.find(
+      (u) => u.hash.toLowerCase() === txId.toLowerCase()
+    );
+    if (txEntry) {
+      const delta = txEntry.delta as any;
+      if (delta.type === "send") {
+        await logRpcUsage(chainId, "spotMeta", trackingId);
+        const tokenId = await rpc
+          .spotMeta()
+          .then((r) => r.tokens.find((t) => t.name === delta.token)?.tokenId);
+        if (tokenId) {
+          logger.info(
+            "hyperliquid-vm-debug",
+            JSON.stringify({
+              msg: "Using userNonFundingLedgerUpdates entry",
+              details: {
+                action: {
+                  type: "sendAsset",
+                  destination: delta.destination,
+                  token: `${delta.token}:${tokenId}`,
+                  sourceDex: delta.sourceDex,
+                  destinationDex: delta.destinationDex,
+                  amount: delta.amount,
+                  nonce: delta.nonce,
+                },
+                user: delta.user,
+                time: txEntry.time,
+                hash: txEntry.hash,
+                error: null,
+              },
+            })
+          );
+          return {
+            action: {
+              type: "sendAsset",
+              destination: delta.destination,
+              token: `${delta.token}:${tokenId}`,
+              sourceDex: delta.sourceDex,
+              destinationDex: delta.destinationDex,
+              amount: delta.amount,
+              nonce: delta.nonce,
+            },
+            user: delta.user,
+            time: txEntry.time,
+            hash: txEntry.hash,
+            error: null,
+          };
+        }
+      }
+    }
+  }
+
+  await logRpcUsage(chainId, "txDetails", trackingId);
   return rpc
     .txDetails({
       hash: txId as any,
@@ -330,7 +396,8 @@ export class HyperliquidVmAttestor extends VmAttestor {
       orderId: string;
       extraData: string;
       deadline: number;
-    }
+    },
+    hints?: TxHints
   ): Promise<bigint> {
     const trackingId = getTrackingId();
 
@@ -340,7 +407,8 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const txDetails = await getTxDetailsWithFallback(
       chainId,
       transactionId,
-      trackingId
+      trackingId,
+      hints
     );
     if (!txDetails || txDetails.error) {
       throw externalError(`Missing or reverted transaction ${transactionId}`);

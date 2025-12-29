@@ -59,6 +59,13 @@ export type WithdrawalAddressRequest = Omit<
   amount: string;
 };
 
+export type TxHints = {
+  "hyperliquid-vm"?: {
+    user: string;
+    timestamp: number;
+  };
+};
+
 export class AttestationService {
   public async attestDepositoryDeposits(
     data: DepositoryDepositMessage["data"] & {
@@ -309,10 +316,11 @@ export class AttestationService {
   }
 
   public async attestSolverFill(
-    data: SolverFillMessage["data"] & {
-      force?: boolean;
-      includeOnchainHubExecution?: boolean;
-    }
+    data: SolverFillMessage["data"] &
+      TxHints & {
+        force?: boolean;
+        includeOnchainHubExecution?: boolean;
+      }
   ): Promise<{ message: SolverFillMessage; execution?: ExecutionMessage }> {
     if (data.force) {
       // TODO: Return execution for forced attestations
@@ -404,10 +412,11 @@ export class AttestationService {
   }
 
   public async attestSolverRefund(
-    data: SolverRefundMessage["data"] & {
-      force?: boolean;
-      includeOnchainHubExecution?: boolean;
-    }
+    data: SolverRefundMessage["data"] &
+      TxHints & {
+        force?: boolean;
+        includeOnchainHubExecution?: boolean;
+      }
   ): Promise<{ message: SolverRefundMessage; execution?: ExecutionMessage }> {
     if (data.force) {
       // TODO: Return execution for forced attestations

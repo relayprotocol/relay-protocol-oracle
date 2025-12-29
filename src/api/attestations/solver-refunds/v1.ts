@@ -111,6 +111,23 @@ const MessageData = Type.Object({
         "Whether to include an execution message for the onchain Hub",
     })
   ),
+  hints: Type.Optional(
+    Type.Object(
+      {
+        "hyperliquid-vm": Type.Optional(
+          Type.Object({
+            user: Type.String({
+              description: "The sender of the fill transaction",
+            }),
+            timestamp: Type.Number({
+              description: "The timestamp of the fill transaction",
+            }),
+          })
+        ),
+      },
+      { description: "Hints for attesting the fill transaction" }
+    )
+  ),
 });
 
 const Schema = {
