@@ -316,11 +316,10 @@ export class AttestationService {
   }
 
   public async attestSolverFill(
-    data: SolverFillMessage["data"] &
-      TxHints & {
-        force?: boolean;
-        includeOnchainHubExecution?: boolean;
-      }
+    data: SolverFillMessage["data"] & { hints?: TxHints } & {
+      force?: boolean;
+      includeOnchainHubExecution?: boolean;
+    }
   ): Promise<{ message: SolverFillMessage; execution?: ExecutionMessage }> {
     if (data.force) {
       // TODO: Return execution for forced attestations
@@ -359,7 +358,8 @@ export class AttestationService {
           orderId,
           extraData: data.order.output.extraData,
           deadline: data.order.output.deadline,
-        }
+        },
+        data.hints
       );
 
       // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
@@ -412,11 +412,10 @@ export class AttestationService {
   }
 
   public async attestSolverRefund(
-    data: SolverRefundMessage["data"] &
-      TxHints & {
-        force?: boolean;
-        includeOnchainHubExecution?: boolean;
-      }
+    data: SolverRefundMessage["data"] & { hints?: TxHints } & {
+      force?: boolean;
+      includeOnchainHubExecution?: boolean;
+    }
   ): Promise<{ message: SolverRefundMessage; execution?: ExecutionMessage }> {
     if (data.force) {
       // TODO: Return execution for forced attestations
@@ -481,7 +480,8 @@ export class AttestationService {
               orderId,
               extraData: orderRefund.extraData,
               deadline: orderRefund.deadline,
-            }
+            },
+            data.hints
           )
       );
 
