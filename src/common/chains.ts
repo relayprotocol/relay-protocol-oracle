@@ -5,13 +5,15 @@ import { readConfigValue } from "./utils";
 import { config } from "../config";
 
 export type Chain = {
+  // The user-friendly id of the chain
   id: string;
   vmType: VmType;
   httpRpcUrl: string;
   depository?: string;
-  additionalData?: any;
-  // The numeric chain id in the onchain hub contract
+  // The numeric id of the chain on the Hub - for "ethereum-vm" chains this is the EVM chain id,
+  // and for all other chains it is the `keccak256` value of the above user-friendly id
   hubChainId?: string;
+  additionalData?: any;
 };
 
 export const HUB_VM_TYPE = "hub-vm" as any as VmType;

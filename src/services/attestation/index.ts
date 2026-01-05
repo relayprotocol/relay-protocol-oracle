@@ -68,9 +68,7 @@ export type TxHints = {
 
 export class AttestationService {
   public async attestDepositoryDeposits(
-    data: DepositoryDepositMessage["data"] & {
-      includeOnchainHubExecution?: boolean;
-    }
+    data: DepositoryDepositMessage["data"]
   ): Promise<{
     messages: DepositoryDepositMessage[];
     execution?: ExecutionMessage;
@@ -81,9 +79,9 @@ export class AttestationService {
       data.transactionId
     );
 
-    // Generate onchain hub execution
+    // Generate Hub execution
     let execution: ExecutionMessage | undefined;
-    if (data.includeOnchainHubExecution && messages.length) {
+    if (messages.length) {
       const actions: string[] = [];
       const metadata: ExecutionMetadata[] = [];
 
@@ -103,15 +101,13 @@ export class AttestationService {
 
           const hubToAddress =
             m.result.depositId !== zeroHash
-              ? // This order lives only on the hub
-                // so we do not need to hash it
-                await this._getOrderAddress({
+              ? await this._getOrderAddress({
                   chainId: m.data.chainId,
                   timestamp: m.extraData.timestamp,
                   depositor: m.result.depositor,
                   depositId: m.result.depositId,
                 })
-              : // in case no deposit info is attached, use the depositor alias on the hub
+              : // In case no deposit id is attached, use the depositor alias on the hub
                 generateAddress({
                   address: m.result.depositor,
                   chainId: HUB_CHAIN_ID,
@@ -119,7 +115,6 @@ export class AttestationService {
                 });
 
           const amount = m.result.amount;
-
           actions.push(
             encodeAction({
               type: ActionType.MINT,
@@ -133,7 +128,7 @@ export class AttestationService {
         })
       );
 
-      // parse metadata for all oracle chains
+      // Parse metadata for all oracle chains
       const metadataForAllOracles: ExecutionMessageMetadata[] = [];
       const hubChains = await getHubChains();
       if (hubChains) {
@@ -161,9 +156,7 @@ export class AttestationService {
   }
 
   public async attestWithdrawalOwnerBalance(
-    data: WithdrawalInitiationMessage["data"] & {
-      includeOnchainHubExecution?: boolean;
-    }
+    data: WithdrawalInitiationMessage["data"]
   ): Promise<{
     message: WithdrawalInitiationMessage;
     execution?: ExecutionMessage;
@@ -183,27 +176,24 @@ export class AttestationService {
       throw externalError("Insufficient initial withdrawal balance");
     }
 
-    let execution: ExecutionMessage | undefined;
-    if (data.includeOnchainHubExecution) {
-      execution = {
-        idempotencyKey: getDeterministicId(
-          data.settlementChainId,
-          hubTokenId.toString(),
-          withdrawalAddress
-        ),
-        actions: [
-          encodeAction({
-            type: ActionType.TRANSFER,
-            data: {
-              hubTokenId: hubTokenId,
-              hubFromAddress: withdrawerAlias,
-              hubToAddress: withdrawalAddress,
-              amount: balance,
-            },
-          }),
-        ],
-      };
-    }
+    const execution = {
+      idempotencyKey: getDeterministicId(
+        data.settlementChainId,
+        hubTokenId.toString(),
+        withdrawalAddress
+      ),
+      actions: [
+        encodeAction({
+          type: ActionType.TRANSFER,
+          data: {
+            hubTokenId: hubTokenId,
+            hubFromAddress: withdrawerAlias,
+            hubToAddress: withdrawalAddress,
+            amount: balance,
+          },
+        }),
+      ],
+    };
 
     return {
       message: {
@@ -259,7 +249,6 @@ export class AttestationService {
 
   public async attestDepositoryWithdrawal(
     data: DepositoryWithdrawalMessage["data"] & {
-      includeOnchainHubExecution?: boolean;
       transactionId?: string;
       withdrawalAddressRequest?: WithdrawalAddressRequest;
     }
@@ -277,7 +266,7 @@ export class AttestationService {
 
     // Generate onchain hub execution
     let execution: ExecutionMessage | undefined;
-    if (data.includeOnchainHubExecution && data.withdrawalAddressRequest) {
+    if (data.withdrawalAddressRequest) {
       const { withdrawalAddress, hubTokenId } =
         await this._getWithdrawalAddress(data.withdrawalAddressRequest);
 
@@ -318,7 +307,6 @@ export class AttestationService {
   public async attestSolverFill(
     data: SolverFillMessage["data"] & { hints?: TxHints } & {
       force?: boolean;
-      includeOnchainHubExecution?: boolean;
     }
   ): Promise<{ message: SolverFillMessage; execution?: ExecutionMessage }> {
     if (data.force) {
@@ -400,21 +388,18 @@ export class AttestationService {
             totalWeightedInputPaymentBpsDiff.toString(),
         },
       },
-      execution: data.includeOnchainHubExecution
-        ? await this._getSolverFillOrRefundExecution({
-            order: data.order,
-            totalWeightedInputPaymentBpsDiff,
-            depositoryDeposits,
-            type: "fill",
-          })
-        : undefined,
+      execution: await this._getSolverFillOrRefundExecution({
+        order: data.order,
+        totalWeightedInputPaymentBpsDiff,
+        depositoryDeposits,
+        type: "fill",
+      }),
     };
   }
 
   public async attestSolverRefund(
     data: SolverRefundMessage["data"] & { hints?: TxHints } & {
       force?: boolean;
-      includeOnchainHubExecution?: boolean;
     }
   ): Promise<{ message: SolverRefundMessage; execution?: ExecutionMessage }> {
     if (data.force) {
@@ -507,14 +492,12 @@ export class AttestationService {
             totalWeightedInputPaymentBpsDiff.toString(),
         },
       },
-      execution: data.includeOnchainHubExecution
-        ? await this._getSolverFillOrRefundExecution({
-            order: data.order,
-            totalWeightedInputPaymentBpsDiff,
-            depositoryDeposits,
-            type: "refund",
-          })
-        : undefined,
+      execution: await this._getSolverFillOrRefundExecution({
+        order: data.order,
+        totalWeightedInputPaymentBpsDiff,
+        depositoryDeposits,
+        type: "refund",
+      }),
     };
   }
 
@@ -652,8 +635,8 @@ export class AttestationService {
   }): Promise<ExecutionMessage> {
     const actions: string[] = [];
 
-    // solver address on the hub
-    const baseSolverAlias = generateAddress({
+    // Solver address on the hub
+    const solverAlias = generateAddress({
       address: data.order.solver,
       chainId: await getChainHubChainId(data.order.solverChainId),
       family: await getChainVmType(data.order.solverChainId),
@@ -682,7 +665,7 @@ export class AttestationService {
           data: {
             hubTokenId,
             hubFromAddress,
-            hubToAddress: baseSolverAlias,
+            hubToAddress: solverAlias,
             amount,
           },
         })
@@ -698,11 +681,10 @@ export class AttestationService {
           family: await getChainVmType(fee.currencyChainId),
         });
 
-        const [deposit] = data.depositoryDeposits;
         const hubToAddress = generateAddress({
           address: fee.recipient,
-          chainId: await getChainHubChainId(deposit.data.chainId),
-          family: await getChainVmType(deposit.data.chainId),
+          chainId: await getChainHubChainId(fee.recipientChainId),
+          family: await getChainVmType(fee.recipientChainId),
         });
 
         const amount = String(
@@ -716,7 +698,7 @@ export class AttestationService {
             type: ActionType.TRANSFER,
             data: {
               hubTokenId,
-              hubFromAddress: baseSolverAlias,
+              hubFromAddress: solverAlias,
               hubToAddress,
               amount,
             },

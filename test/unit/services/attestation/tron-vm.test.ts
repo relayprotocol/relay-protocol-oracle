@@ -48,13 +48,17 @@ jest.mock("../../../../src/common/chains", () => {
       vmType: "tron-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
       depository: "TXtEs6t2oUWQsNos7m68gbHdE9Q5n6x2oN",
-      hubChainId: "0",
+      hubChainId: "1",
     },
   };
   return {
+    HUB_VM_TYPE: "hub-vm",
+    HUB_CHAIN_ID: 0n,
     getChains: async () => chains,
+    getHubChains: async () => [],
     getChain: async (chainId: string) => chains[chainId],
     getChainVmType: async (chainId: string) => chains[chainId].vmType,
+    getChainHubChainId: async (chainId: string) => chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
       Object.fromEntries(
         Object.values(chains).map((chain) => [chain.id, chain.vmType])
@@ -70,6 +74,13 @@ jest.mock("viem", () => {
   return {
     ...(jest.requireActual("viem") as typeof import("viem")),
     getContract: jest.fn(),
+  };
+});
+jest.mock("@reservoir0x/relay-protocol-sdk", () => {
+  const original = jest.requireActual("@reservoir0x/relay-protocol-sdk");
+  return {
+    ...(original as any),
+    getDecodedWithdrawalAmount: jest.fn().mockReturnValue(1000),
   };
 });
 

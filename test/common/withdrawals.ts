@@ -22,7 +22,8 @@ export function createMockWithdrawalAddressRequest(
     depositoryChainSlug: overrides?.depositoryChainSlug || "ethereum",
     currency: overrides?.currency || generateAddress(),
     owner: overrides?.owner || generateAddress(),
-    ownerChainId: overrides?.ownerChainId || "base",
+    ownerChainId:
+      overrides?.ownerChainId || overrides?.depositoryChainSlug || "base",
     recipientAddress: overrides?.recipientAddress || generateAddress(),
     amount: overrides?.amount || "1000000000000000000",
     withdrawalNonce: overrides?.withdrawalNonce || randomBytes32(),

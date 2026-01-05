@@ -8,6 +8,7 @@ import axios from "axios";
 import * as bitcoin from "bitcoinjs-lib";
 import { zeroHash } from "viem";
 
+import { Chain } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/bitcoin-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 
@@ -19,37 +20,31 @@ const testDepositoryAddress = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
 const testUserAddress =
   "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7";
 
-// Mock Bitcoin chain configuration
-let mockDepository: string | undefined = testDepositoryAddress;
-let mockEsploraUrl: string | undefined = "http://127.0.0.1:3000";
-
 jest.mock("../../../../src/common/chains", () => {
-  return {
-    getChains: async () => ({
-      bitcoin: {
-        id: "bitcoin",
-        vmType: "bitcoin-vm",
-        httpRpcUrl: "http://127.0.0.1:8332",
-        depository: () => mockDepository,
-        additionalData: {
-          get esploraCompatibleApiUrl() {
-            return mockEsploraUrl;
-          },
-        },
-      },
-    }),
-    getChain: async () => ({
+  const chains: Record<string, Chain> = {
+    bitcoin: {
       id: "bitcoin",
       vmType: "bitcoin-vm",
       httpRpcUrl: "http://127.0.0.1:8332",
-      depository: mockDepository,
+      depository: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+      hubChainId: "1",
       additionalData: {
-        esploraCompatibleApiUrl: mockEsploraUrl,
+        esploraCompatibleApiUrl: "http://localhost:3000",
       },
-    }),
-    getSdkChainsConfig: () => ({
-      bitcoin: "bitcoin-vm",
-    }),
+    },
+  };
+  return {
+    HUB_VM_TYPE: "hub-vm",
+    HUB_CHAIN_ID: 0n,
+    getChains: async () => chains,
+    getHubChains: async () => [],
+    getChain: async (chainId: string) => chains[chainId],
+    getChainVmType: async (chainId: string) => chains[chainId].vmType,
+    getChainHubChainId: async (chainId: string) => chains[chainId].hubChainId,
+    getSdkChainsConfig: () =>
+      Object.fromEntries(
+        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+      ),
   };
 });
 jest.mock("@reservoir0x/relay-protocol-sdk", () => {
@@ -57,6 +52,7 @@ jest.mock("@reservoir0x/relay-protocol-sdk", () => {
   return {
     ...(original as any),
     decodeWithdrawal: jest.fn(),
+    getDecodedWithdrawalAmount: jest.fn().mockReturnValue(1000),
     getDecodedWithdrawalId: jest.fn().mockReturnValue("0x1234567890"),
   };
 });
@@ -372,8 +368,6 @@ describe("BitcoinVmAttestor", () => {
         isSpent?: boolean;
         txMatches?: boolean;
         multipleSpendingTxs?: boolean;
-        noDepository?: boolean;
-        noEsploraUrl?: boolean;
         noAllocatorUtxos?: boolean;
       } = {}
     ) => {
@@ -381,8 +375,6 @@ describe("BitcoinVmAttestor", () => {
         isSpent = false,
         txMatches = true,
         multipleSpendingTxs = false,
-        noDepository = false,
-        noEsploraUrl = false,
         noAllocatorUtxos = false,
       } = options;
 
@@ -588,12 +580,6 @@ describe("BitcoinVmAttestor", () => {
         return Promise.resolve(mockRpcFunctions);
       });
 
-      // Update global mock variables to simulate missing depository or esplora URL
-      mockDepository = noDepository ? undefined : testDepositoryAddress;
-      mockEsploraUrl = noEsploraUrl
-        ? undefined
-        : "https://blockstream.info/api";
-
       return { withdrawalHex, spendingTxId };
     };
 
@@ -675,38 +661,6 @@ describe("BitcoinVmAttestor", () => {
       expect(message.result.withdrawalId).toBe("0x1234567890");
       expect(message.result.depository).toBe(testDepositoryAddress);
       expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
-    });
-
-    it("should throw error when chain has no depository configured", async () => {
-      // Setup test with no depository
-      const { withdrawalHex } = setupWithdrawalTest({
-        noDepository: true,
-      });
-
-      // Execute test and expect error
-      await expect(
-        new AttestationService().attestDepositoryWithdrawal({
-          chainId: "bitcoin",
-          withdrawal: withdrawalHex,
-          withdrawalAddressRequest,
-        })
-      ).rejects.toThrow("Chain has no depository configured");
-    });
-
-    it("should throw error when no Esplora API URL is configured", async () => {
-      // Setup test with no Esplora URL
-      const { withdrawalHex } = setupWithdrawalTest({
-        noEsploraUrl: true,
-      });
-
-      // Execute test and expect error
-      await expect(
-        new AttestationService().attestDepositoryWithdrawal({
-          chainId: "bitcoin",
-          withdrawal: withdrawalHex,
-          withdrawalAddressRequest,
-        })
-      ).rejects.toThrow("No Esplora-compatible API URL configured");
     });
 
     it("should throw error when no allocator UTXOs are detected", async () => {

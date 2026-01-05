@@ -11,6 +11,15 @@ export const config = {
       )
     : undefined,
 
+  peers: process.env.PEERS
+    ? Object.fromEntries(
+        process.env.PEERS.split(";").map((peer) => {
+          const [url, apiKey] = peer.split(":");
+          return [url, apiKey];
+        })
+      )
+    : undefined,
+
   onChainOracleAddress: process.env.ON_CHAIN_ORACLE_CONTRACT_ADDRESS!,
   onChainOracleChainId: process.env.ON_CHAIN_ORACLE_CHAIN_ID!,
 

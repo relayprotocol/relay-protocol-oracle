@@ -16,12 +16,6 @@ const MessageData = Type.Object({
     description: "The chain id of the hub",
   }),
   ...WithdrawalAddressSchema.properties,
-  includeOnchainHubExecution: Type.Optional(
-    Type.Boolean({
-      description:
-        "Whether to include an execution message for the onchain Hub",
-    })
-  ),
 });
 
 const Schema = {

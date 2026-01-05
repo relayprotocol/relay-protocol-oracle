@@ -105,12 +105,6 @@ const MessageData = Type.Object({
         "Force attestation even if the order solver fill is not valid",
     })
   ),
-  includeOnchainHubExecution: Type.Optional(
-    Type.Boolean({
-      description:
-        "Whether to include an execution message for the onchain Hub",
-    })
-  ),
   hints: Type.Optional(
     Type.Object(
       {

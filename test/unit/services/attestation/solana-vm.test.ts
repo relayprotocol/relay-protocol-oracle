@@ -908,9 +908,13 @@ jest.mock("../../../../src/common/chains", () => {
     },
   };
   return {
+    HUB_VM_TYPE: "hub-vm",
+    HUB_CHAIN_ID: 0n,
     getChains: async () => chains,
+    getHubChains: async () => [],
     getChain: async (chainId: string) => chains[chainId],
     getChainVmType: async (chainId: string) => chains[chainId].vmType,
+    getChainHubChainId: async (chainId: string) => chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
       Object.fromEntries(
         Object.values(chains).map((chain) => [chain.id, chain.vmType])

@@ -215,7 +215,6 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
 
     expect(result.message.data).toEqual(requestBody);
     expect(result.message.result.withdrawalAddress).toBe(withdrawalAddress);
-    expect(result.execution).toBeUndefined();
     expect(mockHubAttestor.getBalanceOnHub).toHaveBeenCalledWith(
       requestBody.settlementChainId,
       withdrawerAlias,
@@ -245,7 +244,7 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     ).rejects.toThrow("Insufficient initial withdrawal balance");
   });
 
-  it("should include execution (when includeOnchainHubExecution = true)", async () => {
+  it("should include execution", async () => {
     const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
       depositoryChainSlug: "1",
       amount: "1000000000000000000", // 1 ETH
@@ -254,7 +253,6 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     const requestBody = {
       settlementChainId: "1",
       ...withdrawalAddressRequest,
-      includeOnchainHubExecution: true,
     };
 
     const fundedAmount = "2000000000000000000"; // 2 ETH

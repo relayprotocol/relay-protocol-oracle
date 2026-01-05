@@ -13,13 +13,17 @@ jest.mock("../../../../src/common/chains", () => {
       httpRpcUrl: "http://127.0.0.1:9000",
       depository:
         "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e",
-      hubChainId: "0",
+      hubChainId: "1",
     },
   };
   return {
+    HUB_VM_TYPE: "hub-vm",
+    HUB_CHAIN_ID: 0n,
     getChains: async () => chains,
+    getHubChains: async () => [],
     getChain: async (chainId: string) => chains[chainId],
     getChainVmType: async (chainId: string) => chains[chainId].vmType,
+    getChainHubChainId: async (chainId: string) => chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
       Object.fromEntries(
         Object.values(chains).map((chain) => [chain.id, chain.vmType])
@@ -88,7 +92,7 @@ describe("SuiVmAttestor", () => {
       "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e"
     );
     expect(msg.result.depositId).toBe(
-      "0303030303030303030303030303030303030303030303030303030303030303"
+      "0x0303030303030303030303030303030303030303030303030303030303030303"
     );
   });
 

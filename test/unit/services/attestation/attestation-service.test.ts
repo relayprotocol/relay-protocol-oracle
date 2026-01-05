@@ -38,13 +38,13 @@ jest.mock("viem", () => {
 });
 
 jest.mock("../../../../src/common/chains", () => ({
-  getChainVmType: jest.fn().mockImplementation(async (chainId: string) => {
+  getChainVmType: jest.fn().mockImplementation(async (chainId) => {
     if (chainId === "ethereum") return "ethereum-vm";
     if (chainId === "solana") return "solana-vm";
     if (chainId === "base") return "ethereum-vm";
     throw new Error(`Unknown chain: ${chainId}`);
   }),
-  getChainHubChainId: jest.fn().mockImplementation(async (chainId: string) => {
+  getChainHubChainId: jest.fn().mockImplementation(async (chainId) => {
     if (chainId === "ethereum") return 1;
     if (chainId === "solana") return 101;
     if (chainId === "base") return 8543;
@@ -85,7 +85,6 @@ describe("AttestationService", () => {
         chainId: "ethereum",
         transactionId:
           "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e",
-        includeOnchainHubExecution: true,
       };
       const mockMessages = [
         {
@@ -193,7 +192,6 @@ describe("AttestationService", () => {
         withdrawal,
         transactionId:
           "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e",
-        includeOnchainHubExecution: true,
         withdrawalAddressRequest: withdrawalAddressRequestWithCurrency,
       };
 
@@ -328,7 +326,6 @@ describe("AttestationService", () => {
         withdrawal,
         transactionId:
           "5j7s8K9j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0c1d2e3f4g5h6i7j8k9l0m1n2o3p4",
-        includeOnchainHubExecution: true,
         withdrawalAddressRequest: solanaWithdrawalAddressRequest,
       };
 
@@ -516,7 +513,6 @@ describe("AttestationService", () => {
         fill: {
           transactionId: fillTransactionId,
         },
-        includeOnchainHubExecution: true,
       };
 
       const result = await service.attestSolverFill(requestBody);

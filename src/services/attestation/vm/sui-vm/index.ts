@@ -70,7 +70,8 @@ export class SuiVmAttestor extends VmAttestor {
           result: {
             onchainId,
             depository,
-            depositId: Buffer.from(typedEvent.deposit_id).toString("hex"),
+            depositId:
+              "0x" + Buffer.from(typedEvent.deposit_id).toString("hex"),
             depositor: typedEvent.from,
             currency: typedEvent.coin_type.name,
             amount: typedEvent.amount.toString(),

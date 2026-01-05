@@ -4,8 +4,9 @@ import {
   TransactionType,
 } from "@reservoir0x/lighter-ts-sdk";
 
-import { LighterVmAttestor } from "../../../../src/services/attestation/vm/lighter-vm";
+import { Chain } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/lighter-vm/rpc";
+import { LighterVmAttestor } from "../../../../src/services/attestation/vm/lighter-vm";
 
 import { randomHex } from "../../../common/utils";
 
@@ -13,23 +14,26 @@ const testDepositoryAddress = "460491";
 const testRecipientAddress = "462196";
 
 jest.mock("../../../../src/common/chains", () => {
-  return {
-    getChains: async () => ({
-      "lighter-mainnet": {
-        id: "lighter-mainnet",
-        vmType: "lighter-vm",
-        httpRpcUrl: "https://api.lighter.xyz",
-      },
-    }),
-    getChain: async () => ({
-      id: "lighter-mainnet",
+  const chains: Record<string, Chain> = {
+    lighter: {
+      id: "lighter",
       vmType: "lighter-vm",
       httpRpcUrl: "https://api.lighter.xyz",
-    }),
-    getChainVmType: async () => "lighter-vm",
-    getSdkChainsConfig: () => ({
-      "lighter-mainnet": "lighter-vm",
-    }),
+      hubChainId: "1",
+    },
+  };
+  return {
+    HUB_VM_TYPE: "hub-vm",
+    HUB_CHAIN_ID: 0n,
+    getChains: async () => chains,
+    getHubChains: async () => [],
+    getChain: async (chainId: string) => chains[chainId],
+    getChainVmType: async (chainId: string) => chains[chainId].vmType,
+    getChainHubChainId: async (chainId: string) => chains[chainId].hubChainId,
+    getSdkChainsConfig: () =>
+      Object.fromEntries(
+        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+      ),
   };
 });
 
@@ -103,7 +107,7 @@ describe("LighterVmAttestor", () => {
 
       const attestor = new LighterVmAttestor();
       const paidAmount = await attestor.getSolverPaidAmount(
-        "lighter-mainnet",
+        "lighter",
         transactionId,
         payment
       );
@@ -113,7 +117,7 @@ describe("LighterVmAttestor", () => {
       // Also test COMMITTED status
       mockTransaction.status = TransactionStatus.COMMITTED;
       const paidAmount2 = await attestor.getSolverPaidAmount(
-        "lighter-mainnet",
+        "lighter",
         transactionId,
         payment
       );
@@ -140,11 +144,7 @@ describe("LighterVmAttestor", () => {
       const attestor = new LighterVmAttestor();
 
       try {
-        await attestor.getSolverPaidAmount(
-          "lighter-mainnet",
-          transactionId,
-          payment
-        );
+        await attestor.getSolverPaidAmount("lighter", transactionId, payment);
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
         expect(error.message).toContain(`Missing transaction ${transactionId}`);
@@ -179,11 +179,7 @@ describe("LighterVmAttestor", () => {
       const attestor = new LighterVmAttestor();
 
       try {
-        await attestor.getSolverPaidAmount(
-          "lighter-mainnet",
-          transactionId,
-          payment
-        );
+        await attestor.getSolverPaidAmount("lighter", transactionId, payment);
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
         expect(error.message).toContain("Missing or reverted transaction");
@@ -224,11 +220,7 @@ describe("LighterVmAttestor", () => {
       const attestor = new LighterVmAttestor();
 
       try {
-        await attestor.getSolverPaidAmount(
-          "lighter-mainnet",
-          transactionId,
-          payment
-        );
+        await attestor.getSolverPaidAmount("lighter", transactionId, payment);
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
         expect(error.message).toContain("executed after deadline");
@@ -260,7 +252,7 @@ describe("LighterVmAttestor", () => {
       });
 
       try {
-        await attestor.getSolverPaidAmount("lighter-mainnet", transactionId, {
+        await attestor.getSolverPaidAmount("lighter", transactionId, {
           currency: "0",
           recipient: "999999", // Wrong recipient
           orderId: "test-order-id",
@@ -285,7 +277,7 @@ describe("LighterVmAttestor", () => {
       });
 
       try {
-        await attestor.getSolverPaidAmount("lighter-mainnet", transactionId, {
+        await attestor.getSolverPaidAmount("lighter", transactionId, {
           currency: "0",
           recipient: testRecipientAddress,
           orderId: "test-order-id",

@@ -6,6 +6,7 @@ import {
 } from "@reservoir0x/relay-protocol-sdk";
 import axios from "axios";
 
+import { Chain } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/hyperliquid-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 
@@ -15,37 +16,31 @@ import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals"
 const testDepositoryAddress = "0x1234567890abcdef1234567890abcdef12345678";
 const testUserAddress = "0xabcdef1234567890abcdef1234567890abcdef12";
 
-let mockDepository: string | undefined = testDepositoryAddress;
-let mockHubApiUrl: string | undefined = "https://api.hyperliquid.xyz";
-
 jest.mock("../../../../src/common/chains", () => {
-  return {
-    getChains: async () => ({
-      "hyperliquid-mainnet": {
-        id: "hyperliquid-mainnet",
-        vmType: "hyperliquid-vm",
-        httpRpcUrl: "https://api.hyperliquid.xyz",
-        depository: () => mockDepository,
-        additionalData: {
-          get hubApiUrl() {
-            return mockHubApiUrl;
-          },
-        },
-      },
-    }),
-    getChain: async () => ({
-      id: "hyperliquid-mainnet",
+  const chains: Record<string, Chain> = {
+    hyperliquid: {
+      id: "hyperliquid",
       vmType: "hyperliquid-vm",
       httpRpcUrl: "https://api.hyperliquid.xyz",
-      depository: mockDepository,
+      depository: "0x1234567890abcdef1234567890abcdef12345678",
+      hubChainId: "1",
       additionalData: {
-        hubApiUrl: mockHubApiUrl,
+        hubApiUrl: "https://localhost:3000",
       },
-    }),
-    getChainVmType: async () => "hyperliquid-vm",
-    getSdkChainsConfig: () => ({
-      "hyperliquid-mainnet": "hyperliquid-vm",
-    }),
+    },
+  };
+  return {
+    HUB_VM_TYPE: "hub-vm",
+    HUB_CHAIN_ID: 0n,
+    getChains: async () => chains,
+    getHubChains: async () => [],
+    getChain: async (chainId: string) => chains[chainId],
+    getChainVmType: async (chainId: string) => chains[chainId].vmType,
+    getChainHubChainId: async (chainId: string) => chains[chainId].hubChainId,
+    getSdkChainsConfig: () =>
+      Object.fromEntries(
+        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+      ),
   };
 });
 
@@ -112,12 +107,12 @@ describe("HyperliquidVmAttestor", () => {
 
       const { messages } =
         await new AttestationService().attestDepositoryDeposits({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           transactionId,
         });
 
       expect(messages).toHaveLength(1);
-      expect(messages[0].data.chainId).toBe("hyperliquid-mainnet");
+      expect(messages[0].data.chainId).toBe("hyperliquid");
       expect(messages[0].data.transactionId).toBe(transactionId);
       expect(messages[0].result.depository).toBe(testDepositoryAddress);
       expect(messages[0].result.depositor).toBe(testUserAddress);
@@ -173,12 +168,12 @@ describe("HyperliquidVmAttestor", () => {
 
       const { messages } =
         await new AttestationService().attestDepositoryDeposits({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           transactionId,
         });
 
       expect(messages).toHaveLength(1);
-      expect(messages[0].data.chainId).toBe("hyperliquid-mainnet");
+      expect(messages[0].data.chainId).toBe("hyperliquid");
       expect(messages[0].data.transactionId).toBe(transactionId);
       expect(messages[0].result.depository).toBe(testDepositoryAddress);
       expect(messages[0].result.depositor).toBe(testUserAddress);
@@ -213,49 +208,13 @@ describe("HyperliquidVmAttestor", () => {
 
       try {
         await new AttestationService().attestDepositoryDeposits({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           transactionId,
         });
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
         expect(error.message).toContain(`Transaction failed: ${transactionId}`);
       }
-    });
-
-    it("should throw error when chain has no depository configured", async () => {
-      const transactionId = randomHex(32);
-      mockDepository = undefined;
-
-      const depositTx = {
-        time: 1761563890702,
-        user: testUserAddress,
-        action: {
-          type: "usdSend",
-          destination: testDepositoryAddress,
-          amount: "100.0",
-        },
-        hash: transactionId,
-        error: null,
-      };
-
-      setupRpcMock({
-        txDetails: async () => ({
-          tx: depositTx,
-        }),
-      });
-
-      try {
-        await new AttestationService().attestDepositoryDeposits({
-          chainId: "hyperliquid-mainnet",
-          transactionId,
-        });
-        expect(false).toBe(true); // Should not reach here
-      } catch (error: any) {
-        expect(error.message).toContain("Chain has no depository configured");
-      }
-
-      // Reset depository for other tests
-      mockDepository = testDepositoryAddress;
     });
 
     it("should return empty array when transaction is not a deposit to depository", async () => {
@@ -281,7 +240,7 @@ describe("HyperliquidVmAttestor", () => {
 
       const { messages } =
         await new AttestationService().attestDepositoryDeposits({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           transactionId,
         });
 
@@ -310,7 +269,7 @@ describe("HyperliquidVmAttestor", () => {
 
       const { messages } =
         await new AttestationService().attestDepositoryDeposits({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           transactionId,
         });
 
@@ -344,7 +303,7 @@ describe("HyperliquidVmAttestor", () => {
 
       try {
         await new AttestationService().attestDepositoryDeposits({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           transactionId,
         });
         expect(false).toBe(true); // Should not reach here
@@ -390,7 +349,7 @@ describe("HyperliquidVmAttestor", () => {
 
       try {
         await new AttestationService().attestDepositoryDeposits({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           transactionId,
         });
         expect(false).toBe(true); // Should not reach here
@@ -441,7 +400,7 @@ describe("HyperliquidVmAttestor", () => {
 
       const { messages } =
         await new AttestationService().attestDepositoryDeposits({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           transactionId,
         });
 
@@ -483,7 +442,7 @@ describe("HyperliquidVmAttestor", () => {
 
       try {
         await new AttestationService().attestDepositoryDeposits({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           transactionId,
         });
         expect(false).toBe(true); // Should not reach here
@@ -495,7 +454,7 @@ describe("HyperliquidVmAttestor", () => {
 
   describe("getDepositoryWithdrawalMessage", () => {
     const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
-      depositoryChainSlug: "hyperliquid-mainnet",
+      depositoryChainSlug: "hyperliquid",
       depositoryAddress: testDepositoryAddress,
     });
 
@@ -506,7 +465,7 @@ describe("HyperliquidVmAttestor", () => {
 
       try {
         await new AttestationService().attestDepositoryWithdrawal({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           withdrawal: "0x1234",
           withdrawalAddressRequest,
         });
@@ -543,7 +502,7 @@ describe("HyperliquidVmAttestor", () => {
 
       try {
         await new AttestationService().attestDepositoryWithdrawal({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           withdrawal: "0x1234",
           withdrawalAddressRequest,
         });
@@ -597,7 +556,7 @@ describe("HyperliquidVmAttestor", () => {
 
       const { message } =
         await new AttestationService().attestDepositoryWithdrawal({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           withdrawalAddressRequest,
         });
@@ -662,7 +621,7 @@ describe("HyperliquidVmAttestor", () => {
 
       const { message } =
         await new AttestationService().attestDepositoryWithdrawal({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           transactionId,
           withdrawalAddressRequest,
@@ -699,7 +658,7 @@ describe("HyperliquidVmAttestor", () => {
 
       try {
         await new AttestationService().attestDepositoryWithdrawal({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           transactionId,
           withdrawalAddressRequest,
@@ -748,7 +707,7 @@ describe("HyperliquidVmAttestor", () => {
 
       try {
         await new AttestationService().attestDepositoryWithdrawal({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           transactionId,
           withdrawalAddressRequest,
@@ -797,7 +756,7 @@ describe("HyperliquidVmAttestor", () => {
 
       const { message } =
         await new AttestationService().attestDepositoryWithdrawal({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           transactionId,
           withdrawalAddressRequest,
@@ -841,7 +800,7 @@ describe("HyperliquidVmAttestor", () => {
 
       const { message } =
         await new AttestationService().attestDepositoryWithdrawal({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           withdrawalAddressRequest,
         });
@@ -894,7 +853,7 @@ describe("HyperliquidVmAttestor", () => {
 
       const { message } =
         await new AttestationService().attestDepositoryWithdrawal({
-          chainId: "hyperliquid-mainnet",
+          chainId: "hyperliquid",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           withdrawalAddressRequest,
         });
