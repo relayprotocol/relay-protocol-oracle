@@ -5,6 +5,7 @@ import {
   DepositoryWithdrawalStatus,
 } from "@reservoir0x/relay-protocol-sdk";
 import axios from "axios";
+import { zeroHash } from "viem";
 
 import { Chain } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/hyperliquid-vm/rpc";
@@ -79,7 +80,7 @@ describe("HyperliquidVmAttestor", () => {
       const expectedDepositId = randomHex(32);
 
       const depositTx = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testUserAddress,
         action: {
           type: "usdSend",
@@ -96,7 +97,9 @@ describe("HyperliquidVmAttestor", () => {
 
       // Mock the hub API response for deposit lookup
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { id: expectedDepositId } })
+        Promise.resolve({
+          data: { id: expectedDepositId, createdAt: new Date().toISOString() },
+        })
       );
 
       setupRpcMock({
@@ -129,7 +132,7 @@ describe("HyperliquidVmAttestor", () => {
       const expectedDepositId = randomHex(32);
 
       const depositTx = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testUserAddress,
         action: {
           type: "sendAsset",
@@ -149,7 +152,9 @@ describe("HyperliquidVmAttestor", () => {
       };
 
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { id: expectedDepositId } })
+        Promise.resolve({
+          data: { id: expectedDepositId, createdAt: new Date().toISOString() },
+        })
       );
 
       setupRpcMock({
@@ -189,7 +194,7 @@ describe("HyperliquidVmAttestor", () => {
       const transactionId = randomHex(32);
 
       const failedTx = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testUserAddress,
         action: {
           type: "usdSend",
@@ -221,7 +226,7 @@ describe("HyperliquidVmAttestor", () => {
       const transactionId = randomHex(32);
 
       const nonDepositTx = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testUserAddress,
         action: {
           type: "usdSend",
@@ -251,7 +256,7 @@ describe("HyperliquidVmAttestor", () => {
       const transactionId = randomHex(32);
 
       const unsupportedTx = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testUserAddress,
         action: {
           type: "otherAction", // Unsupported type
@@ -280,7 +285,7 @@ describe("HyperliquidVmAttestor", () => {
       const transactionId = randomHex(32);
 
       const invalidPerpsDeposit = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testUserAddress,
         action: {
           type: "sendAsset",
@@ -319,7 +324,7 @@ describe("HyperliquidVmAttestor", () => {
       const expectedDepositId = randomHex(32);
 
       const depositTx = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testUserAddress,
         action: {
           type: "sendAsset",
@@ -335,7 +340,9 @@ describe("HyperliquidVmAttestor", () => {
       };
 
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { id: expectedDepositId } })
+        Promise.resolve({
+          data: { id: expectedDepositId, createdAt: new Date().toISOString() },
+        })
       );
 
       setupRpcMock({
@@ -365,7 +372,7 @@ describe("HyperliquidVmAttestor", () => {
       const expectedDepositId = randomHex(32);
 
       const depositTx = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testUserAddress,
         action: {
           type: "sendAsset",
@@ -381,7 +388,9 @@ describe("HyperliquidVmAttestor", () => {
       };
 
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { id: expectedDepositId } })
+        Promise.resolve({
+          data: { id: expectedDepositId, createdAt: new Date().toISOString() },
+        })
       );
 
       setupRpcMock({
@@ -413,11 +422,11 @@ describe("HyperliquidVmAttestor", () => {
       expect(messages[0].result.amount).toBe("5000000000000000000");
     });
 
-    it("should throw error when depositId lookup fails", async () => {
+    it("should throw error when depositId lookup fails and we're still within the lookup threshold", async () => {
       const transactionId = randomHex(32);
 
       const depositTx = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testUserAddress,
         action: {
           type: "usdSend",
@@ -429,9 +438,9 @@ describe("HyperliquidVmAttestor", () => {
         error: null,
       };
 
-      // Mock axios to return no depositId
-      (axios.get as jest.Mock).mockImplementation(
-        () => Promise.resolve({ data: {} }) // No depositId in response
+      // Mock axios to return empty data
+      (axios.get as jest.Mock).mockImplementation(() =>
+        Promise.resolve({ data: undefined })
       );
 
       setupRpcMock({
@@ -449,6 +458,98 @@ describe("HyperliquidVmAttestor", () => {
       } catch (error: any) {
         expect(error.message).toContain("No nonce mapping found");
       }
+    });
+
+    it("should attest unassociated deposit when depositId lookup succeeds and we're outside the lookup threshold", async () => {
+      const transactionId = randomHex(32);
+
+      const depositTx = {
+        time: Date.now() - 3600 * 24 * 1000,
+        user: testUserAddress,
+        action: {
+          type: "usdSend",
+          destination: testDepositoryAddress,
+          amount: "100.0",
+          time: 1761563890702,
+        },
+        hash: transactionId,
+        error: null,
+      };
+
+      // Mock axios to return empty data
+      (axios.get as jest.Mock).mockImplementation(() =>
+        Promise.resolve({
+          data: { id: randomHex(32), createdAt: new Date().toISOString() },
+        })
+      );
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: depositTx,
+        }),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "hyperliquid",
+          transactionId,
+        });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].data.chainId).toBe("hyperliquid");
+      expect(messages[0].data.transactionId).toBe(transactionId);
+      expect(messages[0].result.depository).toBe(testDepositoryAddress);
+      expect(messages[0].result.depositor).toBe(testUserAddress);
+      expect(messages[0].result.depositId).toBe(zeroHash);
+      expect(messages[0].result.currency).toBe(
+        "0x00000000000000000000000000000000"
+      );
+      expect(messages[0].result.amount).toBe("10000000000");
+      expect(messages[0].result.onchainId).toBeDefined();
+    });
+
+    it("should attest unassociated deposit when depositId lookup fails and we're outside the lookup threshold", async () => {
+      const transactionId = randomHex(32);
+
+      const depositTx = {
+        time: Date.now() - 3600 * 24 * 1000,
+        user: testUserAddress,
+        action: {
+          type: "usdSend",
+          destination: testDepositoryAddress,
+          amount: "100.0",
+          time: 1761563890702,
+        },
+        hash: transactionId,
+        error: null,
+      };
+
+      // Mock axios to return empty data
+      (axios.get as jest.Mock).mockImplementation(() =>
+        Promise.resolve({ data: undefined })
+      );
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: depositTx,
+        }),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "hyperliquid",
+          transactionId,
+        });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].data.chainId).toBe("hyperliquid");
+      expect(messages[0].data.transactionId).toBe(transactionId);
+      expect(messages[0].result.depository).toBe(testDepositoryAddress);
+      expect(messages[0].result.depositor).toBe(testUserAddress);
+      expect(messages[0].result.depositId).toBe(zeroHash);
+      expect(messages[0].result.currency).toBe(
+        "0x00000000000000000000000000000000"
+      );
+      expect(messages[0].result.amount).toBe("10000000000");
+      expect(messages[0].result.onchainId).toBeDefined();
     });
   });
 
@@ -477,7 +578,7 @@ describe("HyperliquidVmAttestor", () => {
     it("should return EXPIRED status when withdrawal nonce is bracketed", async () => {
       const recentTxs = [
         {
-          time: 1761563890702,
+          time: Date.now(),
           user: testDepositoryAddress,
           action: {
             type: "sendAsset",
@@ -486,7 +587,7 @@ describe("HyperliquidVmAttestor", () => {
           error: null,
         },
         {
-          time: 1761563890702,
+          time: Date.now(),
           user: testDepositoryAddress,
           action: {
             type: "sendAsset",
@@ -531,7 +632,7 @@ describe("HyperliquidVmAttestor", () => {
       };
 
       const matchingTx = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testDepositoryAddress,
         action: {
           type: "sendAsset",
@@ -590,7 +691,7 @@ describe("HyperliquidVmAttestor", () => {
 
       // Mock the transaction details for the specific transactionId
       const targetTx = {
-        time: 1761563890750,
+        time: Date.now(),
         user: testDepositoryAddress,
         action: {
           type: "sendAsset",
@@ -690,7 +791,7 @@ describe("HyperliquidVmAttestor", () => {
       };
 
       const failedTx = {
-        time: 1761563890750,
+        time: Date.now(),
         user: testDepositoryAddress,
         action: {
           type: "sendAsset",
@@ -739,7 +840,7 @@ describe("HyperliquidVmAttestor", () => {
       };
 
       const nonDepositoryTx = {
-        time: 1761563890750,
+        time: Date.now(),
         user: testUserAddress, // Different from depository
         action: {
           type: "sendAsset",
@@ -781,7 +882,7 @@ describe("HyperliquidVmAttestor", () => {
       };
 
       const matchingTx = {
-        time: 1761563890702,
+        time: Date.now(),
         user: testDepositoryAddress,
         action: {
           type: "usdSend",
@@ -829,7 +930,7 @@ describe("HyperliquidVmAttestor", () => {
 
       const recentTxs = [
         {
-          time: 1761563890702,
+          time: Date.now(),
           user: testDepositoryAddress,
           action: {
             type: "sendAsset",

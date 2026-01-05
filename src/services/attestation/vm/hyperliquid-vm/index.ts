@@ -8,7 +8,7 @@ import {
   getVmTypeNativeCurrency,
 } from "@reservoir0x/relay-protocol-sdk";
 import axios from "axios";
-import { parseUnits, hashStruct } from "viem";
+import { parseUnits, hashStruct, zeroHash } from "viem";
 
 import { getDeterministicId } from "../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
@@ -163,7 +163,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
     switch (txDetails.action.type) {
       case "usdSend": {
-        const action = txDetails.action as unknown as hl.UsdSendParameters;
+        const action = txDetails.action as unknown as hl.UsdSendParameters & {
+          time: number;
+        };
 
         // Check if this is a deposit to the depository
         if (action.destination.toLowerCase() === depository.toLowerCase()) {
@@ -171,7 +173,8 @@ export class HyperliquidVmAttestor extends VmAttestor {
           const depositId = await this._lookupId(
             chainId,
             depositor,
-            Number(txDetails.action.time)
+            Number(action.time),
+            Number(txDetails.time)
           );
 
           messages.push({
@@ -182,7 +185,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
             result: {
               onchainId: getDeterministicId(chainId, transactionId, "0"),
               depository,
-              depositId,
+              depositId: depositId ?? zeroHash,
               depositor,
               currency: getVmTypeNativeCurrency(VM_TYPE),
               amount: parseUnits(
@@ -200,7 +203,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
       }
 
       case "sendAsset": {
-        const action = txDetails.action as unknown as hl.SendAssetParameters;
+        const action = txDetails.action as unknown as hl.SendAssetParameters & {
+          nonce: number;
+        };
 
         // Check if this is a deposit to the depository
         if (action.destination.toLowerCase() === depository.toLowerCase()) {
@@ -239,7 +244,8 @@ export class HyperliquidVmAttestor extends VmAttestor {
           const depositId = await this._lookupId(
             chainId,
             depositor,
-            Number(txDetails.action.nonce)
+            Number(action.nonce),
+            Number(txDetails.time)
           );
 
           messages.push({
@@ -250,7 +256,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
             result: {
               onchainId: getDeterministicId(chainId, transactionId, "0"),
               depository,
-              depositId,
+              depositId: depositId ?? zeroHash,
               depositor,
               currency,
               amount: parseUnits(
@@ -507,8 +513,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
   private async _lookupId(
     chainId: string,
     depositor: string,
-    nonce: number
-  ): Promise<string> {
+    nonce: number,
+    timestamp: number
+  ): Promise<string | undefined> {
     const chain = await getChain(chainId);
 
     const hubApiUrl = chain.additionalData?.hubApiUrl;
@@ -526,14 +533,29 @@ export class HyperliquidVmAttestor extends VmAttestor {
           timeout: 10000,
         }
       )
-      .then((response) => response.data as { id?: string });
-    if (!data.id) {
-      throw externalError(
-        `No nonce mapping found for nonce ${nonce} and depositor ${depositor}`
+      .then(
+        (response) =>
+          response.data as { id: string; createdAt: string } | undefined
       );
-    }
 
-    return data.id;
+    const THRESHOLD = 3600 * 1000;
+    if (data) {
+      // If we have a nonce-mapping available, make sure it was created within the time threshold
+      if (new Date(data.createdAt).getTime() > timestamp + THRESHOLD) {
+        return undefined;
+      } else {
+        return data.id;
+      }
+    } else {
+      // If we don't have any nonce-mapping available, don't attest anything unless we're sure none can ever get associated
+      if (Date.now() > timestamp + THRESHOLD) {
+        return undefined;
+      } else {
+        throw externalError(
+          `No nonce mapping found for nonce ${nonce} and depositor ${depositor}`
+        );
+      }
+    }
   }
 
   private _getMessageHash(action: any): string | undefined {
