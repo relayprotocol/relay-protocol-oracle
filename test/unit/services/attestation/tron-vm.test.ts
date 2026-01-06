@@ -7,7 +7,7 @@ import {
   Order,
   SolverFillStatus,
   SolverRefundStatus,
-} from "@reservoir0x/relay-protocol-sdk";
+} from "@relay-protocol/settlement-sdk";
 import {
   Hex,
   Log,
@@ -76,8 +76,8 @@ jest.mock("viem", () => {
     getContract: jest.fn(),
   };
 });
-jest.mock("@reservoir0x/relay-protocol-sdk", () => {
-  const original = jest.requireActual("@reservoir0x/relay-protocol-sdk");
+jest.mock("@relay-protocol/settlement-sdk", () => {
+  const original = jest.requireActual("@relay-protocol/settlement-sdk");
   return {
     ...(original as any),
     getDecodedWithdrawalAmount: jest.fn().mockReturnValue(1000),
@@ -941,8 +941,7 @@ describe("TronVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
 
     const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
-      depositoryChainSlug: chain.id,
-      depositoryAddress: chain.depository!,
+      chainId: chain.id,
     });
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
@@ -983,8 +982,7 @@ describe("TronVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
 
     const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
-      depositoryChainSlug: chain.id,
-      depositoryAddress: chain.depository!,
+      chainId: chain.id,
     });
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
@@ -1030,8 +1028,7 @@ describe("TronVmAttestor", () => {
     const chain = chains[randomNumber(chains.length)];
 
     const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
-      depositoryChainSlug: chain.id,
-      depositoryAddress: chain.depository!,
+      chainId: chain.id,
     });
 
     const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {

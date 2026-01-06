@@ -17,10 +17,12 @@ import {
   WithdrawalInitiatedMessage,
   getWithdrawalAddress,
   ExecutionMessageMetadata,
-  WithdrawalAddressParams,
+  WithdrawalAddressRequest,
   getVmTypeNativeCurrency,
-} from "@reservoir0x/relay-protocol-sdk";
-import { generateTokenId, generateAddress } from "@relay-protocol/hub-utils";
+  generateTokenId,
+  generateAddress,
+} from "@relay-protocol/settlement-sdk";
+
 import {
   Address,
   encodePacked,
@@ -34,6 +36,7 @@ import { getVmAttestor, getHubAttestor } from "./vm";
 import { EnhancedDepositoryDepositMessage } from "./vm/types";
 import { getDeterministicId } from "./vm/utils";
 import {
+  getChain,
   getChainHubChainId,
   getChainVmType,
   getHubChains,
@@ -48,16 +51,6 @@ type ExecutionMetadata = Omit<
   ExecutionMessageMetadata,
   "oracleContract" | "oracleChainId"
 >;
-
-// for oracle requests, we replace the hub chain id by a slug (e.g. 'base')
-// and we pass the amount as a string
-export type WithdrawalAddressRequest = Omit<
-  WithdrawalAddressParams,
-  "depositoryChainId" | "amount"
-> & {
-  depositoryChainSlug: string;
-  amount: string;
-};
 
 export type TxHints = {
   "hyperliquid-vm"?: {
@@ -207,12 +200,9 @@ export class AttestationService {
   }
 
   public async attestWithdrawalAddressBalance(
-    data: WithdrawalInitiatedMessage["data"] & {
-      // TODO: require in sdk
-      ownerChainId: string;
-    }
+    data: WithdrawalInitiatedMessage["data"]
   ): Promise<{
-    message: WithdrawalInitiatedMessage & { data: { ownerChainId: string } };
+    message: WithdrawalInitiatedMessage;
   }> {
     const { hubTokenId, withdrawalAddress } = await this._getWithdrawalAddress(
       data
@@ -713,41 +703,45 @@ export class AttestationService {
     };
   }
 
+  private async _getDepositoryAddress(chainId: string) {
+    const chain = await getChain(chainId);
+    const depositoryAddress = chain.depository;
+    if (!depositoryAddress) {
+      throw externalError("Chain has no depository configured");
+    }
+    return depositoryAddress;
+  }
+
   private async _getWithdrawalAddress(data: WithdrawalAddressRequest) {
+    const depositoryAddress = await this._getDepositoryAddress(data.chainId);
+
     // the token to be withdrawn from depository
     const hubTokenId = generateTokenId({
       address: data.currency,
-      chainId: await getChainHubChainId(data.depositoryChainSlug),
-      family: await getChainVmType(data.depositoryChainSlug),
+      chainId: await getChainHubChainId(data.chainId),
+      family: await getChainVmType(data.chainId),
     });
 
     // the alias for withdrawer address on origin chain
-    const withdrawerAlias = generateAddress({
-      address: data.owner,
-      chainId: await getChainHubChainId(data.ownerChainId),
-      family: await getChainVmType(data.ownerChainId),
+    const depositoryAlias = generateAddress({
+      address: depositoryAddress,
+      chainId: await getChainHubChainId(data.chainId),
+      family: await getChainVmType(data.chainId),
     });
 
-    const depositoryAddressAlias = generateAddress({
-      address: data.depositoryAddress,
-      chainId: await getChainHubChainId(data.depositoryChainSlug),
-      family: await getChainVmType(data.depositoryChainSlug),
-    });
-
-    const recipientAddressAddressAlias = generateAddress({
-      address: data.recipientAddress,
-      chainId: await getChainHubChainId(data.depositoryChainSlug),
-      family: await getChainVmType(data.depositoryChainSlug),
+    const recipientAlias = generateAddress({
+      address: data.recipient,
+      chainId: await getChainHubChainId(data.chainId),
+      family: await getChainVmType(data.chainId),
     });
 
     // compute address
     const withdrawalAddress = getWithdrawalAddress({
-      depositoryAddress: depositoryAddressAlias,
-      depositoryChainId: await getChainHubChainId(data.depositoryChainSlug),
-      recipientAddress: recipientAddressAddressAlias, // on destination chain
+      depository: depositoryAlias,
+      depositoryChainId: await getChainHubChainId(data.chainId),
+      recipient: recipientAlias, // on destination chain
       currency: data.currency,
-      owner: withdrawerAlias,
-      ownerChainId: data.ownerChainId,
+      withdrawerAlias: data.withdrawerAlias,
       amount: BigInt(data.amount),
       withdrawalNonce: data.withdrawalNonce,
     });
@@ -755,7 +749,7 @@ export class AttestationService {
     return {
       hubTokenId,
       withdrawalAddress,
-      withdrawerAlias,
+      withdrawerAlias: data.withdrawerAlias,
     };
   }
 

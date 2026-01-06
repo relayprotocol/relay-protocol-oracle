@@ -9,7 +9,7 @@ import {
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
   getVmTypeNativeCurrency,
-} from "@reservoir0x/relay-protocol-sdk";
+} from "@relay-protocol/settlement-sdk";
 
 import { getDeterministicId } from "../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";

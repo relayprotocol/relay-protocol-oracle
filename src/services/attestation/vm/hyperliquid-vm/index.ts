@@ -6,7 +6,7 @@ import {
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
   getVmTypeNativeCurrency,
-} from "@reservoir0x/relay-protocol-sdk";
+} from "@relay-protocol/settlement-sdk";
 import axios from "axios";
 import { parseUnits, hashStruct, zeroHash } from "viem";
 

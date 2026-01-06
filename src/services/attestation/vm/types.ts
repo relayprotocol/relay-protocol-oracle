@@ -1,7 +1,7 @@
 import {
   DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
-} from "@reservoir0x/relay-protocol-sdk";
+} from "@relay-protocol/settlement-sdk";
 
 import { TxHints } from "..";
 

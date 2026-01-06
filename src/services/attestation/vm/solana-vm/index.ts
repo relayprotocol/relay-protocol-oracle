@@ -7,7 +7,7 @@ import {
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
   getVmTypeNativeCurrency,
-} from "@reservoir0x/relay-protocol-sdk";
+} from "@relay-protocol/settlement-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
 import {
   PublicKey,

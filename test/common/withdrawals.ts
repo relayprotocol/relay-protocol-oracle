@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { getAddress } from "ethers";
-import { WithdrawalAddressRequest } from "../../src/services/attestation";
+import { WithdrawalAddressRequest } from "@relay-protocol/settlement-sdk";
 
 function generateAddress() {
   const bytes = randomBytes(20); // 20 bytes = 160 bits
@@ -15,16 +15,13 @@ function randomBytes32() {
  * Creates a mock WithdrawalAddressRequest for testing
  */
 export function createMockWithdrawalAddressRequest(
-  overrides?: Partial<WithdrawalAddressRequest> & { ownerChainId?: string }
-): WithdrawalAddressRequest & { ownerChainId: string } {
+  overrides?: Partial<WithdrawalAddressRequest>
+): WithdrawalAddressRequest {
   return {
-    depositoryAddress: overrides?.depositoryAddress || generateAddress(),
-    depositoryChainSlug: overrides?.depositoryChainSlug || "ethereum",
+    chainId: overrides?.chainId || "ethereum",
     currency: overrides?.currency || generateAddress(),
-    owner: overrides?.owner || generateAddress(),
-    ownerChainId:
-      overrides?.ownerChainId || overrides?.depositoryChainSlug || "base",
-    recipientAddress: overrides?.recipientAddress || generateAddress(),
+    withdrawerAlias: overrides?.withdrawerAlias || generateAddress(),
+    recipient: overrides?.recipient || generateAddress(),
     amount: overrides?.amount || "1000000000000000000",
     withdrawalNonce: overrides?.withdrawalNonce || randomBytes32(),
   };

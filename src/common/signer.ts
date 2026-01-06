@@ -8,7 +8,7 @@ import {
   getSolverRefundMessageId,
   SolverFillMessage,
   SolverRefundMessage,
-} from "@reservoir0x/relay-protocol-sdk";
+} from "@relay-protocol/settlement-sdk";
 import { Hex } from "viem";
 
 import { getHubChain, getHubChains, getSdkChainsConfig } from "./chains";

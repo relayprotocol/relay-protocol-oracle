@@ -9,7 +9,7 @@ import {
   getOrderId,
   Order,
   SolverRefundStatus,
-} from "@reservoir0x/relay-protocol-sdk";
+} from "@relay-protocol/settlement-sdk";
 import { Hex } from "viem";
 import { randomHex, randomNumber } from "../../../common/utils";
 import {

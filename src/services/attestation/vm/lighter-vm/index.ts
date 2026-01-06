@@ -5,7 +5,7 @@ import {
 import {
   DepositoryWithdrawalMessage,
   getVmTypeNativeCurrency,
-} from "@reservoir0x/relay-protocol-sdk";
+} from "@relay-protocol/settlement-sdk";
 
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../types";
 import { externalError, internalError } from "../../../../common/error";

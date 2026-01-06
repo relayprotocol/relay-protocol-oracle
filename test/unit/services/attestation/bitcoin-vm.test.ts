@@ -3,7 +3,7 @@ import {
   DepositoryWithdrawalStatus,
   decodeWithdrawal,
   getDecodedWithdrawalId,
-} from "@reservoir0x/relay-protocol-sdk";
+} from "@relay-protocol/settlement-sdk";
 import axios from "axios";
 import * as bitcoin from "bitcoinjs-lib";
 import { zeroHash } from "viem";
@@ -47,8 +47,8 @@ jest.mock("../../../../src/common/chains", () => {
       ),
   };
 });
-jest.mock("@reservoir0x/relay-protocol-sdk", () => {
-  const original = jest.requireActual("@reservoir0x/relay-protocol-sdk");
+jest.mock("@relay-protocol/settlement-sdk", () => {
+  const original = jest.requireActual("@relay-protocol/settlement-sdk");
   return {
     ...(original as any),
     decodeWithdrawal: jest.fn(),
@@ -353,8 +353,7 @@ describe("BitcoinVmAttestor", () => {
 
   describe("getDepositoryWithdrawalMessage", () => {
     const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
-      depositoryChainSlug: "bitcoin",
-      depositoryAddress: testDepositoryAddress,
+      chainId: "bitcoin",
     });
 
     beforeEach(() => {

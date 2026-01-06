@@ -3,7 +3,7 @@ import {
   encodeWithdrawal,
   decodeWithdrawal,
   DepositoryWithdrawalStatus,
-} from "@reservoir0x/relay-protocol-sdk";
+} from "@relay-protocol/settlement-sdk";
 import axios from "axios";
 import { zeroHash } from "viem";
 
@@ -555,8 +555,7 @@ describe("HyperliquidVmAttestor", () => {
 
   describe("getDepositoryWithdrawalMessage", () => {
     const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
-      depositoryChainSlug: "hyperliquid",
-      depositoryAddress: testDepositoryAddress,
+      chainId: "hyperliquid",
     });
 
     it("should return PENDING status when withdrawal not found", async () => {
