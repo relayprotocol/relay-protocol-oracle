@@ -18,8 +18,10 @@ type TransferTxInfo = {
   FromAccountIndex: number;
   ApiKeyIndex: number;
   ToAccountIndex: number;
-  USDCAmount: number;
-  Fee: number;
+  AssetIndex: number;
+  FromRouteType: number;
+  ToRouteType: number;
+  Amount: number;
   Memo: number[];
   ExpiredAt: number;
   Nonce: number;
@@ -89,11 +91,8 @@ export class LighterVmAttestor extends VmAttestor {
       );
     }
 
-    // Verify payment - only USDC transfers are currently supported
-    if (
-      payment.currency !== getVmTypeNativeCurrency(VM_TYPE) ||
-      txDetail.type !== TransactionType.TRANSFER
-    ) {
+    // Verify payment
+    if (txDetail.type !== TransactionType.TRANSFER) {
       throw externalError("Could not detect payment");
     }
 
@@ -104,6 +103,36 @@ export class LighterVmAttestor extends VmAttestor {
     }
     transferInfo = JSON.parse(txDetail.info);
 
+    let transferCurrency: string;
+    if (transferInfo.AssetIndex === 1) {
+      // ETH
+
+      if (transferInfo.ToRouteType !== 1) {
+        throw externalError("Could not detect payment");
+      }
+
+      // Spot ETH
+      transferCurrency = transferInfo.AssetIndex.toString();
+    } else if (transferInfo.AssetIndex === 3) {
+      // USDC
+
+      if (transferInfo.ToRouteType === 0) {
+        // Perps USDC
+        transferCurrency = getVmTypeNativeCurrency(VM_TYPE);
+      } else if (transferInfo.ToRouteType === 1) {
+        // Spot USDC
+        transferCurrency = transferInfo.AssetIndex.toString();
+      } else {
+        throw externalError("Could not detect payment");
+      }
+    } else {
+      throw externalError("Could not detect payment");
+    }
+
+    if (payment.currency !== transferCurrency) {
+      throw externalError("Could not detect payment");
+    }
+
     // Verify the recipient matches
     const recipientAccountIndex = parseInt(payment.recipient);
     if (
@@ -113,7 +142,7 @@ export class LighterVmAttestor extends VmAttestor {
       throw externalError("Could not detect payment");
     }
 
-    return BigInt(transferInfo.USDCAmount);
+    return BigInt(transferInfo.Amount);
   }
 
   public async verifySolverCalls(

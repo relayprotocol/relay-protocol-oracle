@@ -69,8 +69,11 @@ describe("LighterVmAttestor", () => {
           FromAccountIndex: Number(testDepositoryAddress),
           ApiKeyIndex: 3,
           ToAccountIndex: Number(testRecipientAddress),
-          USDCAmount: paymentAmount,
-          Fee: 3000000,
+          AssetIndex: 3,
+          FromRouteType: 0,
+          ToRouteType: 0,
+          Amount: paymentAmount,
+          USDCFee: 3000000,
           Memo: [116, 114, 97, 110, 115, 102, 101, 114, 45, 105, 100],
           ExpiredAt: 1763299591909,
           Nonce: 1,
@@ -198,8 +201,10 @@ describe("LighterVmAttestor", () => {
         info: JSON.stringify({
           FromAccountIndex: Number(testDepositoryAddress),
           ToAccountIndex: Number(testRecipientAddress),
-          USDCAmount: 1000000,
-          Fee: 3000000,
+          AssetIndex: 3,
+          FromRouteType: 0,
+          ToRouteType: 0,
+          Amount: 1000,
         }),
       };
 
@@ -240,8 +245,11 @@ describe("LighterVmAttestor", () => {
         info: JSON.stringify({
           FromAccountIndex: Number(testDepositoryAddress),
           ToAccountIndex: Number(testRecipientAddress),
-          USDCAmount: 1000000,
-          Fee: 3000000,
+          AssetIndex: 3,
+          FromRouteType: 0,
+          ToRouteType: 0,
+          Amount: 1000000,
+          USDCFee: 3000000,
         }),
       };
 
