@@ -27,6 +27,12 @@ import {
 import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
 import { getAddress } from "viem";
 
+// default vars
+const owner = "0x1234567890123456789012345678901234567890";
+const ownerChainId = "ethereum";
+const depositoryAddress = "0x0987654321098765432109876543210987654321";
+const solanaDepositoryAddress = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
+
 jest.mock("../../../../src/services/attestation/vm");
 jest.mock("../../../../src/common/chains");
 
@@ -38,9 +44,6 @@ jest.mock("viem", () => {
     verifyMessage: jest.fn().mockImplementation(() => Promise.resolve(true)),
   };
 });
-
-const depositoryAddress = "0x0987654321098765432109876543210987654321";
-const solanaDepositoryAddress = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<string, Chain> = {
@@ -174,6 +177,8 @@ describe("AttestationService", () => {
   describe("attestDepositoryWithdrawals", () => {
     const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
       chainId: "ethereum",
+      withdrawer: owner,
+      withdrawerChainId: ownerChainId,
     });
 
     it(`returns correct execution data with withdrawal execution for ethereum-vm`, async () => {
@@ -182,9 +187,9 @@ describe("AttestationService", () => {
 
       // the alias for withdrawer address on origin chain
       const withdrawerAlias = generateAddress({
-        address: "0x1234567890123456789012345678901234567890",
-        chainId: await getChainHubChainId("ethereum"),
-        family: await getChainVmType("ethereum"),
+        address: owner,
+        chainId: await getChainHubChainId(ownerChainId),
+        family: await getChainVmType(ownerChainId),
       });
 
       // Create a valid ethereum-vm withdrawal
@@ -225,6 +230,7 @@ describe("AttestationService", () => {
       const requestBody = {
         chainId: "ethereum",
         withdrawal,
+        expectedAmount: amount,
         transactionId:
           "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e",
         withdrawalAddressRequest: withdrawalAddressRequestWithCurrency,
@@ -252,25 +258,12 @@ describe("AttestationService", () => {
 
       mockGetVmAttestor.mockResolvedValue(mockAttestor);
 
-      const depositoryAlias = generateAddress({
-        address: depositoryAddress,
-        chainId: await getChainHubChainId(withdrawalAddressRequest.chainId),
-        family: await getChainVmType(withdrawalAddressRequest.chainId),
-      });
-
-      const recipientAlias = generateAddress({
-        address: withdrawalAddressRequest.recipient,
-        chainId: await getChainHubChainId(withdrawalAddressRequest.chainId),
-        family: await getChainVmType(withdrawalAddressRequest.chainId),
-      });
-
       const withdrawalAddress = getWithdrawalAddress({
-        depository: depositoryAlias,
+        depository: depositoryAddress!,
         depositoryChainId: BigInt(1),
         currency: withdrawalAddressRequestWithCurrency.currency,
         withdrawerAlias: withdrawalAddressRequestWithCurrency.withdrawerAlias,
-        recipient: recipientAlias,
-        amount: BigInt(withdrawalAddressRequestWithCurrency.amount),
+        recipient: withdrawalAddressRequest.recipient,
         withdrawalNonce: withdrawalAddressRequestWithCurrency.withdrawalNonce,
       });
 
@@ -306,13 +299,6 @@ describe("AttestationService", () => {
       const recipient = "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ";
       const amount = "1000000000"; // 1 SOL in lamports
 
-      // the alias for withdrawer address on origin chain
-      const withdrawerAlias = generateAddress({
-        address: "0x1234567890123456789012345678901234567890",
-        chainId: await getChainHubChainId("solana"),
-        family: await getChainVmType("solana"),
-      });
-
       // Create a valid solana-vm withdrawal
       const decodedWithdrawal = {
         vmType: "solana-vm" as const,
@@ -339,7 +325,8 @@ describe("AttestationService", () => {
         {
           chainId: "solana",
           currency: actualCurrency,
-          withdrawerAlias,
+          withdrawer: owner,
+          withdrawerChainId: ownerChainId,
         }
       );
 
@@ -365,29 +352,18 @@ describe("AttestationService", () => {
         },
       };
 
-      const depositoryAlias = generateAddress({
-        address: solanaDepositoryAddress,
-        chainId: await getChainHubChainId(
-          solanaWithdrawalAddressRequest.chainId
-        ),
-        family: await getChainVmType(solanaWithdrawalAddressRequest.chainId),
-      });
-
-      const recipientAlias = generateAddress({
-        address: solanaWithdrawalAddressRequest.recipient,
-        chainId: await getChainHubChainId(
-          solanaWithdrawalAddressRequest.chainId
-        ),
-        family: await getChainVmType(solanaWithdrawalAddressRequest.chainId),
+      const withdrawerAlias = generateAddress({
+        address: owner,
+        chainId: await getChainHubChainId(ownerChainId),
+        family: await getChainVmType(ownerChainId),
       });
 
       const withdrawalAddress = getWithdrawalAddress({
-        depository: depositoryAlias,
+        depository: solanaDepositoryAddress,
         depositoryChainId: BigInt(101),
         currency: solanaWithdrawalAddressRequest.currency,
         withdrawerAlias,
-        recipient: recipientAlias,
-        amount: BigInt(solanaWithdrawalAddressRequest.amount),
+        recipient: solanaWithdrawalAddressRequest.recipient,
         withdrawalNonce: solanaWithdrawalAddressRequest.withdrawalNonce,
       });
 
@@ -571,7 +547,9 @@ describe("AttestationService", () => {
           expectedOrderAddress.toLowerCase()
         );
         expect(decodedFirstAction.data.hubToAddress).toBe(solverAlias);
-        expect(decodedFirstAction.data.amount).toBe(amount);
+        expect(decodedFirstAction.data.amount).toBe(
+          order.output.payments[0].expectedAmount
+        );
       }
     });
   });

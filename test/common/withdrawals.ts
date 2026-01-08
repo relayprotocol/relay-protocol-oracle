@@ -7,7 +7,7 @@ function generateAddress() {
   return getAddress("0x" + bytes.toString("hex")); // checksum-format
 }
 
-function randomBytes32() {
+export function randomBytes32() {
   return "0x" + randomBytes(32).toString("hex");
 }
 
@@ -20,9 +20,9 @@ export function createMockWithdrawalAddressRequest(
   return {
     chainId: overrides?.chainId || "ethereum",
     currency: overrides?.currency || generateAddress(),
-    withdrawerAlias: overrides?.withdrawerAlias || generateAddress(),
+    withdrawer: overrides?.withdrawer || generateAddress(),
+    withdrawerChainId: overrides?.withdrawerChainId || "base",
     recipient: overrides?.recipient || generateAddress(),
-    amount: overrides?.amount || "1000000000000000000",
     withdrawalNonce: overrides?.withdrawalNonce || randomBytes32(),
   };
 }

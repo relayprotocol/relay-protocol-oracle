@@ -16,6 +16,9 @@ const MessageData = Type.Object({
   settlementChainId: Type.String({
     description: "The chain id of the hub",
   }),
+  expectedAmount: Type.String({
+    description: "The expected balance held by the withdrawal address",
+  }),
   ...WithdrawalAddressSchema.properties,
 });
 

@@ -15,6 +15,13 @@ const MessageData = Type.Object({
   settlementChainId: Type.String({
     description: "The chain id of the hub",
   }),
+  expectedAmount: Type.String({
+    description: "The balance expected for withdrawer address ",
+  }),
+  signature: Type.String({
+    description:
+      "The signed sha256 hash of withdrawerAlias + amount + nonce to authentificate the account that triggers the withdrawal",
+  }),
   ...WithdrawalAddressSchema.properties,
 });
 
@@ -52,7 +59,7 @@ export default {
   ) => {
     const attestationService = new AttestationService();
     const { message, execution } =
-      await attestationService.attestWithdrawalOwnerBalance(req.body);
+      await attestationService.attestWithdrawerBalance(req.body);
 
     return reply.send({
       message: {

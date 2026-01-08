@@ -146,15 +146,15 @@ export const WithdrawalAddressSchema = Type.Object({
   currency: Type.String({
     description: "The id of the currency as expressed on origin chain (string)",
   }),
-  withdrawerAlias: Type.String({
-    description: "The address on the hub that originally owns the funds",
+  withdrawer: Type.String({
+    description: "The address that is requiring the withdrawal",
+  }),
+  withdrawerChainId: Type.String({
+    description: "The chain id of the address that is requiring the withdrawal",
   }),
   recipient: Type.String({
     description:
       "The address that will receive the withdrawn funds on destination chain",
-  }),
-  amount: Type.String({
-    description: "The balance to withdraw",
   }),
   withdrawalNonce: Type.String({
     description:

@@ -21,6 +21,7 @@ import {
   getVmTypeNativeCurrency,
   generateTokenId,
   generateAddress,
+  computeWithdrawerBalanceMessage,
 } from "@relay-protocol/settlement-sdk";
 
 import {
@@ -46,6 +47,7 @@ import {
 } from "../../common/chains";
 import { externalError } from "../../common/error";
 import { getHubBlockNumber } from "../../common/vm/hub-vm/rpc";
+import { createHash } from "crypto";
 
 type ExecutionMetadata = Omit<
   ExecutionMessageMetadata,
@@ -148,7 +150,7 @@ export class AttestationService {
     };
   }
 
-  public async attestWithdrawalOwnerBalance(
+  public async attestWithdrawerBalance(
     data: WithdrawalInitiationMessage["data"]
   ): Promise<{
     message: WithdrawalInitiationMessage;
@@ -157,6 +159,34 @@ export class AttestationService {
     const { hubTokenId, withdrawalAddress, withdrawerAlias } =
       await this._getWithdrawalAddress(data);
 
+    // recompute hash data
+    const signedMessage = computeWithdrawerBalanceMessage(
+      withdrawerAlias,
+      BigInt(data.expectedAmount),
+      data.withdrawalNonce
+    );
+    const hash = createHash("sha256").update(signedMessage).digest("hex");
+
+    // only EVM sig supported atm
+    const signatureVmType = await getChainVmType(data.withdrawerChainId);
+    if (signatureVmType !== "ethereum-vm") {
+      throw externalError("Only 'ethereum-vm' signatures are supported");
+    }
+
+    // validate withdrawer address from signature
+    const isSignatureValid = await verifyMessage({
+      address: data.withdrawer as Address,
+      message: {
+        raw: `0x${hash}`,
+      },
+      signature: data.signature as Hex,
+    });
+
+    if (!isSignatureValid) {
+      throw externalError("Invalid signature. Can't trigger withdrawal");
+    }
+
+    // check balance on the hub
     const balance = await getHubAttestor().then((attestor) =>
       attestor.getBalanceOnHub(
         data.settlementChainId,
@@ -165,7 +195,7 @@ export class AttestationService {
       )
     );
 
-    if (!balance || BigInt(balance) < BigInt(data.amount)) {
+    if (!balance || BigInt(balance) < BigInt(data.expectedAmount)) {
       throw externalError("Insufficient initial withdrawal balance");
     }
 
@@ -216,14 +246,14 @@ export class AttestationService {
       )
     );
 
-    if (!balance || BigInt(balance) < BigInt(data.amount)) {
+    if (!balance || BigInt(balance) < BigInt(data.expectedAmount)) {
       throw externalError("Insufficient withdrawal address balance");
     }
 
     const proofOfWithdrawalAddressBalance = await this._getProofOfWithdrawal({
       hubChainId: data.settlementChainId,
       withdrawalAddress,
-      balance: BigInt(balance),
+      balance: BigInt(data.expectedAmount),
     });
 
     return {
@@ -723,33 +753,26 @@ export class AttestationService {
     });
 
     // the alias for withdrawer address on origin chain
-    const depositoryAlias = generateAddress({
-      address: depositoryAddress,
-      chainId: await getChainHubChainId(data.chainId),
-      family: await getChainVmType(data.chainId),
-    });
-
-    const recipientAlias = generateAddress({
-      address: data.recipient,
-      chainId: await getChainHubChainId(data.chainId),
-      family: await getChainVmType(data.chainId),
+    const withdrawerAlias = generateAddress({
+      address: data.withdrawer,
+      chainId: await getChainHubChainId(data.withdrawerChainId),
+      family: await getChainVmType(data.withdrawerChainId),
     });
 
     // compute address
     const withdrawalAddress = getWithdrawalAddress({
-      depository: depositoryAlias,
+      depository: depositoryAddress,
       depositoryChainId: await getChainHubChainId(data.chainId),
-      recipient: recipientAlias, // on destination chain
+      recipient: data.recipient, // on destination chain
       currency: data.currency,
-      withdrawerAlias: data.withdrawerAlias,
-      amount: BigInt(data.amount),
+      withdrawerAlias,
       withdrawalNonce: data.withdrawalNonce,
     });
 
     return {
       hubTokenId,
       withdrawalAddress,
-      withdrawerAlias: data.withdrawerAlias,
+      withdrawerAlias,
     };
   }
 

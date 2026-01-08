@@ -1398,10 +1398,10 @@
   resolved "https://registry.yarnpkg.com/@relay-protocol/abis/-/abis-2.0.0.tgz#9ca557d72a568778e075a1ac30cebf35b1894b4a"
   integrity sha512-37UFJshlAjVJ50WNpx5POIvNO1iyrziFZ7xo/cJP/hHjd9V+TfMl7d44TOsXmmIgfuU9LvSgM9Yeu6ANX6CbmA==
 
-"@relay-protocol/settlement-sdk@0.0.67":
-  version "0.0.67"
-  resolved "https://registry.yarnpkg.com/@relay-protocol/settlement-sdk/-/settlement-sdk-0.0.67.tgz#f733c591cfc84e41af4594e828fbabda56cb95dd"
-  integrity sha512-aht+iImqBEIwSoCFd9a3syd68Xga/rcjkm7gadwmNlZzqV9A37V3aT+6Y8si5SXATORzwKy6iKAr0ngazy72yA==
+"@relay-protocol/settlement-sdk@0.0.73":
+  version "0.0.73"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/settlement-sdk/-/settlement-sdk-0.0.73.tgz#a45ede7058b945d6094e71e9ab4325c106905437"
+  integrity sha512-4L+4GzNLnQ2Q71SoOKNZY54XL9vz/e42xDKZ3KntNsyROkRzvftt/WX98flcYUtA73J7FFG80a7qtLIurXNHpg==
   dependencies:
     "@coral-xyz/anchor" "^0.31.1"
     "@mysten/sui" "^1.24.0"

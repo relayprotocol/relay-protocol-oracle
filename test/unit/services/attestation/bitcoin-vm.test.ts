@@ -39,8 +39,10 @@ jest.mock("../../../../src/common/chains", () => {
     getChains: async () => chains,
     getHubChains: async () => [],
     getChain: async (chainId: string) => chains[chainId],
-    getChainVmType: async (chainId: string) => chains[chainId].vmType,
-    getChainHubChainId: async (chainId: string) => chains[chainId].hubChainId,
+    getChainVmType: async (chainId: string) =>
+      chainId === "base" ? "ethereum-vm" : chains[chainId].vmType,
+    getChainHubChainId: async (chainId: string) =>
+      chainId === "base" ? "8453" : chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
       Object.fromEntries(
         Object.values(chains).map((chain) => [chain.id, chain.vmType])
