@@ -234,7 +234,7 @@
     "id": "megaeth",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "https://alpha.megaeth.com/rpc?user=relay+v1&token=1763427813-qx5yROYcmgsnXf6tFi%2FP1MLyfjlkqLFZBC06tZXNdbA%3D",
+    "httpRpcUrl": "https://mainnet.megaeth.com/rpc",
     "hubChainId": "4326"
   },
   {
