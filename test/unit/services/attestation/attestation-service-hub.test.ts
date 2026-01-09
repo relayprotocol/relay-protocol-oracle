@@ -21,7 +21,6 @@ import {
   getChainHubChainId,
   getChainVmType,
 } from "../../../../src/common/chains";
-import { getHubBlockNumber } from "../../../../src/common/vm/hub-vm/rpc";
 
 // test helpers
 import {
@@ -92,16 +91,12 @@ jest.mock("../../../../src/common/chains", () => {
 const mockGetHubAttestor = jest.mocked(getHubAttestor) as jest.MockedFunction<
   typeof getHubAttestor
 >;
-const mockGetHubBlockNumber = jest.mocked(
-  getHubBlockNumber
-) as jest.MockedFunction<typeof getHubBlockNumber>;
 
 describe("HubAttestationService - attestWithdrawalAddressBalance", () => {
   const service = new AttestationService();
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetHubBlockNumber.mockResolvedValue(12345n);
   });
 
   it("should successfully attest withdrawal address balance with sufficient funds", async () => {
@@ -135,21 +130,23 @@ describe("HubAttestationService - attestWithdrawalAddressBalance", () => {
     });
 
     const fundedAmount = "2000000000000000000"; // 2 ETH - sufficient
-    const blockNumber = 12345n;
 
     const mockHubAttestor = {
       getBalanceOnHub: jest.fn<any>().mockResolvedValue(fundedAmount),
     } as unknown as HubVmAttestor;
 
     mockGetHubAttestor.mockResolvedValue(mockHubAttestor);
-    mockGetHubBlockNumber.mockResolvedValue(blockNumber);
 
     const result = await service.attestWithdrawalAddressBalance(requestBody);
 
     // Compute expected proof (address, balance, blockNumber)
     const expectedProof = encodePacked(
-      ["address", "uint256", "uint256"],
-      [withdrawalAddress as `0x${string}`, BigInt(expectedAmount), blockNumber]
+      ["address", "uint256", "bytes32"],
+      [
+        withdrawalAddress as `0x${string}`,
+        BigInt(expectedAmount),
+        withdrawalAddressRequest.withdrawalNonce as `0x${string}`,
+      ]
     );
 
     expect(result.message.data).toEqual(requestBody);
@@ -160,9 +157,6 @@ describe("HubAttestationService - attestWithdrawalAddressBalance", () => {
       requestBody.settlementChainId,
       withdrawalAddress,
       expect.any(BigInt)
-    );
-    expect(mockGetHubBlockNumber).toHaveBeenCalledWith(
-      requestBody.settlementChainId
     );
   });
 

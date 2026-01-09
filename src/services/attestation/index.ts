@@ -46,7 +46,6 @@ import {
   HUB_VM_TYPE,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
-import { getHubBlockNumber } from "../../common/vm/hub-vm/rpc";
 import { createHash } from "crypto";
 
 type ExecutionMetadata = Omit<
@@ -250,11 +249,12 @@ export class AttestationService {
       throw externalError("Insufficient withdrawal address balance");
     }
 
-    const proofOfWithdrawalAddressBalance = await this._getProofOfWithdrawal({
-      hubChainId: data.settlementChainId,
-      withdrawalAddress,
-      balance: BigInt(data.expectedAmount),
-    });
+    const proofOfWithdrawalAddressBalance =
+      await this._getProofOfWithdrawalAddressBalance({
+        withdrawalNonce: data.withdrawalNonce,
+        withdrawalAddress,
+        amount: BigInt(data.expectedAmount),
+      });
 
     return {
       message: {
@@ -776,15 +776,18 @@ export class AttestationService {
     };
   }
 
-  private async _getProofOfWithdrawal(data: {
-    hubChainId: string;
+  private async _getProofOfWithdrawalAddressBalance(data: {
+    amount: bigint;
     withdrawalAddress: string;
-    balance: bigint;
+    withdrawalNonce: string;
   }): Promise<string> {
-    const blockNumber = await getHubBlockNumber(data.hubChainId);
     const proof = encodePacked(
-      ["address", "uint256", "uint256"],
-      [data.withdrawalAddress as `0x${string}`, data.balance, blockNumber]
+      ["address", "uint256", "bytes32"],
+      [
+        data.withdrawalAddress as `0x${string}`,
+        data.amount,
+        data.withdrawalNonce as `0x${string}`,
+      ]
     );
     return proof;
   }
