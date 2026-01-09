@@ -6,10 +6,8 @@ import {
   executionSchema,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
-  signatureSchema,
   WithdrawalAddressSchema,
 } from "../../utils";
-import { signProofOfWithdrawalAddressBalance } from "../../../common/signer";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -38,7 +36,6 @@ const Schema = {
               description: "The withdrawal address",
             }),
           }),
-          signature: signatureSchema,
         },
         {
           description: "The resulting 'withdrawal-initiate' message",
@@ -61,14 +58,10 @@ export default {
     const { message } = await attestationService.attestWithdrawalAddressBalance(
       req.body
     );
-    const signature = await signProofOfWithdrawalAddressBalance(
-      message.result.proofOfWithdrawalAddressBalance
-    );
     return reply.send({
       message: {
         data: message.data,
         result: message.result,
-        signature,
       },
     });
   },
