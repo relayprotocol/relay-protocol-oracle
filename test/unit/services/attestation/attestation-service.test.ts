@@ -366,6 +366,120 @@ describe("AttestationService", () => {
       });
     });
 
+    it(`returns correct execution data with expired withdrawal execution for ethereum-vm`, async () => {
+      const recipient = "0xf70da97812cb96acdf810712aa562db8dfa3dbef";
+      const amount = "1000";
+
+      // the alias for the depositor
+      const withdrawerAlias = generateAddress({
+        address: owner,
+        chainId: await getChainHubChainId(ownerChainId),
+        family: await getChainVmType(ownerChainId),
+      });
+
+      // Create an expired ethereum-vm withdrawal
+      const decodedWithdrawal = {
+        vmType: "ethereum-vm" as const,
+        withdrawal: {
+          calls: [
+            {
+              to: recipient,
+              data: "0x",
+              value: amount,
+              allowFailure: false,
+            },
+          ],
+          nonce: "0",
+          expiration: Math.floor(Date.now() / 1000) - 3600, // 1 hour ago (expired)
+        },
+      };
+
+      const withdrawal = encodeWithdrawal(decodedWithdrawal);
+
+      // Decode the withdrawal to get the actual currency
+      const actualDecodedWithdrawal = decodeWithdrawal(
+        withdrawal,
+        "ethereum-vm"
+      );
+      const actualCurrency = getDecodedWithdrawalCurrency(
+        actualDecodedWithdrawal
+      );
+
+      // Update withdrawalAddressRequest with the actual currency
+      const withdrawalAddressRequestWithCurrency = {
+        ...withdrawalAddressRequest,
+        currency: actualCurrency,
+        withdrawerAlias,
+      };
+
+      const requestBody = {
+        chainId: "ethereum",
+        withdrawal,
+        transactionId:
+          "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e",
+        withdrawalAddressRequest: withdrawalAddressRequestWithCurrency,
+      };
+
+      const withdrawalId =
+        "0x0000000000000000000000000000000000000000000000000000000000000999";
+      const mockMessage = {
+        data: {
+          chainId: requestBody.chainId,
+          withdrawal: requestBody.withdrawal,
+        },
+        result: {
+          withdrawalId,
+          depository: "0x0987654321098765432109876543210987654321",
+          status: DepositoryWithdrawalStatus.EXPIRED,
+        },
+      };
+
+      const mockAttestor: any = {
+        getDepositoryWithdrawalMessage: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(mockMessage)),
+      };
+
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      const withdrawalAddress = getWithdrawalAddress({
+        depository: depositoryAddress!,
+        depositoryChainId: BigInt(1),
+        currency: withdrawalAddressRequestWithCurrency.currency,
+        withdrawerAlias: withdrawalAddressRequestWithCurrency.withdrawerAlias,
+        recipient: withdrawalAddressRequest.recipient,
+        withdrawalNonce: withdrawalAddressRequestWithCurrency.withdrawalNonce,
+      });
+
+      const result = await service.attestDepositoryWithdrawal(requestBody);
+      const idempotencyKey = getDeterministicId(
+        mockMessage.result.withdrawalId,
+        requestBody.transactionId!,
+        DepositoryWithdrawalStatus.EXPIRED.toString()
+      );
+
+      const hubTokenId = generateTokenId({
+        address: actualCurrency,
+        chainId: await getChainHubChainId(requestBody.chainId),
+        family: await getChainVmType(requestBody.chainId),
+      });
+
+      const [action] = result.execution?.actions || [];
+      expect(result.message).toEqual(mockMessage);
+      expect(result.execution).toBeDefined();
+      expect(result.execution?.idempotencyKey).toBe(idempotencyKey);
+      expect(result.execution?.actions.length).toBe(1);
+      expect(decodeAction(action)).toEqual({
+        type: ActionType.TRANSFER,
+        data: {
+          hubTokenId,
+          hubFromAddress: getAddress(withdrawalAddress),
+          hubToAddress: withdrawerAlias,
+          amount,
+        },
+      });
+    });
+
     it(`returns correct execution data with withdrawal execution for solana-vm`, async () => {
       const currency = "11111111111111111111111111111111"; // Native SOL
       const recipient = "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ";

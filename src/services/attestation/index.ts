@@ -285,16 +285,17 @@ export class AttestationService {
     // Generate onchain hub execution
     let execution: ExecutionMessage | undefined;
     if (data.withdrawalAddressRequest) {
-      const { withdrawalAddress, hubTokenId } =
+      const { withdrawalAddress, hubTokenId, withdrawerAlias } =
         await this._getWithdrawalAddress(data.withdrawalAddressRequest);
 
-      if (message.result.status === DepositoryWithdrawalStatus.EXECUTED) {
-        const decodedWithdrawal = decodeWithdrawal(
-          data.withdrawal,
-          await getChainVmType(data.chainId)
-        );
-        const amount = getDecodedWithdrawalAmount(decodedWithdrawal);
+      const decodedWithdrawal = decodeWithdrawal(
+        data.withdrawal,
+        await getChainVmType(data.chainId)
+      );
+      const amount = getDecodedWithdrawalAmount(decodedWithdrawal);
 
+      if (message.result.status === DepositoryWithdrawalStatus.EXECUTED) {
+        // burn the funds from withdrawal address
         execution = {
           idempotencyKey: getDeterministicId(
             message.result.withdrawalId,
@@ -312,7 +313,25 @@ export class AttestationService {
           ],
         };
       } else if (message.result.status === DepositoryWithdrawalStatus.EXPIRED) {
-        // TODO: Transfer from withdrawal to depositor
+        // transfer back the funds from withdrawal address to depositor
+        execution = {
+          idempotencyKey: getDeterministicId(
+            message.result.withdrawalId,
+            data.transactionId!,
+            DepositoryWithdrawalStatus.EXPIRED.toString()
+          ),
+          actions: [
+            encodeAction({
+              type: ActionType.TRANSFER,
+              data: {
+                hubTokenId,
+                hubFromAddress: withdrawalAddress,
+                hubToAddress: withdrawerAlias,
+                amount,
+              },
+            }),
+          ],
+        };
       }
     }
 
