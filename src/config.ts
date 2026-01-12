@@ -20,9 +20,6 @@ export const config = {
       )
     : undefined,
 
-  onChainOracleAddress: process.env.ON_CHAIN_ORACLE_CONTRACT_ADDRESS!,
-  onChainOracleChainId: process.env.ON_CHAIN_ORACLE_CHAIN_ID!,
-
   signingModule: process.env.SIGNING_MODULE,
 
   // For "raw-private-key" signing module
