@@ -1,29 +1,11 @@
 [
-    {
-        "id": "arbitrum-sepolia",
-        "vmType": "hub-vm",
-        "httpRpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
-        "chainId": "421614",
-        "additionalData": {
-            "oracleAddress": "0x303c5e4ab346c66afd2758a114DB7909157aE8B5"
-        }
-    },
-    {
-        "id": "conduit-testnet",
-        "vmType": "hub-vm",
-        "httpRpcUrl": "https://rpc-relay-settlement-testnet-7ht8qhd7mf.t.conduit.xyz",
-        "chainId": "35779",
-        "additionalData": {
-            "oracleAddress": "0x04664b4290fa1F4001ED25d9576f7C2d980aC64d"
-        }
-    },
-    {
-        "id": "sovereign-testnet",
-        "vmType": "hub-vm",
-        "httpRpcUrl": "http://23.22.122.118/rpc",
-        "chainId": "6669",
-        "additionalData": {
-            "oracleAddress": "0x910F56Fb797D9c7a978a08e73D7280e67eb81372"
-        }
+  {
+    "id": "arbitrum-sepolia",
+    "vmType": "hub-vm",
+    "httpRpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+    "chainId": "421614",
+    "additionalData": {
+      "oracleAddress": "0x5088a0a51e45b5a00c049676dc11f12bb8b4ec29"
     }
+  }
 ]

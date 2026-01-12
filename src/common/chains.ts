@@ -61,7 +61,8 @@ export const getSdkChainsConfig = async () => {
   );
 };
 
-// helpers for hub chains
+// Helpers for hub chains
+
 export const getHubChains = async () => {
   const hubEnv = config.environment.includes("prod") ? "prod" : "dev";
   // eslint-disable-next-line @typescript-eslint/no-require-imports
