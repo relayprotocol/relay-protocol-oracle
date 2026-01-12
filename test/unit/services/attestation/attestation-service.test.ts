@@ -172,6 +172,78 @@ describe("AttestationService", () => {
         },
       });
     });
+
+    it(`uses deposit chain to compute recipient address when depositId is zeroHash`, async () => {
+      const requestBody = {
+        chainId: "ethereum",
+        transactionId:
+          "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e",
+      };
+      const depositor = "0x1234567890123456789012345678901234567890";
+      const mockMessages = [
+        {
+          data: {
+            chainId: requestBody.chainId,
+            transactionId: requestBody.transactionId,
+          },
+          result: {
+            depositor,
+            depository: "0x0987654321098765432109876543210987654321",
+            currency: "0x1111111111111111111111111111111111111111",
+            amount: "1000",
+            onchainId:
+              "0x0000000000000000000000000000000000000000000000000000000000000999",
+            depositId: zeroHash, // No deposit id attached
+          },
+          extraData: { timestamp: "1234567890" },
+        },
+      ];
+
+      const mockAttestor: any = {
+        getDepositoryDepositMessages: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(mockMessages)),
+      };
+
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      const result = await service.attestDepositoryDeposits(requestBody);
+      const [mockMessage] = mockMessages;
+      const idempotencyKey = getDeterministicId(
+        mockMessage.data.chainId,
+        mockMessage.data.transactionId
+      );
+
+      const hubTokenId = generateTokenId({
+        address: mockMessage.result.currency,
+        chainId: await getChainHubChainId(mockMessage.data.chainId),
+        family: await getChainVmType(mockMessage.data.chainId),
+      });
+
+      const expectedHubToAddress = generateAddress({
+        address: depositor,
+        chainId: await getChainHubChainId(mockMessage.data.chainId),
+        family: await getChainVmType(mockMessage.data.chainId),
+      });
+
+      const [action] = result.execution?.actions || [];
+      expect(result.messages).toEqual(mockMessages);
+      expect(result.execution).toBeDefined();
+      expect(result.execution?.idempotencyKey).toBe(idempotencyKey);
+      expect(result.execution?.actions.length).toBe(1);
+      expect(decodeAction(action)).toEqual({
+        type: ActionType.MINT,
+        data: {
+          hubTokenId,
+          hubToAddress: expectedHubToAddress,
+          amount: mockMessage.result.amount,
+        },
+      });
+
+      // check mocks calls
+      expect(getChainHubChainId).toHaveBeenCalledWith(mockMessage.data.chainId);
+      expect(getChainVmType).toHaveBeenCalledWith(mockMessage.data.chainId);
+    });
   });
 
   describe("attestDepositoryWithdrawals", () => {

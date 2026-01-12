@@ -42,8 +42,6 @@ import {
   getChainVmType,
   getHubChains,
   getSdkChainsConfig,
-  HUB_CHAIN_ID,
-  HUB_VM_TYPE,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
 import { createHash } from "crypto";
@@ -104,8 +102,8 @@ export class AttestationService {
               : // In case no deposit id is attached, use the depositor alias on the hub
                 generateAddress({
                   address: m.result.depositor,
-                  chainId: HUB_CHAIN_ID,
-                  family: HUB_VM_TYPE,
+                  chainId: await getChainHubChainId(m.data.chainId),
+                  family: await getChainVmType(m.data.chainId),
                 });
 
           const amount = m.result.amount;
