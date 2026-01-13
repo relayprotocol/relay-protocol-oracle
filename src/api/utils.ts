@@ -118,7 +118,7 @@ export const executionSchema = Type.Optional(
             hubTokenId: BigIntString,
             origin: Type.Object({
               address: Type.String(),
-              chainId: BigIntString,
+              chainId: Type.String(),
               family: Type.String(),
             }),
             oracleChainId: Type.String(),
