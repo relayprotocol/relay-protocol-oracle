@@ -88,10 +88,8 @@ export class AttestationService {
           const hubTokenId = generateTokenId(origin);
           metadata.push({
             hubTokenId,
-            origin: {
-              ...origin,
-              chainId: m.data.chainId as any,
-            },
+            origin,
+            chainId: m.data.chainId,
           });
 
           const hubToAddress =

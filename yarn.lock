@@ -1398,10 +1398,10 @@
   resolved "https://registry.yarnpkg.com/@relay-protocol/abis/-/abis-2.0.0.tgz#9ca557d72a568778e075a1ac30cebf35b1894b4a"
   integrity sha512-37UFJshlAjVJ50WNpx5POIvNO1iyrziFZ7xo/cJP/hHjd9V+TfMl7d44TOsXmmIgfuU9LvSgM9Yeu6ANX6CbmA==
 
-"@relay-protocol/settlement-sdk@0.0.76":
-  version "0.0.76"
-  resolved "https://registry.yarnpkg.com/@relay-protocol/settlement-sdk/-/settlement-sdk-0.0.76.tgz#a1c61ecad7778e0a652f2a19b915f251f7c76b1b"
-  integrity sha512-TLbeGSuvlIefTLqPP2XVR5X2Z/nTCDO3tGwENq8fmV/J3KbECinRodwPbB7U4gzRfllIomRAxA1CE94sECUY+A==
+"@relay-protocol/settlement-sdk@0.0.77":
+  version "0.0.77"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/settlement-sdk/-/settlement-sdk-0.0.77.tgz#ca541977a58f53801c4e79400de3b29842f0620d"
+  integrity sha512-w0G9m9AgFaDdhrySEb57Xa9ryh41SyYiVFJY/zZKaLSKGglMrLrDwCi1hZToHu0ZmrM1KLE57HS8Wo4Pb6dtmA==
   dependencies:
     "@coral-xyz/anchor" "^0.31.1"
     "@mysten/sui" "^1.24.0"
@@ -5165,6 +5165,7 @@ string-length@^4.0.1:
     strip-ansi "^6.0.0"
 
 "string-width-cjs@npm:string-width@^4.2.0", string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.3:
+  name string-width-cjs
   version "4.2.3"
   resolved "https://registry.yarnpkg.com/string-width/-/string-width-4.2.3.tgz#269c7117d27b05ad2e536830a8ec895ef9c6d010"
   integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
@@ -5614,6 +5615,7 @@ wordwrap@^1.0.0:
   integrity sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q==
 
 "wrap-ansi-cjs@npm:wrap-ansi@^7.0.0", wrap-ansi@^7.0.0:
+  name wrap-ansi-cjs
   version "7.0.0"
   resolved "https://registry.yarnpkg.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz#67e145cff510a6a6984bdf1152911d69d2eb9e43"
   integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
