@@ -210,7 +210,7 @@ export class AttestationService {
             hubTokenId: hubTokenId,
             hubFromAddress: withdrawerAlias,
             hubToAddress: withdrawalAddress,
-            amount: balance,
+            amount: data.expectedAmount,
           },
         }),
       ],

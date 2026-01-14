@@ -401,7 +401,7 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
         hubTokenId,
         hubFromAddress: withdrawerAlias,
         hubToAddress: getAddress(withdrawalAddress),
-        amount: fundedAmount,
+        amount: requestBody.expectedAmount,
       },
     });
   });
