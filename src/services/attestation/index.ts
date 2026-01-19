@@ -60,7 +60,7 @@ export type TxHints = {
 
 export class AttestationService {
   public async attestDepositoryDeposits(
-    data: DepositoryDepositMessage["data"]
+    data: DepositoryDepositMessage["data"],
   ): Promise<{
     messages: DepositoryDepositMessage[];
     execution?: ExecutionMessage;
@@ -68,7 +68,7 @@ export class AttestationService {
     const attestor = await getVmAttestor(data.chainId);
     const messages = await attestor.getDepositoryDepositMessages(
       data.chainId,
-      data.transactionId
+      data.transactionId,
     );
 
     // Generate Hub execution
@@ -116,9 +116,9 @@ export class AttestationService {
                 hubToAddress,
                 amount,
               },
-            })
+            }),
           );
-        })
+        }),
       );
 
       // Parse metadata for all oracle chains
@@ -149,7 +149,7 @@ export class AttestationService {
   }
 
   public async attestWithdrawerBalance(
-    data: WithdrawalInitiationMessage["data"]
+    data: WithdrawalInitiationMessage["data"],
   ): Promise<{
     message: WithdrawalInitiationMessage;
     execution?: ExecutionMessage;
@@ -161,7 +161,7 @@ export class AttestationService {
     const signedMessage = computeWithdrawerBalanceMessage(
       withdrawerAlias,
       BigInt(data.expectedAmount),
-      data.withdrawalNonce
+      data.withdrawalNonce,
     );
     const hash = createHash("sha256").update(signedMessage).digest("hex");
 
@@ -189,8 +189,8 @@ export class AttestationService {
       attestor.getBalanceOnHub(
         data.settlementChainId,
         withdrawerAlias,
-        hubTokenId
-      )
+        hubTokenId,
+      ),
     );
 
     if (!balance || BigInt(balance) < BigInt(data.expectedAmount)) {
@@ -201,7 +201,7 @@ export class AttestationService {
       idempotencyKey: getDeterministicId(
         data.settlementChainId,
         hubTokenId.toString(),
-        withdrawalAddress
+        withdrawalAddress,
       ),
       actions: [
         encodeAction({
@@ -228,20 +228,19 @@ export class AttestationService {
   }
 
   public async attestWithdrawalAddressBalance(
-    data: WithdrawalInitiatedMessage["data"]
+    data: WithdrawalInitiatedMessage["data"],
   ): Promise<{
     message: WithdrawalInitiatedMessage;
   }> {
-    const { hubTokenId, withdrawalAddress } = await this._getWithdrawalAddress(
-      data
-    );
+    const { hubTokenId, withdrawalAddress } =
+      await this._getWithdrawalAddress(data);
 
     const balance = await getHubAttestor().then((attestor) =>
       attestor.getBalanceOnHub(
         data.settlementChainId,
         withdrawalAddress,
-        hubTokenId
-      )
+        hubTokenId,
+      ),
     );
 
     if (!balance || BigInt(balance) < BigInt(data.expectedAmount)) {
@@ -270,7 +269,7 @@ export class AttestationService {
     data: DepositoryWithdrawalMessage["data"] & {
       transactionId?: string;
       withdrawalAddressRequest?: WithdrawalAddressRequest;
-    }
+    },
   ): Promise<{
     message: DepositoryWithdrawalMessage;
     execution?: ExecutionMessage;
@@ -279,8 +278,8 @@ export class AttestationService {
       attestor.getDepositoryWithdrawalMessage(
         data.chainId,
         data.withdrawal,
-        data.transactionId
-      )
+        data.transactionId,
+      ),
     );
 
     // Generate onchain hub execution
@@ -291,16 +290,16 @@ export class AttestationService {
 
       const decodedWithdrawal = decodeWithdrawal(
         data.withdrawal,
-        await getChainVmType(data.chainId)
+        await getChainVmType(data.chainId),
       );
       const amount = getDecodedWithdrawalAmount(decodedWithdrawal);
 
       if (message.result.status === DepositoryWithdrawalStatus.EXECUTED) {
-        // burn the funds from withdrawal address
+        // Burn the funds from withdrawal address
         execution = {
           idempotencyKey: getDeterministicId(
             message.result.withdrawalId,
-            data.transactionId!
+            data.transactionId!,
           ),
           actions: [
             encodeAction({
@@ -314,12 +313,12 @@ export class AttestationService {
           ],
         };
       } else if (message.result.status === DepositoryWithdrawalStatus.EXPIRED) {
-        // transfer back the funds from withdrawal address to depositor
+        // Transfer back the funds from withdrawal address to depositor
         execution = {
           idempotencyKey: getDeterministicId(
             message.result.withdrawalId,
             data.transactionId!,
-            DepositoryWithdrawalStatus.EXPIRED.toString()
+            DepositoryWithdrawalStatus.EXPIRED.toString(),
           ),
           actions: [
             encodeAction({
@@ -345,7 +344,7 @@ export class AttestationService {
   public async attestSolverFill(
     data: SolverFillMessage["data"] & { hints?: TxHints } & {
       force?: boolean;
-    }
+    },
   ): Promise<{ message: SolverFillMessage; execution?: ExecutionMessage }> {
     if (data.force) {
       // TODO: Return execution for forced attestations
@@ -385,7 +384,7 @@ export class AttestationService {
           extraData: data.order.output.extraData,
           deadline: data.order.output.deadline,
         },
-        data.hints
+        data.hints,
       );
 
       // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
@@ -395,7 +394,7 @@ export class AttestationService {
           10n ** 18n;
       if (paidAmount < minimumAmount) {
         throw externalError(
-          `Insufficient fill amount for order output payment ${outputPaymentIndex} (paidAmount=${paidAmount}, minimumAmount=${minimumAmount})`
+          `Insufficient fill amount for order output payment ${outputPaymentIndex} (paidAmount=${paidAmount}, minimumAmount=${minimumAmount})`,
         );
       }
     }
@@ -409,7 +408,7 @@ export class AttestationService {
           data.order.output.chainId,
           data.fill.transactionId,
           data.order.output.calls,
-          data.order.output.extraData
+          data.order.output.extraData,
         ))
       ) {
         throw externalError(`Missing call executions`);
@@ -438,7 +437,7 @@ export class AttestationService {
   public async attestSolverRefund(
     data: SolverRefundMessage["data"] & { hints?: TxHints } & {
       force?: boolean;
-    }
+    },
   ): Promise<{ message: SolverRefundMessage; execution?: ExecutionMessage }> {
     if (data.force) {
       // TODO: Return execution for forced attestations
@@ -467,11 +466,11 @@ export class AttestationService {
     ) {
       // Get the refund information corresponding to the current input payment
       const refundInformation = data.refunds.find(
-        ({ inputIndex }) => inputIndex === inputPaymentIndex
+        ({ inputIndex }) => inputIndex === inputPaymentIndex,
       );
       if (!refundInformation) {
         throw externalError(
-          `Missing refund information for order input payment ${inputPaymentIndex}`
+          `Missing refund information for order input payment ${inputPaymentIndex}`,
         );
       }
 
@@ -481,7 +480,7 @@ export class AttestationService {
         ];
       if (!orderRefund) {
         throw externalError(
-          `Invalid refund information for order input payment ${inputPaymentIndex}`
+          `Invalid refund information for order input payment ${inputPaymentIndex}`,
         );
       }
 
@@ -496,7 +495,7 @@ export class AttestationService {
               recipient:
                 orderRefund.recipient ===
                 getVmTypeNativeCurrency(
-                  await getChainVmType(orderRefund.chainId)
+                  await getChainVmType(orderRefund.chainId),
                 )
                   ? depositoryDeposits[inputPaymentIndex].result.depositor
                   : orderRefund.recipient,
@@ -504,8 +503,8 @@ export class AttestationService {
               extraData: orderRefund.extraData,
               deadline: orderRefund.deadline,
             },
-            data.hints
-          )
+            data.hints,
+          ),
       );
 
       // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
@@ -515,7 +514,7 @@ export class AttestationService {
           10n ** 18n;
       if (paidAmount < minimumAmount) {
         throw externalError(
-          `Insufficient refund amount for order input payment ${inputPaymentIndex} (paidAmount=${paidAmount}, minimumAmount=${minimumAmount})`
+          `Insufficient refund amount for order input payment ${inputPaymentIndex} (paidAmount=${paidAmount}, minimumAmount=${minimumAmount})`,
         );
       }
     }
@@ -587,33 +586,33 @@ export class AttestationService {
 
         // Get the input information corresponding to the current input payment
         const inputInformation = data.inputs.find(
-          ({ inputIndex }) => inputIndex === inputPaymentIndex
+          ({ inputIndex }) => inputIndex === inputPaymentIndex,
         );
         if (!inputInformation) {
           throw externalError(
-            `Missing input information for order input payment ${inputPaymentIndex}`
+            `Missing input information for order input payment ${inputPaymentIndex}`,
           );
         }
 
         // Get the depository deposit corresponding to the current order input payment
         const fetchedDeposits = await getVmAttestor(
-          orderInput.payment.chainId
+          orderInput.payment.chainId,
         ).then((attestor) =>
           attestor.getDepositoryDepositMessages(
             orderInput.payment.chainId,
-            inputInformation.transactionId
-          )
+            inputInformation.transactionId,
+          ),
         );
         const depositoryDeposit = fetchedDeposits.find(
           (d) =>
             d.result.depositId === orderId &&
-            d.result.onchainId === inputInformation.onchainId
+            d.result.onchainId === inputInformation.onchainId,
         );
         if (!depositoryDeposit) {
           throw externalError(
             `Invalid input information for order input payment ${inputPaymentIndex} (orderId=${orderId} onchainId=${
               inputInformation.onchainId
-            } depositoryDeposits=${JSON.stringify(fetchedDeposits)})`
+            } depositoryDeposits=${JSON.stringify(fetchedDeposits)})`,
           );
         }
 
@@ -629,7 +628,7 @@ export class AttestationService {
     // Compare the total weighted requested amount to the total weighted paid amount in order to determine any under/over-payment
     const totalWeightedRequestedAmount = data.order.inputs
       .map(
-        (input) => BigInt(input.payment.amount) * BigInt(input.payment.weight)
+        (input) => BigInt(input.payment.amount) * BigInt(input.payment.weight),
       )
       .reduce((a, b) => a + b, 0n);
     const totalWeightedInputPaymentBpsDiff =
@@ -657,8 +656,8 @@ export class AttestationService {
           BigInt(data.timestamp),
           data.depositor,
           data.depositId as Hex,
-        ]
-      )
+        ],
+      ),
     );
 
     const orderAddress = orderHash.slice(2).slice(-40);
@@ -706,7 +705,7 @@ export class AttestationService {
             hubToAddress: solverAlias,
             amount,
           },
-        })
+        }),
       );
     }
 
@@ -729,7 +728,7 @@ export class AttestationService {
           BigInt(fee.amount) +
             (BigInt(fee.amount) *
               BigInt(data.totalWeightedInputPaymentBpsDiff)) /
-              10n ** 18n
+              10n ** 18n,
         );
         actions.push(
           encodeAction({
@@ -740,7 +739,7 @@ export class AttestationService {
               hubToAddress,
               amount,
             },
-          })
+          }),
         );
       }
     }
@@ -805,7 +804,7 @@ export class AttestationService {
         data.withdrawalAddress as `0x${string}`,
         data.amount,
         data.withdrawalNonce as `0x${string}`,
-      ]
+      ],
     );
     return proof;
   }
