@@ -1,11 +1,11 @@
 [
     {
-        "id": "sovereign-testnet",
+        "id": "relay",
         "vmType": "hub-vm",
-        "httpRpcUrl": "http://23.22.122.118/rpc",
-        "chainId": "6669",
+        "httpRpcUrl": "https://relay-integrations.sovereign-labs.xyz/rpc/relay_yGMHSrnj5HZcPprSACp7DBoci9E8J9No",
+        "chainId": "537713",
         "additionalData": {
-            "oracleAddress": "0x9F004e9018adC480b39e425c068D5C54c08Bf3aE"
+            "oracleAddress": "0xa884543c91156098B2e50aE17c3840770B7B55f5"
         }
     }
 ]
