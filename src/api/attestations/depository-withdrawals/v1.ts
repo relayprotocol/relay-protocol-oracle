@@ -1,4 +1,5 @@
 import { Type } from "@fastify/type-provider-typebox";
+import axios from "axios";
 
 import {
   Endpoint,
@@ -13,6 +14,7 @@ import {
   signDepositoryWithdrawalMessage,
   signExecutionMessage,
 } from "../../../common/signer";
+import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
@@ -26,9 +28,15 @@ const MessageData = Type.Object({
     Type.String({
       description:
         "The transaction id that executed the withdrawal (required for Hyperliquid VM)",
-    })
+    }),
   ),
   withdrawalAddressRequest: Type.Optional(WithdrawalAddressSchema),
+  requestPeerSignatures: Type.Optional(
+    Type.Boolean({
+      description:
+        "Whether to request signatures from any configured oracle peers",
+    }),
+  ),
 });
 
 const Schema = {
@@ -55,7 +63,7 @@ const Schema = {
         },
         {
           description: "The resulting 'depository-withdrawal' message",
-        }
+        },
       ),
       execution: executionSchema,
     }),
@@ -68,11 +76,33 @@ export default {
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,
-    reply: FastifyReplyTypeBox<typeof Schema>
+    reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
     const attestationService = new AttestationService();
     const { message, execution } =
       await attestationService.attestDepositoryWithdrawal(req.body);
+
+    // TODO: Fix the types
+    const peerSignatures: any[] = [];
+    if (req.body.requestPeerSignatures && config.peers) {
+      await Promise.all(
+        Object.entries(config.peers).map(async ([url, apiKey]) => {
+          const response = await axios.post(
+            `${url}/attestations/depository-withdrawals/v1`,
+            {
+              ...req.body,
+              requestPeerSignatures: false,
+            },
+            {
+              headers: {
+                "x-api-key": apiKey,
+              },
+            },
+          );
+          peerSignatures.push(...response.data.execution.signatures);
+        }),
+      );
+    }
 
     return reply.send({
       message: {
@@ -86,7 +116,10 @@ export default {
       execution: execution
         ? {
             ...execution,
-            signatures: await signExecutionMessage(execution),
+            signatures: [
+              ...(await signExecutionMessage(execution)),
+              ...peerSignatures,
+            ],
           }
         : undefined,
     });

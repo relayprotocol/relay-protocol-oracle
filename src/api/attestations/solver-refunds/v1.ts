@@ -1,4 +1,5 @@
 import { Type } from "@fastify/type-provider-typebox";
+import axios from "axios";
 
 import {
   Endpoint,
@@ -38,9 +39,9 @@ const MessageData = Type.Object({
               minimumAmount: Type.String(),
               deadline: Type.Number(),
               extraData: Type.String(),
-            })
+            }),
           ),
-        })
+        }),
       ),
       output: Type.Object({
         chainId: Type.String(),
@@ -50,7 +51,7 @@ const MessageData = Type.Object({
             currency: Type.String(),
             minimumAmount: Type.String(),
             expectedAmount: Type.String(),
-          })
+          }),
         ),
         calls: Type.Array(Type.String()),
         deadline: Type.Number(),
@@ -63,12 +64,12 @@ const MessageData = Type.Object({
           currencyChainId: Type.String(),
           currency: Type.String(),
           amount: Type.String(),
-        })
+        }),
       ),
     },
     {
       description: "The order data",
-    }
+    },
   ),
   orderSignature: Type.String({
     description: "The solver signature of the order",
@@ -84,7 +85,7 @@ const MessageData = Type.Object({
       inputIndex: Type.Number({
         description: "The index of the order input the deposit refers to",
       }),
-    })
+    }),
   ),
   refunds: Type.Array(
     Type.Object({
@@ -97,13 +98,13 @@ const MessageData = Type.Object({
       refundIndex: Type.Number({
         description: "The index of the order input refund",
       }),
-    })
+    }),
   ),
   force: Type.Optional(
     Type.Boolean({
       description:
         "Force attestation even if the order solver fill is not valid",
-    })
+    }),
   ),
   hints: Type.Optional(
     Type.Object(
@@ -116,11 +117,17 @@ const MessageData = Type.Object({
             timestamp: Type.Number({
               description: "The timestamp of the fill transaction",
             }),
-          })
+          }),
         ),
       },
-      { description: "Hints for attesting the fill transaction" }
-    )
+      { description: "Hints for attesting the fill transaction" },
+    ),
+  ),
+  requestPeerSignatures: Type.Optional(
+    Type.Boolean({
+      description:
+        "Whether to request signatures from any configured oracle peers",
+    }),
   ),
 });
 
@@ -149,7 +156,7 @@ const Schema = {
         },
         {
           description: "The resulting 'solver-refund' message",
-        }
+        },
       ),
       execution: executionSchema,
     }),
@@ -162,13 +169,8 @@ export default {
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,
-    reply: FastifyReplyTypeBox<typeof Schema>
+    reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
-    const attestationService = new AttestationService();
-    const { message, execution } = await attestationService.attestSolverRefund(
-      req.body
-    );
-
     // Restrict the `force` option to specific integrators
     if (req.body.force) {
       const apiKey = req.headers["x-api-key"] as string | undefined;
@@ -184,6 +186,33 @@ export default {
       }
     }
 
+    const attestationService = new AttestationService();
+    const { message, execution } = await attestationService.attestSolverRefund(
+      req.body,
+    );
+
+    // TODO: Fix the types
+    const peerSignatures: any[] = [];
+    if (req.body.requestPeerSignatures && config.peers) {
+      await Promise.all(
+        Object.entries(config.peers).map(async ([url, apiKey]) => {
+          const response = await axios.post(
+            `${url}/attestations/solver-refunds/v1`,
+            {
+              ...req.body,
+              requestPeerSignatures: false,
+            },
+            {
+              headers: {
+                "x-api-key": apiKey,
+              },
+            },
+          );
+          peerSignatures.push(...response.data.execution.signatures);
+        }),
+      );
+    }
+
     return reply.send({
       message: {
         data: message.data,
@@ -193,7 +222,10 @@ export default {
       execution: execution
         ? {
             ...execution,
-            signatures: await signExecutionMessage(execution),
+            signatures: [
+              ...(await signExecutionMessage(execution)),
+              ...peerSignatures,
+            ],
           }
         : undefined,
     });

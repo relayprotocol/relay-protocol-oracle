@@ -39,7 +39,7 @@ const Schema = {
         },
         {
           description: "The resulting 'withdrawal-initiate' message",
-        }
+        },
       ),
       execution: executionSchema,
     }),
@@ -52,11 +52,11 @@ export default {
   schema: Schema,
   handler: async (
     req: FastifyRequestTypeBox<typeof Schema>,
-    reply: FastifyReplyTypeBox<typeof Schema>
+    reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
     const attestationService = new AttestationService();
     const { message } = await attestationService.attestWithdrawalAddressBalance(
-      req.body
+      req.body,
     );
     return reply.send({
       message: {
