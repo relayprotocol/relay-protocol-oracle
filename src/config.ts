@@ -7,16 +7,16 @@ export const config = {
         process.env.API_KEYS.split(";").map((apiKey) => {
           const [key, integrator] = apiKey.split(":");
           return [key, integrator];
-        })
+        }),
       )
     : undefined,
 
   peers: process.env.PEERS
     ? Object.fromEntries(
-        process.env.PEERS.split(";").map((peer) => {
+        process.env.PEERS.split("|").map((peer) => {
           const [url, apiKey] = peer.split(":");
           return [url, apiKey];
-        })
+        }),
       )
     : undefined,
 
