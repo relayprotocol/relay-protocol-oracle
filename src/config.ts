@@ -13,8 +13,8 @@ export const config = {
 
   peers: process.env.PEERS
     ? Object.fromEntries(
-        process.env.PEERS.split("|").map((peer) => {
-          const [url, apiKey] = peer.split(":");
+        process.env.PEERS.split(";").map((peer) => {
+          const [url, apiKey] = peer.split("|");
           return [url, apiKey];
         }),
       )
