@@ -6,6 +6,7 @@ import Fastify from "fastify";
 import { setupEndpoints } from "./api";
 import { logger } from "./common/logger";
 import { config } from "./config";
+import { getSigningWallet, SigningModule } from "./signers";
 
 const COMPONENT = "http-server";
 
@@ -72,19 +73,29 @@ setupSwagger().then(() => {
       host: "0.0.0.0",
       port: config.httpPort,
     },
-    (error) => {
+    async (error) => {
       if (error) {
         logger.error(
           COMPONENT,
           JSON.stringify({
             msg: `Failed to start http server: ${error}`,
             stack: error?.stack,
-          })
+          }),
         );
         process.exit(1);
       }
 
-      logger.info(COMPONENT, JSON.stringify({ msg: "Http server started" }));
-    }
+      const signer = await getSigningWallet(
+        (config.signingModule as SigningModule) ?? "raw-private-key",
+      );
+
+      logger.info(
+        COMPONENT,
+        JSON.stringify({
+          msg: "Http server started",
+          signer: signer.address.toLowerCase(),
+        }),
+      );
+    },
   );
 });
