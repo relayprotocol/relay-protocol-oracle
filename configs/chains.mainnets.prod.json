@@ -88,7 +88,10 @@
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-zksync.nodes.svc.cluster.local:8545/zksync",
-    "hubChainId": "324"
+    "hubChainId": "324",
+    "additionalData": {
+      "isZksyncStack": true
+    }
   },
   {
     "id": "shape",
@@ -221,7 +224,10 @@
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "https://api.mainnet.abs.xyz",
-    "hubChainId": "2741"
+    "hubChainId": "2741",
+    "additionalData": {
+      "isZksyncStack": true
+    }
   },
   {
     "id": "morph",
@@ -459,7 +465,10 @@
     "depository": "0xa88cf7864951147a08707ed732237eaa9b1c3b9b",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "http://proxy-zero.nodes.svc.cluster.local:8545/zero",
-    "hubChainId": "543210"
+    "hubChainId": "543210",
+    "additionalData": {
+      "isZksyncStack": true
+    }
   },
   {
     "id": "xai",

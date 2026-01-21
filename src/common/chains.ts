@@ -13,7 +13,16 @@ export type Chain = {
   // The numeric id of the chain on the Hub - for "ethereum-vm" chains this is the EVM chain id,
   // and for all other chains it is the `keccak256` value of the above user-friendly id
   hubChainId?: string;
-  additionalData?: any;
+  additionalData?: {
+    // For "bitcoin-vm"
+    esploraCompatibleApiUrl?: string;
+    // For "hyperliquid-vm"
+    hubApiUrl?: string;
+    // For "ethereum-vm"
+    isZksyncStack?: boolean;
+    // For "hub-vm"
+    oracleAddress?: string;
+  };
 };
 
 export const HUB_VM_TYPE = "hub-vm" as any as VmType;
@@ -57,7 +66,7 @@ export const getChainVmType = async (chainId: string) =>
 
 export const getSdkChainsConfig = async () => {
   return Object.fromEntries(
-    Object.values(await getChains()).map((c) => [c.id, c.vmType])
+    Object.values(await getChains()).map((c) => [c.id, c.vmType]),
   );
 };
 

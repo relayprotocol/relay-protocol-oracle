@@ -58,6 +58,7 @@ export default {
     const { message } = await attestationService.attestWithdrawalAddressBalance(
       req.body,
     );
+
     return reply.send({
       message: {
         data: message.data,

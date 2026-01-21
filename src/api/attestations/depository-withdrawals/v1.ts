@@ -2,12 +2,13 @@ import { Type } from "@fastify/type-provider-typebox";
 import axios from "axios";
 
 import {
+  areExecutionsEqual,
   Endpoint,
   ErrorResponses,
   executionSchema,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
-  signatureSchema,
+  messageSignatureSchema,
   WithdrawalAddressSchema,
 } from "../../utils";
 import {
@@ -59,7 +60,7 @@ const Schema = {
                 "The status of the withdrawal (0 = pending, 1 = executed, 2 = expired)",
             }),
           }),
-          signature: signatureSchema,
+          signature: messageSignatureSchema,
         },
         {
           description: "The resulting 'depository-withdrawal' message",
@@ -84,7 +85,7 @@ export default {
 
     // TODO: Fix the types
     const peerSignatures: any[] = [];
-    if (req.body.requestPeerSignatures && config.peers) {
+    if (execution && req.body.requestPeerSignatures && config.peers) {
       await Promise.all(
         Object.entries(config.peers).map(async ([url, apiKey]) => {
           const response = await axios.post(
@@ -99,7 +100,11 @@ export default {
               },
             },
           );
-          peerSignatures.push(...response.data.execution.signatures);
+
+          // Only consider the peer signature if the executions are equal
+          if (areExecutionsEqual(response.data.execution, execution)) {
+            peerSignatures.push(...response.data.execution.signatures);
+          }
         }),
       );
     }

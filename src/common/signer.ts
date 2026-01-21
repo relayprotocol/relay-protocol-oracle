@@ -17,7 +17,7 @@ import { getSigningWallet, SigningModule } from "../signers";
 
 const sign = async (data: Hex) => {
   const wallet = await getSigningWallet(
-    (config.signingModule as SigningModule) ?? "raw-private-key"
+    (config.signingModule as SigningModule) ?? "raw-private-key",
   );
 
   return {
@@ -31,11 +31,11 @@ const sign = async (data: Hex) => {
 };
 
 export const signDepositoryDepositMessage = async (
-  m: DepositoryDepositMessage
+  m: DepositoryDepositMessage,
 ) => sign(getDepositoryDepositMessageId(m, await getSdkChainsConfig()));
 
 export const signDepositoryWithdrawalMessage = async (
-  m: DepositoryWithdrawalMessage
+  m: DepositoryWithdrawalMessage,
 ) => sign(getDepositoryWithdrawalMessageId(m, await getSdkChainsConfig()));
 
 export const signSolverFillMessage = async (m: SolverFillMessage) =>
@@ -48,29 +48,27 @@ export const signExecutionMessage = async (m: ExecutionMessage) => {
   const signatures = await Promise.all(
     Object.values(await getHubChains()).map(async (chain) => {
       return signExecutionMessageForChain(m, chain.id);
-    })
+    }),
   );
   return signatures;
 };
 
 export const signExecutionMessageForChain = async (
   m: ExecutionMessage,
-  chainId: string
+  chainId: string,
 ) => {
   const wallet = await getSigningWallet(
-    (config.signingModule as SigningModule) ?? "raw-private-key"
+    (config.signingModule as SigningModule) ?? "raw-private-key",
   );
 
-  const {
-    hubChainId: oracleChainId,
-    additionalData: { oracleAddress },
-  } = await getHubChain(chainId);
+  const { hubChainId: oracleChainId, additionalData } =
+    await getHubChain(chainId);
 
   const signature = await wallet.signTypedData({
     domain: {
       chainId: BigInt(oracleChainId!),
       name: "RelayOracle",
-      verifyingContract: oracleAddress as `0x${string}`,
+      verifyingContract: additionalData!.oracleAddress as `0x${string}`,
       version: "1",
     },
     message: {
@@ -94,7 +92,7 @@ export const signExecutionMessageForChain = async (
 
   return {
     oracleChainId: BigInt(oracleChainId!),
-    oracleContract: oracleAddress as `0x${string}`,
+    oracleContract: additionalData!.oracleAddress as `0x${string}`,
     oracleSigner: wallet.address.toLowerCase(),
     signature,
   };

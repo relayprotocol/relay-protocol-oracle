@@ -2,6 +2,7 @@ import { Type } from "@fastify/type-provider-typebox";
 import axios from "axios";
 
 import {
+  areExecutionsEqual,
   Endpoint,
   ErrorResponses,
   executionSchema,
@@ -71,7 +72,7 @@ export default {
 
     // TODO: Fix the types
     const peerSignatures: any[] = [];
-    if (req.body.requestPeerSignatures && config.peers) {
+    if (execution && req.body.requestPeerSignatures && config.peers) {
       await Promise.all(
         Object.entries(config.peers).map(async ([url, apiKey]) => {
           const response = await axios.post(
@@ -86,7 +87,11 @@ export default {
               },
             },
           );
-          peerSignatures.push(...response.data.execution.signatures);
+
+          // Only consider the peer signature if the executions are equal
+          if (areExecutionsEqual(response.data.execution, execution)) {
+            peerSignatures.push(...response.data.execution.signatures);
+          }
         }),
       );
     }

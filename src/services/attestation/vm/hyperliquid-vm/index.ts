@@ -27,7 +27,7 @@ const getTxDetailsWithFallback = async (
   chainId: string,
   txId: string,
   trackingId: string,
-  hints?: TxHints
+  hints?: TxHints,
 ): Promise<Omit<hl.TxDetailsResponse["tx"], "block">> => {
   const rpc = await httpRpc(chainId);
 
@@ -42,7 +42,7 @@ const getTxDetailsWithFallback = async (
     });
 
     const txEntry = ledgerUpdates.find(
-      (u) => u.hash.toLowerCase() === txId.toLowerCase()
+      (u) => u.hash.toLowerCase() === txId.toLowerCase(),
     );
     if (txEntry) {
       const delta = txEntry.delta as any;
@@ -71,7 +71,7 @@ const getTxDetailsWithFallback = async (
                 hash: txEntry.hash,
                 error: null,
               },
-            })
+            }),
           );
           return {
             action: {
@@ -104,7 +104,7 @@ const getTxDetailsWithFallback = async (
         (error as any).body ===
           "More than 100 archived blocks queried in one day" ||
         (error as any).stack?.startsWith(
-          "HttpRequestError: 429 Too Many Requests"
+          "HttpRequestError: 429 Too Many Requests",
         )
       ) {
         return axios
@@ -119,7 +119,7 @@ const getTxDetailsWithFallback = async (
                 "X-Nft-Api-Key": "039f6b70-3799-40a1-afd7-63087faddaed",
                 url: "https://rpc.hyperliquid.xyz/explorer",
               },
-            }
+            },
           )
           .then((response) => response.data.tx);
       }
@@ -131,7 +131,7 @@ const getTxDetailsWithFallback = async (
 export class HyperliquidVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
-    transactionId: string
+    transactionId: string,
   ): Promise<EnhancedDepositoryDepositMessage[]> {
     const trackingId = getTrackingId();
 
@@ -141,11 +141,11 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const txDetails = await getTxDetailsWithFallback(
       chainId,
       transactionId,
-      trackingId
+      trackingId,
     );
     if (!txDetails) {
       throw externalError(
-        `Missing transaction ${transactionId} on chain ${chainId}`
+        `Missing transaction ${transactionId} on chain ${chainId}`,
       );
     }
     if (txDetails.error) {
@@ -174,7 +174,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
             chainId,
             depositor,
             Number(action.time),
-            Number(txDetails.time)
+            Number(txDetails.time),
           );
 
           messages.push({
@@ -190,7 +190,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
               currency: getVmTypeNativeCurrency(VM_TYPE),
               amount: parseUnits(
                 Number(action.amount).toFixed(8),
-                8
+                8,
               ).toString(),
             },
             extraData: {
@@ -220,9 +220,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
             tokenDex === "spot"
               ? tokenAddress.toLowerCase()
               : tokenDex === ""
-              ? getVmTypeNativeCurrency(VM_TYPE)
-              : tokenAddress.toLowerCase() +
-                Buffer.from(tokenDex, "ascii").toString("hex");
+                ? getVmTypeNativeCurrency(VM_TYPE)
+                : tokenAddress.toLowerCase() +
+                  Buffer.from(tokenDex, "ascii").toString("hex");
 
           const currencyDecimals =
             currency === getVmTypeNativeCurrency(VM_TYPE)
@@ -234,7 +234,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
                     .then(
                       (r) =>
                         r.tokens.find((t) => t.tokenId === tokenAddress)
-                          ?.szDecimals
+                          ?.szDecimals,
                     );
                 })();
           if (currencyDecimals === undefined) {
@@ -245,7 +245,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
             chainId,
             depositor,
             Number(action.nonce),
-            Number(txDetails.time)
+            Number(txDetails.time),
           );
 
           messages.push({
@@ -261,7 +261,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
               currency,
               amount: parseUnits(
                 Number(action.amount).toFixed(currencyDecimals),
-                currencyDecimals
+                currencyDecimals,
               ).toString(),
             },
             extraData: {
@@ -283,7 +283,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
   public async getDepositoryWithdrawalMessage(
     chainId: string,
     withdrawal: string,
-    transactionId?: string
+    transactionId?: string,
   ): Promise<DepositoryWithdrawalMessage> {
     const trackingId = getTrackingId();
 
@@ -296,7 +296,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
     const decodedWithdrawal = decodeWithdrawal(
       withdrawal,
-      chain.vmType
+      chain.vmType,
     ) as DecodedHyperliquidVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
@@ -326,11 +326,11 @@ export class HyperliquidVmAttestor extends VmAttestor {
       const txDetails = await getTxDetailsWithFallback(
         chainId,
         transactionId,
-        trackingId
+        trackingId,
       );
       if (!txDetails) {
         throw externalError(
-          `Missing transaction ${transactionId} on chain ${chainId}`
+          `Missing transaction ${transactionId} on chain ${chainId}`,
         );
       }
       if (txDetails.error) {
@@ -357,7 +357,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
           : Number(parameters.time);
 
       const depositoryTxs = recentTxs.filter(
-        (tx) => tx.user.toLowerCase() === depository.toLowerCase()
+        (tx) => tx.user.toLowerCase() === depository.toLowerCase(),
       );
       if (depositoryTxs.length > 0) {
         const nonces = depositoryTxs
@@ -403,7 +403,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
       extraData: string;
       deadline: number;
     },
-    hints?: TxHints
+    hints?: TxHints,
   ): Promise<bigint> {
     const trackingId = getTrackingId();
 
@@ -414,7 +414,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
       chainId,
       transactionId,
       trackingId,
-      hints
+      hints,
     );
     if (!txDetails || txDetails.error) {
       throw externalError(`Missing or reverted transaction ${transactionId}`);
@@ -423,7 +423,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const transactionTimestamp = Math.floor(txDetails.time / 1000);
     if (transactionTimestamp > payment.deadline) {
       throw externalError(
-        `Transaction ${transactionId} executed after deadline`
+        `Transaction ${transactionId} executed after deadline`,
       );
     }
 
@@ -485,7 +485,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
             .then(
               (r) =>
                 r.tokens.find((t) => t.tokenId === actualPaymentCurrency)
-                  ?.szDecimals
+                  ?.szDecimals,
             );
           if (currencyDecimals === undefined) {
             throw externalError("Could not retrieve payment currency decimals");
@@ -493,7 +493,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
           return parseUnits(
             Number(txParameters.amount).toFixed(currencyDecimals),
-            currencyDecimals
+            currencyDecimals,
           );
         }
       }
@@ -505,7 +505,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
   public async verifySolverCalls(
     _chainId: string,
     _transactionId: string,
-    _calls: string[]
+    _calls: string[],
   ): Promise<boolean> {
     throw internalError("Not implemented (verifySolverCalls)");
   }
@@ -514,7 +514,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
     chainId: string,
     depositor: string,
     nonce: number,
-    timestamp: number
+    timestamp: number,
   ): Promise<string | undefined> {
     const chain = await getChain(chainId);
 
@@ -531,11 +531,11 @@ export class HyperliquidVmAttestor extends VmAttestor {
             "x-api-key": process.env.HUB_API_KEY,
           },
           timeout: 10000,
-        }
+        },
       )
       .then(
         (response) =>
-          response.data as { id: string; createdAt: string } | undefined
+          response.data as { id: string; createdAt: string } | undefined,
       );
 
     const THRESHOLD = 3600 * 1000;
@@ -552,7 +552,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
         return undefined;
       } else {
         throw externalError(
-          `No nonce mapping found for nonce ${nonce} and depositor ${depositor}`
+          `No nonce mapping found for nonce ${nonce} and depositor ${depositor}`,
         );
       }
     }

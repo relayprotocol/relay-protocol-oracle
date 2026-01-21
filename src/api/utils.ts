@@ -13,6 +13,7 @@ import type { FastifySchema } from "fastify/types/schema";
 
 import { isExternalError } from "../common/error";
 import { logger } from "../common/logger";
+import { ExecutionMessage } from "@relay-protocol/settlement-sdk";
 
 export type FastifyRequestTypeBox<TSchema extends FastifySchema> =
   FastifyRequest<
@@ -49,7 +50,7 @@ export const ErrorResponses = {
 // Generic wrapper for standard error handling across all endpoints
 export const errorWrapper = (
   url: string,
-  handler: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
+  handler: (req: FastifyRequest, reply: FastifyReply) => Promise<void>,
 ): ((req: FastifyRequest, reply: FastifyReply) => Promise<void>) => {
   return async (req: FastifyRequest, reply: FastifyReply) => {
     try {
@@ -70,7 +71,7 @@ export const errorWrapper = (
           errorMsg: error.msg,
           errorResponse: error.response?.data ?? error.response?.body,
           errorStack: error.stack,
-        })
+        }),
       );
 
       throw new Error("Something went wrong");
@@ -84,7 +85,7 @@ export const errorWrapper = (
 // This creates a custom type that tells TypeScript to expect bigint while serializing as string
 export const BigIntString = Type.Unsafe<bigint>({ type: "string" });
 
-export const signatureSchema = Type.Object({
+export const messageSignatureSchema = Type.Object({
   oracle: Type.String({
     description: "The address of the signing oracle",
   }),
@@ -93,8 +94,7 @@ export const signatureSchema = Type.Object({
   }),
 });
 
-// Signature for the Hub execution
-export const hubExecutionSignatureSchema = Type.Object({
+export const executionMessageSignatureSchema = Type.Object({
   oracleChainId: BigIntString,
   oracleContract: Type.String({
     description: "The address of the oracle contract on the hub chain",
@@ -127,18 +127,19 @@ export const executionSchema = Type.Optional(
               description:
                 "The address of the oracle contract on the hub chain",
             }),
-          })
-        )
+          }),
+        ),
       ),
-      signatures: Type.Array(hubExecutionSignatureSchema, { minItems: 1 }),
+      signatures: Type.Array(executionMessageSignatureSchema, { minItems: 1 }),
     },
     {
       description: "The 'execution' message to be relayed on the Hub",
-    }
-  )
+    },
+  ),
 );
 
-// fastify schema for the params needed to create a withdrawal address
+// Fastify schema for the params needed to create a withdrawal address
+
 export const WithdrawalAddressSchema = Type.Object({
   chainId: Type.String({
     description:
@@ -162,3 +163,19 @@ export const WithdrawalAddressSchema = Type.Object({
       "Optional nonce to prevent collisions for similar withdrawals in the same block",
   }),
 });
+
+// Utility for comparing two execution messages
+export const areExecutionsEqual = (
+  msg1?: ExecutionMessage,
+  msg2?: ExecutionMessage,
+) => {
+  if (!msg1 || !msg2) {
+    return false;
+  }
+
+  return (
+    msg1.idempotencyKey === msg2.idempotencyKey &&
+    msg1.actions.length === msg2.actions.length &&
+    msg1.actions.every((_, i) => msg1.actions[i] === msg2.actions[i])
+  );
+};

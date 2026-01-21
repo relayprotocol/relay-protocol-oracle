@@ -129,7 +129,8 @@ export class AttestationService {
           const metadataWithOracleInfo = metadata.map((md) => ({
             ...md,
             oracleChainId: chain.hubChainId || "",
-            oracleContract: chain.additionalData.oracleAddress as `0x${string}`,
+            oracleContract: chain.additionalData!
+              .oracleAddress as `0x${string}`,
           }));
           metadataForAllOracles.push(...metadataWithOracleInfo);
         });

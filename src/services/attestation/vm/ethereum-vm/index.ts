@@ -39,10 +39,12 @@ export const ABI = parseAbi([
 
 const VM_TYPE = "ethereum-vm";
 
+const ZKSYNC_ERC20_ETH = "0x000000000000000000000000000000000000800a";
+
 export class EthereumVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
-    transactionId: string
+    transactionId: string,
   ): Promise<EnhancedDepositoryDepositMessage[]> {
     const trackingId = getTrackingId();
 
@@ -57,7 +59,7 @@ export class EthereumVmAttestor extends VmAttestor {
       .catch((error) => {
         if ((error as any).name === "TransactionReceiptNotFoundError") {
           throw externalError(
-            `Missing transaction ${transactionId} on chain ${chainId}`
+            `Missing transaction ${transactionId} on chain ${chainId}`,
           );
         }
 
@@ -65,7 +67,7 @@ export class EthereumVmAttestor extends VmAttestor {
       });
     if (receipt.status !== "success") {
       throw externalError(
-        `Reverted transaction ${transactionId} on chain ${chainId}`
+        `Reverted transaction ${transactionId} on chain ${chainId}`,
       );
     }
 
@@ -73,7 +75,7 @@ export class EthereumVmAttestor extends VmAttestor {
     const timestamp = await this._ensureTxFinalization(
       chainId,
       receipt,
-      trackingId
+      trackingId,
     );
 
     const chain = await getChain(chainId);
@@ -133,7 +135,7 @@ export class EthereumVmAttestor extends VmAttestor {
             onchainId: getDeterministicId(
               chainId,
               transactionId,
-              currentLog.logIndex.toString()
+              currentLog.logIndex.toString(),
             ),
             depository,
             depositId,
@@ -181,14 +183,14 @@ export class EthereumVmAttestor extends VmAttestor {
           parsedLogs.filter(
             (l) =>
               l.eventName === "Transfer" &&
-              l.args.to.toLowerCase() === depository.toLowerCase()
+              l.args.to.toLowerCase() === depository.toLowerCase(),
           ).length === 1
         ) {
           // We know we have a single depository transfer event
           const uniqueDepositoryTransferEvent = parsedLogs.find(
             (l) =>
               l.eventName === "Transfer" &&
-              l.args.to.toLowerCase() === depository.toLowerCase()
+              l.args.to.toLowerCase() === depository.toLowerCase(),
           )!;
 
           // Find all standard transfers within the transaction calldata
@@ -225,11 +227,11 @@ export class EthereumVmAttestor extends VmAttestor {
 
           // Find all standard transfers matching the transfer event
           const transfersToDepository = findTransfersInCalldata(
-            transactionCalldata
+            transactionCalldata,
           ).filter(
             (t) =>
               t.to.toLowerCase() === depository.toLowerCase() &&
-              t.amount === uniqueDepositoryTransferEvent.args.amount.toString()
+              t.amount === uniqueDepositoryTransferEvent.args.amount.toString(),
           );
           // We allow either a single matching transfer calldata or multiple ones that are all the same
           if (
@@ -239,11 +241,19 @@ export class EthereumVmAttestor extends VmAttestor {
                 (t) =>
                   t.to === transfersToDepository[0].to &&
                   t.amount === transfersToDepository[0].amount &&
-                  t.id === transfersToDepository[0].id
+                  t.id === transfersToDepository[0].id,
               ))
           ) {
             depositId = transfersToDepository[0].id;
           }
+        }
+
+        const currency = currentLog.address.toLowerCase();
+        if (
+          chain.additionalData?.isZksyncStack &&
+          currency === ZKSYNC_ERC20_ETH
+        ) {
+          continue;
         }
 
         messages.push({
@@ -255,12 +265,12 @@ export class EthereumVmAttestor extends VmAttestor {
             onchainId: getDeterministicId(
               chainId,
               transactionId,
-              currentLog.logIndex.toString()
+              currentLog.logIndex.toString(),
             ),
             depository,
             depositId: depositId ?? zeroHash,
             depositor,
-            currency: currentLog.address.toLowerCase(),
+            currency,
             amount: currentLog.args.amount.toString(),
           },
           extraData: {
@@ -275,7 +285,7 @@ export class EthereumVmAttestor extends VmAttestor {
 
   public async getDepositoryWithdrawalMessage(
     chainId: string,
-    withdrawal: string
+    withdrawal: string,
   ): Promise<DepositoryWithdrawalMessage> {
     const trackingId = getTrackingId();
 
@@ -289,7 +299,7 @@ export class EthereumVmAttestor extends VmAttestor {
 
     const decodedWithdrawal = decodeWithdrawal(
       withdrawal,
-      chain.vmType
+      chain.vmType,
     ) as DecodedEthereumVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
@@ -343,7 +353,7 @@ export class EthereumVmAttestor extends VmAttestor {
       orderId: string;
       extraData: string;
       deadline: number;
-    }
+    },
   ): Promise<bigint> {
     const trackingId = getTrackingId();
 
@@ -358,7 +368,7 @@ export class EthereumVmAttestor extends VmAttestor {
       .catch((error) => {
         if ((error as any).name === "TransactionReceiptNotFoundError") {
           throw externalError(
-            `Missing transaction ${transactionId} on chain ${chainId}`
+            `Missing transaction ${transactionId} on chain ${chainId}`,
           );
         }
 
@@ -366,7 +376,7 @@ export class EthereumVmAttestor extends VmAttestor {
       });
     if (receipt.status !== "success") {
       throw externalError(
-        `Reverted transaction ${transactionId} on chain ${chainId}`
+        `Reverted transaction ${transactionId} on chain ${chainId}`,
       );
     }
 
@@ -374,12 +384,12 @@ export class EthereumVmAttestor extends VmAttestor {
     const timestamp = await this._ensureTxFinalization(
       chainId,
       receipt,
-      trackingId
+      trackingId,
     );
 
     if (timestamp > payment.deadline) {
       throw externalError(
-        `Transaction ${transactionId} executed after deadline`
+        `Transaction ${transactionId} executed after deadline`,
       );
     }
 
@@ -393,7 +403,7 @@ export class EthereumVmAttestor extends VmAttestor {
 
     if (!transaction.input.endsWith(payment.orderId.slice(2))) {
       throw externalError(
-        `Transaction ${transactionId} does not reference order id`
+        `Transaction ${transactionId} does not reference order id`,
       );
     }
 
@@ -417,7 +427,7 @@ export class EthereumVmAttestor extends VmAttestor {
         .filter(
           (log) =>
             log.address.toLowerCase() === fillContract.toLowerCase() &&
-            log.args.to.toLowerCase() === payment.recipient.toLowerCase()
+            log.args.to.toLowerCase() === payment.recipient.toLowerCase(),
         )
         .map((log) => log.args.amount)
         .reduce((a, b) => a + b, 0n);
@@ -431,7 +441,7 @@ export class EthereumVmAttestor extends VmAttestor {
         .filter(
           (log) =>
             log.address.toLowerCase() === payment.currency.toLowerCase() &&
-            log.args.to.toLowerCase() === payment.recipient.toLowerCase()
+            log.args.to.toLowerCase() === payment.recipient.toLowerCase(),
         )
         .map((log) => log.args.amount)
         .reduce((a, b) => a + b, 0n);
@@ -442,7 +452,7 @@ export class EthereumVmAttestor extends VmAttestor {
     chainId: string,
     transactionId: string,
     calls: string[],
-    extraData: string
+    extraData: string,
   ): Promise<boolean> {
     const trackingId = getTrackingId();
 
@@ -458,7 +468,7 @@ export class EthereumVmAttestor extends VmAttestor {
       .catch((error) => {
         if ((error as any).name === "TransactionReceiptNotFoundError") {
           throw externalError(
-            `Missing transaction ${transactionId} on chain ${chainId}`
+            `Missing transaction ${transactionId} on chain ${chainId}`,
           );
         }
 
@@ -466,7 +476,7 @@ export class EthereumVmAttestor extends VmAttestor {
       });
     if (receipt.status !== "success") {
       throw externalError(
-        `Reverted transaction ${transactionId} on chain ${chainId}`
+        `Reverted transaction ${transactionId} on chain ${chainId}`,
       );
     }
 
@@ -501,7 +511,7 @@ export class EthereumVmAttestor extends VmAttestor {
           log.args.to.toLowerCase() === decodedCall.call.to.toLowerCase() &&
           log.args.data.toLowerCase() === decodedCall.call.data.toLowerCase() &&
           log.args.amount === BigInt(decodedCall.call.value) &&
-          !usedParsedLogIndexes.has(i)
+          !usedParsedLogIndexes.has(i),
       );
       if (relevantLogIndex === -1) {
         return false;
@@ -518,7 +528,7 @@ export class EthereumVmAttestor extends VmAttestor {
   private async _ensureTxFinalization(
     chainId: string,
     tx: TransactionReceipt,
-    trackingId: string
+    trackingId: string,
   ) {
     const rpc = await httpRpc(chainId);
 

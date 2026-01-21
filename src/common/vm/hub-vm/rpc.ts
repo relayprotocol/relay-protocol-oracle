@@ -33,7 +33,7 @@ export const httpRpc = async (chainId: string): Promise<PublicClient> => {
 export const getOracleContract = async (chainId: string) => {
   const chain = await getHubChain(chainId);
   return getContract({
-    address: chain.additionalData.oracleAddress as Address,
+    address: chain.additionalData!.oracleAddress as Address,
     abi: RelayOracle,
     client: await httpRpc(chainId),
   });
