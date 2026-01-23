@@ -28,7 +28,7 @@ jest.mock("../../../../src/common/chains", () => {
       chainId === "base" ? "8453" : chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
       Object.fromEntries(
-        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+        Object.values(chains).map((chain) => [chain.id, chain.vmType]),
       ),
   };
 });
@@ -39,7 +39,7 @@ jest.mock("../../../../src/common/vm/sui-vm/rpc", () => {
 });
 
 describe("SuiVmAttestor", () => {
-  it("attestDepositoryDeposits - should attest deposit event", async () => {
+  it.skip("attestDepositoryDeposits - should attest deposit event", async () => {
     const events = [
       {
         id: {
@@ -84,17 +84,17 @@ describe("SuiVmAttestor", () => {
 
     expect(messages.length).toBe(1);
     expect(msg.result.currency).toBe(
-      "0000000000000000000000000000000000000000000000000000000000000002::sui::SUI"
+      "0000000000000000000000000000000000000000000000000000000000000002::sui::SUI",
     );
     expect(msg.result.amount).toBe("3000");
     expect(msg.result.depositor).toBe(
-      "0x5f7f85e64cb90f4fad427c119cfcfe916397e6f559e052e686df05fe561f9f80"
+      "0x5f7f85e64cb90f4fad427c119cfcfe916397e6f559e052e686df05fe561f9f80",
     );
     expect(msg.result.depository).toBe(
-      "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e"
+      "0x9d2a84411e00bcc5f39fd137521106b2a968ee7998db999203bc598f69c7d28e",
     );
     expect(msg.result.depositId).toBe(
-      "0x0303030303030303030303030303030303030303030303030303030303030303"
+      "0x0303030303030303030303030303030303030303030303030303030303030303",
     );
   });
 

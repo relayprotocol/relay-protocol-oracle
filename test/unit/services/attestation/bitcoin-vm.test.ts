@@ -16,9 +16,8 @@ import { randomHex } from "../../../common/utils";
 import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
 
 // Test Bitcoin addresses and private keys
-const testDepositoryAddress = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
-const testUserAddress =
-  "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7";
+const testDepositoryAddress = "bc1qq2mvrp4g3ugd424dw4xv53rgsf8szkrv853jrc";
+const testUserAddress = "bc1qq2mvrp4g3ugd424dw4xv53rgsf8szkrv853jrc";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<string, Chain> = {
@@ -26,7 +25,7 @@ jest.mock("../../../../src/common/chains", () => {
       id: "bitcoin",
       vmType: "bitcoin-vm",
       httpRpcUrl: "http://127.0.0.1:8332",
-      depository: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+      depository: "bc1qq2mvrp4g3ugd424dw4xv53rgsf8szkrv853jrc",
       hubChainId: "1",
       additionalData: {
         esploraCompatibleApiUrl: "http://localhost:3000",
@@ -45,7 +44,7 @@ jest.mock("../../../../src/common/chains", () => {
       chainId === "base" ? "8453" : chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
       Object.fromEntries(
-        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+        Object.values(chains).map((chain) => [chain.id, chain.vmType]),
       ),
   };
 });
@@ -97,7 +96,7 @@ const generateBitcoinTransaction = (
       txinwitness?: string[];
       sequence: number;
     }>;
-  } = {}
+  } = {},
 ) => {
   const defaultBlockhash = randomHex(32);
 
@@ -128,7 +127,7 @@ const generateBitcoinTransaction = (
         n: 0,
         scriptPubKey: {
           asm: "0 751e76e8199196d454941c45d1b3a323f1433bd6",
-          desc: "addr(tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx)",
+          desc: "addr(bc1qq2mvrp4g3ugd424dw4xv53rgsf8szkrv853jrc)",
           hex: "0014751e76e8199196d454941c45d1b3a323f1433bd6",
           type: "witness_v0_keyhash",
           address: testDepositoryAddress,
@@ -149,7 +148,7 @@ const generateBitcoinBlock = (
     confirmations?: number;
     time?: number;
     tx?: string[];
-  } = {}
+  } = {},
 ) => {
   return {
     hash: blockhash,
@@ -181,7 +180,7 @@ const generateBitcoinBlock = (
 // Generate transaction output with OP_RETURN
 const generateOpReturnOutput = (
   data: string,
-  n: number = 1
+  n: number = 1,
 ): {
   value: number;
   n: number;
@@ -229,7 +228,7 @@ const createDepositTransaction = (
   txid: string,
   depositId: string = zeroHash,
   amount: number = 100000000, // 1 BTC in satoshis
-  confirmations: number = 3
+  confirmations: number = 3,
 ) => {
   const opReturnOutput = generateOpReturnOutput(depositId);
 
@@ -266,7 +265,7 @@ const createDepositTransaction = (
 // Create an input transaction (for getting input address)
 const createInputTransaction = (
   txid: string,
-  address: string = testUserAddress
+  address: string = testUserAddress,
 ) => {
   return generateBitcoinTransaction(txid, {
     vout: [
@@ -321,7 +320,7 @@ describe("BitcoinVmAttestor", () => {
       expect(messages[0].result.depositor).toBe(testUserAddress);
       expect(messages[0].result.amount).toBe("100000000");
       expect(messages[0].result.currency).toBe(
-        "bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8"
+        "bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8",
       );
     });
 
@@ -332,7 +331,7 @@ describe("BitcoinVmAttestor", () => {
         transactionId,
         zeroHash,
         100000000,
-        1
+        1,
       ); // Only 1 confirmation
 
       // Setup RPC mock
@@ -348,7 +347,7 @@ describe("BitcoinVmAttestor", () => {
         new AttestationService().attestDepositoryDeposits({
           chainId: "bitcoin",
           transactionId,
-        })
+        }),
       ).rejects.toThrow(`Transaction ${transactionId} is not finalized`);
     });
   });
@@ -356,6 +355,8 @@ describe("BitcoinVmAttestor", () => {
   describe("getDepositoryWithdrawalMessage", () => {
     const withdrawalAddressRequest = createMockWithdrawalAddressRequest({
       chainId: "bitcoin",
+      currency: "bc1qq2mvrp4g3ugd424dw4xv53rgsf8szkrv853jrc",
+      recipient: "bc1qq2mvrp4g3ugd424dw4xv53rgsf8szkrv853jrc",
     });
 
     beforeEach(() => {
@@ -370,7 +371,7 @@ describe("BitcoinVmAttestor", () => {
         txMatches?: boolean;
         multipleSpendingTxs?: boolean;
         noAllocatorUtxos?: boolean;
-      } = {}
+      } = {},
     ) => {
       const {
         isSpent = false,
@@ -394,10 +395,10 @@ describe("BitcoinVmAttestor", () => {
 
       // Setup decodeWithdrawal mock
       (decodeWithdrawal as jest.Mock).mockImplementation(
-        () => decodedWithdrawal
+        () => decodedWithdrawal,
       );
       (getDecodedWithdrawalId as jest.Mock).mockImplementation(
-        () => "0x1234567890"
+        () => "0x1234567890",
       );
 
       // Setup bitcoinjs-lib mock for PSBT with partial signatures
@@ -409,22 +410,22 @@ describe("BitcoinVmAttestor", () => {
                 script: noAllocatorUtxos
                   ? Buffer.from(
                       "00140000000000000000000000000000000000000000",
-                      "hex"
+                      "hex",
                     ) // Different script
                   : Buffer.from(
                       "00147751e76e8199196d454941c45d1b3a323f1433bd6",
-                      "hex"
+                      "hex",
                     ),
               },
               partialSig: [
                 {
                   pubkey: Buffer.from(
                     "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
-                    "hex"
+                    "hex",
                   ),
                   signature: Buffer.from(
                     "3045022100f4d17785319488c32c4e3d339c5e8f317c94c4978e4b0641fb9cd4eacc89b0e802203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
-                    "hex"
+                    "hex",
                   ),
                 },
               ],
@@ -435,22 +436,22 @@ describe("BitcoinVmAttestor", () => {
                 script: noAllocatorUtxos
                   ? Buffer.from(
                       "00140000000000000000000000000000000000000000",
-                      "hex"
+                      "hex",
                     ) // Different script
                   : Buffer.from(
                       "00147751e76e8199196d454941c45d1b3a323f1433bd6",
-                      "hex"
+                      "hex",
                     ),
               },
               partialSig: [
                 {
                   pubkey: Buffer.from(
                     "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
-                    "hex"
+                    "hex",
                   ),
                   signature: Buffer.from(
                     "3045022100f4d17785319488c32c4e3d339c5e8f317c94c4978e4b0641fb9cd4eacc89b0e802203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
-                    "hex"
+                    "hex",
                   ),
                 },
               ],
@@ -470,7 +471,7 @@ describe("BitcoinVmAttestor", () => {
       jest
         .spyOn(bitcoin.address, "toOutputScript")
         .mockImplementation(() =>
-          Buffer.from("00147751e76e8199196d454941c45d1b3a323f1433bd6", "hex")
+          Buffer.from("00147751e76e8199196d454941c45d1b3a323f1433bd6", "hex"),
         );
 
       // Mock Esplora API response
@@ -480,7 +481,7 @@ describe("BitcoinVmAttestor", () => {
         (axios.get as jest.Mock).mockImplementation((url: unknown) => {
           // Extract txid and vout from URL to determine which input we're checking
           const match = (url as string).match(
-            /\/tx\/([a-f0-9]+)\/outspend\/(\d+)$/
+            /\/tx\/([a-f0-9]+)\/outspend\/(\d+)$/,
           );
           if (match) {
             const [, , vout] = match;
@@ -517,22 +518,22 @@ describe("BitcoinVmAttestor", () => {
                   // Match the signature and pubkey from PSBT
                   Buffer.from(
                     "3045022100f4d17785319488c32c4e3d339c5e8f317c94c4978e4b0641fb9cd4eacc89b0e802203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
-                    "hex"
+                    "hex",
                   ),
                   Buffer.from(
                     "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
-                    "hex"
+                    "hex",
                   ),
                 ]
               : [
                   // Different signature for non-matching case
                   Buffer.from(
                     "3045022100aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
-                    "hex"
+                    "hex",
                   ),
                   Buffer.from(
                     "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
-                    "hex"
+                    "hex",
                   ),
                 ],
           },
@@ -543,22 +544,22 @@ describe("BitcoinVmAttestor", () => {
                   // Match the signature and pubkey from PSBT
                   Buffer.from(
                     "3045022100f4d17785319488c32c4e3d339c5e8f317c94c4978e4b0641fb9cd4eacc89b0e802203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
-                    "hex"
+                    "hex",
                   ),
                   Buffer.from(
                     "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
-                    "hex"
+                    "hex",
                   ),
                 ]
               : [
                   // Different signature for non-matching case
                   Buffer.from(
                     "3045022100aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
-                    "hex"
+                    "hex",
                   ),
                   Buffer.from(
                     "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
-                    "hex"
+                    "hex",
                   ),
                 ],
           },
@@ -676,9 +677,9 @@ describe("BitcoinVmAttestor", () => {
           chainId: "bitcoin",
           withdrawal: withdrawalHex,
           withdrawalAddressRequest,
-        })
+        }),
       ).rejects.toThrow(
-        "No allocator UTXOs detected as part of the withdrawal request"
+        "No allocator UTXOs detected as part of the withdrawal request",
       );
     });
   });

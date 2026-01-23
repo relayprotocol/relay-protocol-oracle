@@ -44,7 +44,7 @@
   {
     "id": "solana",
     "vmType": "solana-vm",
-    "httpRpcUrl": "https://api.mainnet-beta.solana.com",
+    "httpRpcUrl": "http://proxy-solana.nodes.svc.cluster.local:8545/solana",
     "depository": "6TMx4zgh9Ho5DaJtaQbKbHgYLk7B6vKEoE7CfnxkqcHv",
     "hubChainId": "50176979118388105370421134508366610418687875236156196470082648173271157915018"
   },

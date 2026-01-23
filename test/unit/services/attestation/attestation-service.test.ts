@@ -16,11 +16,11 @@ import {
   Order,
   generateTokenId,
   generateAddress,
+  encodeAddress,
 } from "@relay-protocol/settlement-sdk";
 
 import {
   Chain,
-  getChainHubChainId,
   getChainVmType,
   getSdkChainsConfig,
 } from "../../../../src/common/chains";
@@ -149,12 +149,12 @@ describe("AttestationService", () => {
       const [mockMessage] = mockMessages;
       const idempotencyKey = getDeterministicId(
         mockMessage.data.chainId,
-        mockMessage.data.transactionId
+        mockMessage.data.transactionId,
       );
 
       const hubTokenId = generateTokenId({
         address: mockMessage.result.currency,
-        chainId: await getChainHubChainId(mockMessage.data.chainId),
+        chainId: mockMessage.data.chainId,
         family: await getChainVmType(mockMessage.data.chainId),
       });
 
@@ -167,7 +167,7 @@ describe("AttestationService", () => {
         type: ActionType.MINT,
         data: {
           hubTokenId,
-          hubToAddress: "0xe39b9B20E42513E0e1F1A4a5C5056166eaDc9eBE",
+          hubToAddress: "0x5dCC0A25a0170DB4D7A4E634b6D416d41717553a",
           amount: mockMessage.result.amount,
         },
       });
@@ -211,18 +211,18 @@ describe("AttestationService", () => {
       const [mockMessage] = mockMessages;
       const idempotencyKey = getDeterministicId(
         mockMessage.data.chainId,
-        mockMessage.data.transactionId
+        mockMessage.data.transactionId,
       );
 
       const hubTokenId = generateTokenId({
         address: mockMessage.result.currency,
-        chainId: await getChainHubChainId(mockMessage.data.chainId),
+        chainId: mockMessage.data.chainId,
         family: await getChainVmType(mockMessage.data.chainId),
       });
 
       const expectedHubToAddress = generateAddress({
         address: depositor,
-        chainId: await getChainHubChainId(mockMessage.data.chainId),
+        chainId: mockMessage.data.chainId,
         family: await getChainVmType(mockMessage.data.chainId),
       });
 
@@ -239,10 +239,6 @@ describe("AttestationService", () => {
           amount: mockMessage.result.amount,
         },
       });
-
-      // check mocks calls
-      expect(getChainHubChainId).toHaveBeenCalledWith(mockMessage.data.chainId);
-      expect(getChainVmType).toHaveBeenCalledWith(mockMessage.data.chainId);
     });
   });
 
@@ -260,7 +256,7 @@ describe("AttestationService", () => {
       // the alias for withdrawer address on origin chain
       const withdrawerAlias = generateAddress({
         address: owner,
-        chainId: await getChainHubChainId(ownerChainId),
+        chainId: ownerChainId,
         family: await getChainVmType(ownerChainId),
       });
 
@@ -286,10 +282,10 @@ describe("AttestationService", () => {
       // Decode the withdrawal to get the actual currency
       const actualDecodedWithdrawal = decodeWithdrawal(
         withdrawal,
-        "ethereum-vm"
+        "ethereum-vm",
       );
       const actualCurrency = getDecodedWithdrawalCurrency(
-        actualDecodedWithdrawal
+        actualDecodedWithdrawal,
       );
 
       // Update withdrawalAddressRequest with the actual currency
@@ -332,7 +328,8 @@ describe("AttestationService", () => {
 
       const withdrawalAddress = getWithdrawalAddress({
         depository: depositoryAddress!,
-        depositoryChainId: BigInt(1),
+        depositoryChainId: "ethereum",
+        depositoryVmType: "ethereum-vm",
         currency: withdrawalAddressRequestWithCurrency.currency,
         withdrawerAlias: withdrawalAddressRequestWithCurrency.withdrawerAlias,
         recipient: withdrawalAddressRequest.recipient,
@@ -342,12 +339,12 @@ describe("AttestationService", () => {
       const result = await service.attestDepositoryWithdrawal(requestBody);
       const idempotencyKey = getDeterministicId(
         mockMessage.result.withdrawalId,
-        requestBody.transactionId!
+        requestBody.transactionId!,
       );
 
       const hubTokenId = generateTokenId({
         address: actualCurrency,
-        chainId: await getChainHubChainId(requestBody.chainId),
+        chainId: requestBody.chainId,
         family: await getChainVmType(requestBody.chainId),
       });
 
@@ -373,7 +370,7 @@ describe("AttestationService", () => {
       // the alias for the depositor
       const withdrawerAlias = generateAddress({
         address: owner,
-        chainId: await getChainHubChainId(ownerChainId),
+        chainId: ownerChainId,
         family: await getChainVmType(ownerChainId),
       });
 
@@ -399,10 +396,10 @@ describe("AttestationService", () => {
       // Decode the withdrawal to get the actual currency
       const actualDecodedWithdrawal = decodeWithdrawal(
         withdrawal,
-        "ethereum-vm"
+        "ethereum-vm",
       );
       const actualCurrency = getDecodedWithdrawalCurrency(
-        actualDecodedWithdrawal
+        actualDecodedWithdrawal,
       );
 
       // Update withdrawalAddressRequest with the actual currency
@@ -444,7 +441,8 @@ describe("AttestationService", () => {
 
       const withdrawalAddress = getWithdrawalAddress({
         depository: depositoryAddress!,
-        depositoryChainId: BigInt(1),
+        depositoryChainId: "ethereum",
+        depositoryVmType: "ethereum-vm",
         currency: withdrawalAddressRequestWithCurrency.currency,
         withdrawerAlias: withdrawalAddressRequestWithCurrency.withdrawerAlias,
         recipient: withdrawalAddressRequest.recipient,
@@ -455,12 +453,12 @@ describe("AttestationService", () => {
       const idempotencyKey = getDeterministicId(
         mockMessage.result.withdrawalId,
         requestBody.transactionId!,
-        DepositoryWithdrawalStatus.EXPIRED.toString()
+        DepositoryWithdrawalStatus.EXPIRED.toString(),
       );
 
       const hubTokenId = generateTokenId({
         address: actualCurrency,
-        chainId: await getChainHubChainId(requestBody.chainId),
+        chainId: requestBody.chainId,
         family: await getChainVmType(requestBody.chainId),
       });
 
@@ -504,7 +502,7 @@ describe("AttestationService", () => {
       // Get the actual currency from the withdrawal
       const actualDecodedWithdrawal = decodeWithdrawal(withdrawal, "solana-vm");
       const actualCurrency = getDecodedWithdrawalCurrency(
-        actualDecodedWithdrawal
+        actualDecodedWithdrawal,
       );
 
       const solanaWithdrawalAddressRequest = createMockWithdrawalAddressRequest(
@@ -513,7 +511,8 @@ describe("AttestationService", () => {
           currency: actualCurrency,
           withdrawer: owner,
           withdrawerChainId: ownerChainId,
-        }
+          recipient: actualCurrency,
+        },
       );
 
       const requestBody = {
@@ -540,13 +539,14 @@ describe("AttestationService", () => {
 
       const withdrawerAlias = generateAddress({
         address: owner,
-        chainId: await getChainHubChainId(ownerChainId),
+        chainId: ownerChainId,
         family: await getChainVmType(ownerChainId),
       });
 
       const withdrawalAddress = getWithdrawalAddress({
         depository: solanaDepositoryAddress,
-        depositoryChainId: BigInt(101),
+        depositoryChainId: "solana",
+        depositoryVmType: "solana-vm",
         currency: solanaWithdrawalAddressRequest.currency,
         withdrawerAlias,
         recipient: solanaWithdrawalAddressRequest.recipient,
@@ -564,12 +564,12 @@ describe("AttestationService", () => {
       const result = await service.attestDepositoryWithdrawal(requestBody);
       const idempotencyKey = getDeterministicId(
         mockMessage.result.withdrawalId,
-        requestBody.transactionId!
+        requestBody.transactionId!,
       );
 
       const hubTokenId = generateTokenId({
         address: actualCurrency,
-        chainId: await getChainHubChainId(requestBody.chainId),
+        chainId: requestBody.chainId,
         family: await getChainVmType(requestBody.chainId),
       });
 
@@ -696,28 +696,29 @@ describe("AttestationService", () => {
       // TRANSFER actions from order to solver
       const hubTokenId = generateTokenId({
         address: currency,
-        chainId: await getChainHubChainId("ethereum"),
-        family: await getChainVmType("ethereum"),
+        chainId: "ethereum",
+        family: "ethereum-vm",
       });
 
       const solverAlias = generateAddress({
         address: solverAddress,
-        chainId: await getChainHubChainId("ethereum"),
-        family: await getChainVmType("ethereum"),
+        chainId: "ethereum",
+        family: "ethereum-vm",
       });
 
       // miror _getOrderAddress
       const orderHash = keccak256(
         encodePacked(
-          ["string", "uint256", "uint256", "string", "bytes32"],
+          ["string", "bytes", "uint256", "bytes32"],
           [
-            await getChainVmType("ethereum"),
-            BigInt(await getChainHubChainId("ethereum")),
+            "ethereum",
+            `0x${Buffer.from(encodeAddress(depositor, "ethereum-vm")).toString(
+              "hex",
+            )}`,
             BigInt(timestamp),
-            depositor,
             orderId as Hex,
-          ]
-        )
+          ],
+        ),
       );
       const expectedOrderAddress = `0x${orderHash
         .slice(2)
@@ -730,11 +731,11 @@ describe("AttestationService", () => {
       if (decodedFirstAction.type === ActionType.TRANSFER) {
         expect(decodedFirstAction.data.hubTokenId).toBe(hubTokenId);
         expect(decodedFirstAction.data.hubFromAddress.toLowerCase()).toBe(
-          expectedOrderAddress.toLowerCase()
+          expectedOrderAddress.toLowerCase(),
         );
         expect(decodedFirstAction.data.hubToAddress).toBe(solverAlias);
         expect(decodedFirstAction.data.amount).toBe(
-          order.output.payments[0].expectedAmount
+          order.output.payments[0].expectedAmount,
         );
       }
     });

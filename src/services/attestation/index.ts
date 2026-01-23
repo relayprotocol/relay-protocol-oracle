@@ -16,6 +16,7 @@ import {
   WithdrawalInitiationMessage,
   WithdrawalInitiatedMessage,
   getWithdrawalAddress,
+  getOrderAddress,
   ExecutionMessageMetadata,
   WithdrawalAddressRequest,
   getVmTypeNativeCurrency,
@@ -23,22 +24,13 @@ import {
   generateAddress,
   computeWithdrawerBalanceMessage,
 } from "@relay-protocol/settlement-sdk";
-
-import {
-  Address,
-  encodePacked,
-  Hex,
-  keccak256,
-  verifyMessage,
-  zeroHash,
-} from "viem";
+import { Address, encodePacked, Hex, verifyMessage, zeroHash } from "viem";
 
 import { getVmAttestor, getHubAttestor } from "./vm";
 import { EnhancedDepositoryDepositMessage } from "./vm/types";
 import { getDeterministicId } from "./vm/utils";
 import {
   getChain,
-  getChainHubChainId,
   getChainVmType,
   getHubChains,
   getSdkChainsConfig,
@@ -81,7 +73,7 @@ export class AttestationService {
         messages.map(async (m) => {
           const origin = {
             address: m.result.currency,
-            chainId: await getChainHubChainId(m.data.chainId),
+            chainId: m.data.chainId,
             family: await getChainVmType(m.data.chainId),
           };
 
@@ -89,7 +81,6 @@ export class AttestationService {
           metadata.push({
             hubTokenId,
             origin,
-            chainId: m.data.chainId,
           });
 
           const hubToAddress =
@@ -103,7 +94,7 @@ export class AttestationService {
               : // In case no deposit id is attached, use the depositor alias on the hub
                 generateAddress({
                   address: m.result.depositor,
-                  chainId: await getChainHubChainId(m.data.chainId),
+                  chainId: m.data.chainId,
                   family: await getChainVmType(m.data.chainId),
                 });
 
@@ -648,21 +639,13 @@ export class AttestationService {
     depositor: string;
     depositId: string;
   }): Promise<string> {
-    const orderHash = keccak256(
-      encodePacked(
-        ["string", "uint256", "uint256", "string", "bytes32"],
-        [
-          await getChainVmType(data.chainId),
-          BigInt(await getChainHubChainId(data.chainId)),
-          BigInt(data.timestamp),
-          data.depositor,
-          data.depositId as Hex,
-        ],
-      ),
-    );
-
-    const orderAddress = orderHash.slice(2).slice(-40);
-    return `0x${orderAddress}` as `0x${string}`;
+    return getOrderAddress({
+      depositChainVmType: await getChainVmType(data.chainId),
+      depositChainId: data.chainId,
+      depositor: data.depositor,
+      depositTimestamp: BigInt(data.timestamp),
+      depositId: data.depositId,
+    });
   }
 
   private async _getSolverFillOrRefundExecution(data: {
@@ -676,7 +659,7 @@ export class AttestationService {
     // Solver address on the hub
     const solverAlias = generateAddress({
       address: data.order.solver,
-      chainId: await getChainHubChainId(data.order.solverChainId),
+      chainId: data.order.solverChainId,
       family: await getChainVmType(data.order.solverChainId),
     });
 
@@ -684,7 +667,7 @@ export class AttestationService {
     for (const deposit of data.depositoryDeposits) {
       const hubTokenId = generateTokenId({
         address: deposit.result.currency,
-        chainId: await getChainHubChainId(deposit.data.chainId),
+        chainId: deposit.data.chainId,
         family: await getChainVmType(deposit.data.chainId),
       });
 
@@ -715,13 +698,13 @@ export class AttestationService {
       for (const fee of data.order.fees) {
         const hubTokenId = generateTokenId({
           address: fee.currency,
-          chainId: await getChainHubChainId(fee.currencyChainId),
+          chainId: fee.currencyChainId,
           family: await getChainVmType(fee.currencyChainId),
         });
 
         const hubToAddress = generateAddress({
           address: fee.recipient,
-          chainId: await getChainHubChainId(fee.recipientChainId),
+          chainId: fee.recipientChainId,
           family: await getChainVmType(fee.recipientChainId),
         });
 
@@ -763,25 +746,26 @@ export class AttestationService {
   private async _getWithdrawalAddress(data: WithdrawalAddressRequest) {
     const depositoryAddress = await this._getDepositoryAddress(data.chainId);
 
-    // the token to be withdrawn from depository
+    // The token to be withdrawn from depository
     const hubTokenId = generateTokenId({
       address: data.currency,
-      chainId: await getChainHubChainId(data.chainId),
+      chainId: data.chainId,
       family: await getChainVmType(data.chainId),
     });
 
-    // the alias for withdrawer address on origin chain
+    // The alias for withdrawer address on origin chain
     const withdrawerAlias = generateAddress({
       address: data.withdrawer,
-      chainId: await getChainHubChainId(data.withdrawerChainId),
+      chainId: data.withdrawerChainId,
       family: await getChainVmType(data.withdrawerChainId),
     });
 
-    // compute address
+    // Compute address
     const withdrawalAddress = getWithdrawalAddress({
       depository: depositoryAddress,
-      depositoryChainId: await getChainHubChainId(data.chainId),
-      recipient: data.recipient, // on destination chain
+      depositoryChainId: data.chainId,
+      depositoryVmType: await getChainVmType(data.chainId),
+      recipient: data.recipient,
       currency: data.currency,
       withdrawerAlias,
       withdrawalNonce: data.withdrawalNonce,

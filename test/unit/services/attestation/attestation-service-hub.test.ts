@@ -78,7 +78,7 @@ jest.mock("../../../../src/common/chains", () => {
     getChain: async (chainId: string) => chains[chainId],
     getChainVmType: jest.fn().mockImplementation(
       // @ts-expect-error - jest mock type inference issue
-      async () => "ethereum-vm" as jest.MockedFunction<typeof getChainVmType>
+      async () => "ethereum-vm" as jest.MockedFunction<typeof getChainVmType>,
     ),
     getChainHubChainId: jest
       .fn()
@@ -103,7 +103,7 @@ describe("HubAttestationService - attestWithdrawalAddressBalance", () => {
     // the alias for withdrawer address on origin chain
     const withdrawerAlias = generateAddress({
       address: ownerAddress,
-      chainId: await getChainHubChainId(ownerChainId),
+      chainId: ownerChainId,
       family: await getChainVmType(ownerChainId),
     });
 
@@ -122,7 +122,8 @@ describe("HubAttestationService - attestWithdrawalAddressBalance", () => {
 
     const withdrawalAddress = getWithdrawalAddress({
       depository: depositoryAddress!,
-      depositoryChainId: BigInt(1),
+      depositoryChainId: "ethereum",
+      depositoryVmType: "ethereum-vm",
       currency: withdrawalAddressRequest.currency,
       withdrawerAlias,
       recipient: withdrawalAddressRequest.recipient,
@@ -146,17 +147,17 @@ describe("HubAttestationService - attestWithdrawalAddressBalance", () => {
         withdrawalAddress as `0x${string}`,
         BigInt(expectedAmount),
         withdrawalAddressRequest.withdrawalNonce as `0x${string}`,
-      ]
+      ],
     );
 
     expect(result.message.data).toEqual(requestBody);
     expect(result.message.result.proofOfWithdrawalAddressBalance).toBe(
-      expectedProof
+      expectedProof,
     );
     expect(mockHubAttestor.getBalanceOnHub).toHaveBeenCalledWith(
       requestBody.settlementChainId,
       withdrawalAddress,
-      expect.any(BigInt)
+      expect.any(BigInt),
     );
   });
 
@@ -180,7 +181,7 @@ describe("HubAttestationService - attestWithdrawalAddressBalance", () => {
     mockGetHubAttestor.mockResolvedValue(mockHubAttestor);
 
     await expect(
-      service.attestWithdrawalAddressBalance(requestBody)
+      service.attestWithdrawalAddressBalance(requestBody),
     ).rejects.toThrow("Insufficient withdrawal address balance");
   });
 });
@@ -196,7 +197,7 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     // the alias for withdrawer address on origin chain
     const withdrawerAlias = generateAddress({
       address: ownerAddress,
-      chainId: await getChainHubChainId(ownerChainId),
+      chainId: ownerChainId,
       family: await getChainVmType(ownerChainId),
     });
 
@@ -212,7 +213,7 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     const hash = computeWithdrawerBalanceMessage(
       withdrawerAlias,
       BigInt(amount),
-      withdrawalNonce
+      withdrawalNonce,
     );
 
     const signature = await sign(hash);
@@ -226,7 +227,8 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
 
     const withdrawalAddress = getWithdrawalAddress({
       depository: depositoryAddress!,
-      depositoryChainId: BigInt(1),
+      depositoryChainId: "ethereum",
+      depositoryVmType: "ethereum-vm",
       currency: withdrawalAddressRequest.currency,
       withdrawerAlias,
       recipient: withdrawalAddressRequest.recipient,
@@ -246,7 +248,7 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     expect(mockHubAttestor.getBalanceOnHub).toHaveBeenCalledWith(
       requestBody.settlementChainId,
       withdrawerAlias,
-      expect.any(BigInt)
+      expect.any(BigInt),
     );
   });
 
@@ -261,14 +263,14 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     // the alias for withdrawer address on origin chain
     const withdrawerAlias = generateAddress({
       address: ownerAddress,
-      chainId: await getChainHubChainId(ownerChainId),
+      chainId: ownerChainId,
       family: await getChainVmType(ownerChainId),
     });
 
     const signedMessage = computeWithdrawerBalanceMessage(
       withdrawerAlias,
       BigInt(amount),
-      withdrawalAddressRequest.withdrawalNonce
+      withdrawalAddressRequest.withdrawalNonce,
     );
 
     const signature = await sign(signedMessage);
@@ -287,7 +289,7 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     mockGetHubAttestor.mockResolvedValue(mockHubAttestor);
 
     await expect(service.attestWithdrawerBalance(requestBody)).rejects.toThrow(
-      "Insufficient initial withdrawal balance"
+      "Insufficient initial withdrawal balance",
     );
   });
 
@@ -302,14 +304,14 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     // the alias for withdrawer address on origin chain
     const withdrawerAlias = generateAddress({
       address: ownerAddress,
-      chainId: await getChainHubChainId(ownerChainId),
+      chainId: ownerChainId,
       family: await getChainVmType(ownerChainId),
     });
 
     const signedMessage = computeWithdrawerBalanceMessage(
       withdrawerAlias,
       BigInt(amount),
-      withdrawalAddressRequest.withdrawalNonce
+      withdrawalAddressRequest.withdrawalNonce,
     );
 
     const signature = await sign(signedMessage);
@@ -328,7 +330,7 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     mockGetHubAttestor.mockResolvedValue(mockHubAttestor);
 
     await expect(service.attestWithdrawerBalance(requestBody)).rejects.toThrow(
-      "Invalid signature"
+      "Invalid signature",
     );
   });
 
@@ -337,7 +339,7 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     // the alias for withdrawer address on origin chain
     const withdrawerAlias = generateAddress({
       address: ownerAddress,
-      chainId: await getChainHubChainId(ownerChainId),
+      chainId: ownerChainId,
       family: await getChainVmType(ownerChainId),
     });
 
@@ -350,7 +352,7 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     const hash = computeWithdrawerBalanceMessage(
       withdrawerAlias,
       BigInt(amount),
-      withdrawalAddressRequest.withdrawalNonce
+      withdrawalAddressRequest.withdrawalNonce,
     );
 
     const signature = await sign(hash);
@@ -373,7 +375,8 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
 
     const withdrawalAddress = getWithdrawalAddress({
       depository: depositoryAddress!,
-      depositoryChainId: BigInt(1),
+      depositoryChainId: "ethereum",
+      depositoryVmType: "ethereum-vm",
       currency: withdrawalAddressRequest.currency,
       withdrawerAlias,
       recipient: withdrawalAddressRequest.recipient,
@@ -381,13 +384,13 @@ describe("HubAttestationService - attestWithdrawerBalance", () => {
     });
     const hubTokenId = generateTokenId({
       address: withdrawalAddressRequest.currency,
-      chainId: await getChainHubChainId("1"),
-      family: await getChainVmType("1"),
+      chainId: "ethereum",
+      family: "ethereum-vm",
     });
     const idempotencyKey = getDeterministicId(
       requestBody.settlementChainId,
       hubTokenId.toString(),
-      withdrawalAddress
+      withdrawalAddress,
     );
 
     expect(result.execution).toBeDefined();
