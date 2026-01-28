@@ -240,7 +240,7 @@
     "id": "megaeth",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "http://proxy-megaeth.nodes.svc.cluster.local:8545/megaeth",
+    "httpRpcUrl": "https://dimensional-floral-resonance.megaeth-mainnet.quiknode.pro/fe4520c424c682d57d529d1518e33aa38bd679c7/",
     "hubChainId": "4326"
   },
   {
