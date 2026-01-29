@@ -205,7 +205,8 @@ export default {
             },
             {
               headers: {
-                "x-api-key": apiKey,
+                "x-api-key":
+                  apiKey === "pass-through" ? req.headers["x-api-key"] : apiKey,
               },
             },
           );
