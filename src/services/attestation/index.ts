@@ -338,24 +338,47 @@ export class AttestationService {
       force?: boolean;
     },
   ): Promise<{ message: SolverFillMessage; execution?: ExecutionMessage }> {
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
     if (data.force) {
-      // TODO: Return execution for forced attestations
+      const depositoryDeposits: EnhancedDepositoryDepositMessage[] = [];
+      for (const input of data.inputs) {
+        const chainId = data.order.inputs[input.inputIndex].payment.chainId;
+        depositoryDeposits.push(
+          ...(await getVmAttestor(chainId)
+            .then((attestor) =>
+              attestor.getDepositoryDepositMessages(
+                chainId,
+                input.transactionId,
+              ),
+            )
+            .then((deposits) =>
+              deposits.filter((d) => d.result.depositId === orderId),
+            )),
+        );
+      }
+
+      const execution = await this._getSolverFillOrRefundExecution({
+        order: data.order,
+        depositoryDeposits,
+        totalWeightedInputPaymentBpsDiff: 0n,
+        type: "fill",
+      });
+
       return {
         message: {
           data,
           result: {
-            orderId: getOrderId(data.order, await getSdkChainsConfig()),
+            orderId,
             status: SolverFillStatus.SUCCESSFUL,
             totalWeightedInputPaymentBpsDiff: "0",
           },
         },
+        execution,
       };
     }
 
     const { totalWeightedInputPaymentBpsDiff, depositoryDeposits } =
       await this._getDepositsDetails(data);
-
-    const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the fill
     for (
@@ -431,24 +454,47 @@ export class AttestationService {
       force?: boolean;
     },
   ): Promise<{ message: SolverRefundMessage; execution?: ExecutionMessage }> {
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
     if (data.force) {
-      // TODO: Return execution for forced attestations
+      const depositoryDeposits: EnhancedDepositoryDepositMessage[] = [];
+      for (const input of data.inputs) {
+        const chainId = data.order.inputs[input.inputIndex].payment.chainId;
+        depositoryDeposits.push(
+          ...(await getVmAttestor(chainId)
+            .then((attestor) =>
+              attestor.getDepositoryDepositMessages(
+                chainId,
+                input.transactionId,
+              ),
+            )
+            .then((deposits) =>
+              deposits.filter((d) => d.result.depositId === orderId),
+            )),
+        );
+      }
+
+      const execution = await this._getSolverFillOrRefundExecution({
+        order: data.order,
+        depositoryDeposits,
+        totalWeightedInputPaymentBpsDiff: 0n,
+        type: "refund",
+      });
+
       return {
         message: {
           data,
           result: {
-            orderId: getOrderId(data.order, await getSdkChainsConfig()),
+            orderId,
             status: SolverRefundStatus.SUCCESSFUL,
             totalWeightedInputPaymentBpsDiff: "0",
           },
         },
+        execution,
       };
     }
 
     const { totalWeightedInputPaymentBpsDiff, depositoryDeposits } =
       await this._getDepositsDetails(data);
-
-    const orderId = getOrderId(data.order, await getSdkChainsConfig());
 
     // Verify the refunds
     for (
@@ -515,7 +561,7 @@ export class AttestationService {
       message: {
         data,
         result: {
-          orderId: getOrderId(data.order, await getSdkChainsConfig()),
+          orderId,
           status: SolverRefundStatus.SUCCESSFUL,
           totalWeightedInputPaymentBpsDiff:
             totalWeightedInputPaymentBpsDiff.toString(),
