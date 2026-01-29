@@ -9,8 +9,8 @@ import attestationsSolverFillV1 from "./attestations/solver-fills/v1";
 import attestationsSolverRefundV1 from "./attestations/solver-refunds/v1";
 import attestationsWithdrawalsInitiationV1 from "./attestations/withdrawal-initiation/v1";
 import attestationsWithdrawalsInitiatedV1 from "./attestations/withdrawal-initiated/v1";
-
 import chainsV1 from "./chains/v1";
+import livesV1 from "./lives/v1";
 
 // Initialize all endpoints
 const endpoints = [
@@ -21,12 +21,13 @@ const endpoints = [
   attestationsSolverFillV1,
   attestationsSolverRefundV1,
   chainsV1,
+  livesV1,
 ] as Endpoint[];
 export const setupEndpoints = (app: FastifyInstance) => {
   endpoints.forEach((endpoint) =>
     app.route({
       ...endpoint,
       handler: errorWrapper(endpoint.url, endpoint.handler),
-    })
+    }),
   );
 };

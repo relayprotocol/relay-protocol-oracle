@@ -50,7 +50,11 @@ setupSwagger().then(() => {
   // Setup authentication
   httpServer.addHook("preHandler", (req, reply, done) => {
     // Skip these routes
-    if (req.url === "/" || req.url.startsWith("/documentation")) {
+    if (
+      req.url === "/" ||
+      req.url.startsWith("/documentation") ||
+      req.url.startsWith("/lives")
+    ) {
       return done();
     }
 
