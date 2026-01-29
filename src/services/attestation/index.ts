@@ -774,8 +774,18 @@ export class AttestationService {
       }
     }
 
+    // Sort and generate a unique id for the relevant deposits
+    const sortedDepositIds = data.depositoryDeposits
+      .map((deposit) => deposit.result.onchainId)
+      .sort((a, b) => (BigInt(a) - BigInt(b) <= 0 ? -1 : 1));
+    const depositsId = getDeterministicId(...sortedDepositIds);
+
     return {
-      idempotencyKey: getOrderId(data.order, await getSdkChainsConfig()),
+      // The idempotency key includes the deposits id in order to support duplicate deposit fills / refunds
+      idempotencyKey: getDeterministicId(
+        depositsId,
+        getOrderId(data.order, await getSdkChainsConfig()),
+      ),
       actions,
     };
   }

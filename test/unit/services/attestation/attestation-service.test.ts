@@ -690,7 +690,6 @@ describe("AttestationService", () => {
       expect(result.message.result.orderId).toBe(orderId);
 
       expect(result.execution).toBeDefined();
-      expect(result.execution?.idempotencyKey).toBe(orderId);
       expect(result.execution?.actions.length).toBeGreaterThan(0);
 
       // TRANSFER actions from order to solver
