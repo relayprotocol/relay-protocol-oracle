@@ -1,0 +1,11 @@
+[
+  {
+    "id": "relay",
+    "vmType": "hub-vm",
+    "httpRpcUrl": "https://relay-integrations.sovereign-labs.xyz/rpc/relay_yGMHSrnj5HZcPprSACp7DBoci9E8J9No",
+    "chainId": "537713",
+    "additionalData": {
+      "oracleAddress": "0xd4b9fdB83C723c096d7fBE72da252aa23f1387aa"
+    }
+  }
+]
