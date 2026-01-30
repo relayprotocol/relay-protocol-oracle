@@ -66,16 +66,15 @@ export const getChainVmType = async (chainId: string) =>
 
 export const getSdkChainsConfig = async () => {
   return Object.fromEntries(
-    Object.values(await getChains()).map((c) => [c.id, c.vmType]),
+    Object.values(await getChains()).map((c) => [c.id, c.vmType])
   );
 };
 
 // Helpers for hub chains
 
 export const getHubChains = async () => {
-  const hubEnv = config.environment.includes("prod") ? "prod" : "dev";
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const chains = require(`../../configs/chains.hub.${hubEnv}.json`);
+  const chains = require(`../../configs/chains.hub.${config.environment}.json`);
   const __chains: { [id: string]: Chain } = {};
   for (const chain of chains) {
     __chains[chain.id] = {
