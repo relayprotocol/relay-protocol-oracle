@@ -77,6 +77,12 @@ const MessageData = Type.Object({
   }),
   inputs: Type.Array(
     Type.Object({
+      chainId: Type.Optional(
+        Type.String({
+          description:
+            "The chain id of the deposit (only needed for forced attestations where the deposit was done on a different chain than the order's input)",
+        }),
+      ),
       transactionId: Type.String({
         description: "The transaction id of the deposit",
       }),

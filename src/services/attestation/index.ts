@@ -458,7 +458,9 @@ export class AttestationService {
     if (data.force) {
       const depositoryDeposits: EnhancedDepositoryDepositMessage[] = [];
       for (const input of data.inputs) {
-        const chainId = data.order.inputs[input.inputIndex].payment.chainId;
+        const chainId =
+          (input as any).chainId ??
+          data.order.inputs[input.inputIndex].payment.chainId;
         depositoryDeposits.push(
           ...(await getVmAttestor(chainId)
             .then((attestor) =>
