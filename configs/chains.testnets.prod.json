@@ -1,0 +1,16 @@
+[
+    {
+        "id": "base-sepolia",
+        "vmType": "ethereum-vm",
+        "httpRpcUrl": "https://base-sepolia.g.alchemy.com/v2/demo",
+        "hubChainId": "84532",
+        "depository": "0x5Feab8dB4534F9F7E2669Bb260c57a01aD1c12e3"
+    },
+    {
+        "id": "sepolia",
+        "vmType": "ethereum-vm",
+        "httpRpcUrl": "http://proxy-sepolia.nodes.svc.cluster.local:8545/sepolia",
+        "hubChainId": "11155111",
+        "depository": "0x5Feab8dB4534F9F7E2669Bb260c57a01aD1c12e3"
+    }
+]
