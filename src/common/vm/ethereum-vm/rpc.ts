@@ -5,16 +5,21 @@ import { getChain } from "../../chains";
 export const httpRpc = async (chainId: string) => {
   const chain = await getChain(chainId);
 
+  let url = chain.httpRpcUrl;
+
   // Handle RPCs which require basic authorization
   let basicAuthCredentials: { user: string; password: string } | undefined;
-  const needsBasicAuth = chain.httpRpcUrl.includes("@");
+  const needsBasicAuth = url.includes("@");
   if (needsBasicAuth) {
     try {
-      const parsedUrl = new URL(chain.httpRpcUrl);
+      const parsedUrl = new URL(url);
       basicAuthCredentials = {
         user: parsedUrl.username,
         password: parsedUrl.password,
       };
+
+      // Overwrite the URL to not include the credentials (`fetch` will fail if credentials are set)
+      url = parsedUrl.origin;
     } catch {
       // Skip errors
     }
@@ -32,12 +37,12 @@ export const httpRpc = async (chainId: string) => {
       },
       rpcUrls: {
         default: {
-          http: [chain.httpRpcUrl],
+          http: [url],
         },
       },
     },
     transport: http(
-      chain.httpRpcUrl,
+      url,
       basicAuthCredentials
         ? {
             fetchOptions: {
