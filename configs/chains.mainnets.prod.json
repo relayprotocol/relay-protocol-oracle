@@ -237,6 +237,13 @@
     "hubChainId": "2818"
   },
   {
+    "id": "tempo",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "https://eng:acard-melody-fashion-finish@rpc.mainnet.tempo.xyz",
+    "hubChainId": "4217"
+  },
+  {
     "id": "megaeth",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
