@@ -356,27 +356,10 @@ export class HyperliquidVmAttestor extends VmAttestor {
           ? Number(parameters.nonce)
           : Number(parameters.time);
 
-      const depositoryTxs = recentTxs.filter(
-        (tx) => tx.user.toLowerCase() === depository.toLowerCase(),
-      );
-      if (depositoryTxs.length > 0) {
-        const nonces = depositoryTxs
-          .map((tx) => {
-            const { action } = tx;
-            return action.type === "sendAsset"
-              ? Number(action.nonce)
-              : Number(action.time);
-          })
-          .filter((nonce) => !isNaN(nonce))
-          .sort((a, b) => a - b);
-        if (nonces.length > 0) {
-          const minNonce = nonces[0];
-          const maxNonce = nonces[nonces.length - 1];
-
-          if (minNonce < withdrawalNonce && withdrawalNonce < maxNonce) {
-            status = DepositoryWithdrawalStatus.EXPIRED;
-          }
-        }
+      // The nonce will not be accepted if it's older than 2 days
+      // https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/nonces-and-api-wallets#hyperliquid-nonces
+      if (withdrawalNonce < Date.now() - 2 * 24 * 3600 * 1000) {
+        status = DepositoryWithdrawalStatus.EXPIRED;
       }
     }
 

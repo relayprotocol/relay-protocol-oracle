@@ -42,7 +42,7 @@ jest.mock("../../../../src/common/chains", () => {
       chainId === "base" ? "8453" : chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
       Object.fromEntries(
-        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+        Object.values(chains).map((chain) => [chain.id, chain.vmType]),
       ),
   };
 });
@@ -73,7 +73,7 @@ describe("HyperliquidVmAttestor", () => {
     beforeEach(() => {
       jest.clearAllMocks();
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { id: randomHex(32) } })
+        Promise.resolve({ data: { id: randomHex(32) } }),
       );
     });
 
@@ -101,7 +101,7 @@ describe("HyperliquidVmAttestor", () => {
       (axios.get as jest.Mock).mockImplementation(() =>
         Promise.resolve({
           data: { id: expectedDepositId, createdAt: new Date().toISOString() },
-        })
+        }),
       );
 
       setupRpcMock({
@@ -123,7 +123,7 @@ describe("HyperliquidVmAttestor", () => {
       expect(messages[0].result.depositor).toBe(testUserAddress);
       expect(messages[0].result.depositId).toBe(expectedDepositId);
       expect(messages[0].result.currency).toBe(
-        "0x00000000000000000000000000000000"
+        "0x00000000000000000000000000000000",
       );
       expect(messages[0].result.amount).toBe("10000000000");
       expect(messages[0].result.onchainId).toBeDefined();
@@ -156,7 +156,7 @@ describe("HyperliquidVmAttestor", () => {
       (axios.get as jest.Mock).mockImplementation(() =>
         Promise.resolve({
           data: { id: expectedDepositId, createdAt: new Date().toISOString() },
-        })
+        }),
       );
 
       setupRpcMock({
@@ -186,7 +186,7 @@ describe("HyperliquidVmAttestor", () => {
       expect(messages[0].result.depositor).toBe(testUserAddress);
       expect(messages[0].result.depositId).toBe(expectedDepositId);
       expect(messages[0].result.currency).toBe(
-        "0x6d1e7cde53ba9467b783cb7c530ce054"
+        "0x6d1e7cde53ba9467b783cb7c530ce054",
       );
       expect(messages[0].result.amount).toBe("10040000");
       expect(messages[0].result.onchainId).toBeDefined();
@@ -316,7 +316,7 @@ describe("HyperliquidVmAttestor", () => {
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
         expect(error.message).toContain(
-          "Only USDC is supported as a Perps token"
+          "Only USDC is supported as a Perps token",
         );
       }
     });
@@ -344,7 +344,7 @@ describe("HyperliquidVmAttestor", () => {
       (axios.get as jest.Mock).mockImplementation(() =>
         Promise.resolve({
           data: { id: expectedDepositId, createdAt: new Date().toISOString() },
-        })
+        }),
       );
 
       setupRpcMock({
@@ -364,7 +364,7 @@ describe("HyperliquidVmAttestor", () => {
         expect(false).toBe(true); // Should not reach here
       } catch (error: any) {
         expect(error.message).toContain(
-          "Could not retrieve payment currency decimals"
+          "Could not retrieve payment currency decimals",
         );
       }
     });
@@ -392,7 +392,7 @@ describe("HyperliquidVmAttestor", () => {
       (axios.get as jest.Mock).mockImplementation(() =>
         Promise.resolve({
           data: { id: expectedDepositId, createdAt: new Date().toISOString() },
-        })
+        }),
       );
 
       setupRpcMock({
@@ -442,7 +442,7 @@ describe("HyperliquidVmAttestor", () => {
 
       // Mock axios to return empty data
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: undefined })
+        Promise.resolve({ data: undefined }),
       );
 
       setupRpcMock({
@@ -482,7 +482,7 @@ describe("HyperliquidVmAttestor", () => {
       (axios.get as jest.Mock).mockImplementation(() =>
         Promise.resolve({
           data: { id: randomHex(32), createdAt: new Date().toISOString() },
-        })
+        }),
       );
 
       setupRpcMock({
@@ -503,7 +503,7 @@ describe("HyperliquidVmAttestor", () => {
       expect(messages[0].result.depositor).toBe(testUserAddress);
       expect(messages[0].result.depositId).toBe(zeroHash);
       expect(messages[0].result.currency).toBe(
-        "0x00000000000000000000000000000000"
+        "0x00000000000000000000000000000000",
       );
       expect(messages[0].result.amount).toBe("10000000000");
       expect(messages[0].result.onchainId).toBeDefined();
@@ -527,7 +527,7 @@ describe("HyperliquidVmAttestor", () => {
 
       // Mock axios to return empty data
       (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: undefined })
+        Promise.resolve({ data: undefined }),
       );
 
       setupRpcMock({
@@ -548,7 +548,7 @@ describe("HyperliquidVmAttestor", () => {
       expect(messages[0].result.depositor).toBe(testUserAddress);
       expect(messages[0].result.depositId).toBe(zeroHash);
       expect(messages[0].result.currency).toBe(
-        "0x00000000000000000000000000000000"
+        "0x00000000000000000000000000000000",
       );
       expect(messages[0].result.amount).toBe("10000000000");
       expect(messages[0].result.onchainId).toBeDefined();
@@ -820,8 +820,7 @@ describe("HyperliquidVmAttestor", () => {
       }
     });
 
-    it("should return PENDING when transaction is not from depository", async () => {
-      const transactionId = randomHex(32);
+    it("should return EXPIRED when transaction is expired", async () => {
       const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
         vmType: "hyperliquid-vm",
         withdrawal: {
@@ -840,31 +839,18 @@ describe("HyperliquidVmAttestor", () => {
         },
       };
 
-      const nonDepositoryTx = {
-        time: Date.now(),
-        user: testUserAddress, // Different from depository
-        action: {
-          type: "sendAsset",
-          nonce: 1761563890150,
-        },
-        hash: transactionId,
-        error: null,
-      };
-
       setupRpcMock({
         userDetails: async () => ({ txs: [] }),
-        txDetails: async () => ({ tx: nonDepositoryTx }),
       });
 
       const { message } =
         await new AttestationService().attestDepositoryWithdrawal({
           chainId: "hyperliquid",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
-          transactionId,
           withdrawalAddressRequest,
         });
 
-      expect(message.result.status).toBe(DepositoryWithdrawalStatus.PENDING);
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
     });
 
     it("should handle UsdSend withdrawal type", async () => {
@@ -960,7 +946,7 @@ describe("HyperliquidVmAttestor", () => {
           withdrawalAddressRequest,
         });
 
-      expect(message.result.status).toBe(DepositoryWithdrawalStatus.PENDING);
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
     });
   });
 });
