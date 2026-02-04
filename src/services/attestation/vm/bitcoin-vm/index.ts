@@ -23,7 +23,7 @@ const VM_TYPE = "bitcoin-vm";
 export class BitcoinVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
-    transactionId: string
+    transactionId: string,
   ): Promise<EnhancedDepositoryDepositMessage[]> {
     const trackingId = getTrackingId();
 
@@ -97,7 +97,7 @@ export class BitcoinVmAttestor extends VmAttestor {
           onchainId: getDeterministicId(
             chainId,
             transactionId,
-            (depositIdIndex ?? 0).toString()
+            (depositIdIndex ?? 0).toString(),
           ),
           depository,
           depositId: depositId ?? zeroHash,
@@ -106,9 +106,12 @@ export class BitcoinVmAttestor extends VmAttestor {
           amount: amount.toString(),
         },
         extraData: {
-          timestamp: await rpc
-            .getBlock(transaction.blockhash)
-            .then((block) => String(block.time)),
+          timestamp: String(
+            transaction.time ??
+              (await rpc
+                .getBlock(transaction.blockhash)
+                .then((block) => block.time)),
+          ),
         },
       },
     ];
@@ -116,7 +119,7 @@ export class BitcoinVmAttestor extends VmAttestor {
 
   public async getDepositoryWithdrawalMessage(
     chainId: string,
-    withdrawal: string
+    withdrawal: string,
   ): Promise<DepositoryWithdrawalMessage> {
     const trackingId = getTrackingId();
 
@@ -130,7 +133,7 @@ export class BitcoinVmAttestor extends VmAttestor {
 
     const decodedWithdrawal = decodeWithdrawal(
       withdrawal,
-      chain.vmType
+      chain.vmType,
     ) as DecodedBitcoinVmWithdrawal;
 
     const psbt = bitcoin.Psbt.fromHex(decodedWithdrawal.withdrawal.psbt);
@@ -152,7 +155,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     });
     if (!psbtInputs.filter((input) => input.ownedByAllocator).length) {
       throw externalError(
-        "No allocator UTXOs detected as part of the withdrawal request"
+        "No allocator UTXOs detected as part of the withdrawal request",
       );
     }
 
@@ -163,7 +166,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     }
 
     const accessToken = await this._getEsploraAccessToken(
-      esploraCompatibleApiUrl
+      esploraCompatibleApiUrl,
     );
 
     // For every PSBT input, get the transaction that spent it
@@ -186,7 +189,7 @@ export class BitcoinVmAttestor extends VmAttestor {
                   Authorization: `Bearer ${accessToken}`,
                 },
               }
-            : undefined
+            : undefined,
         )
         .then((response) => response.data);
       if (outspend.spent && outspend.txid && outspend.status?.confirmed) {
@@ -208,8 +211,8 @@ export class BitcoinVmAttestor extends VmAttestor {
       await logRpcUsage(chainId, "getRawTransaction", trackingId);
       const tx = bitcoin.Transaction.fromHex(
         await rpc.getRawTransaction(
-          txidsSpendingPsbtInputs.values().next().value
-        )
+          txidsSpendingPsbtInputs.values().next().value,
+        ),
       );
       const psbtMatchesSpendingTx = psbt.data.inputs.every((input, i) => {
         if (input.witnessUtxo?.script.toString("hex") === allocatorScript) {
@@ -217,7 +220,7 @@ export class BitcoinVmAttestor extends VmAttestor {
 
           // PSBT values
           const psbtSignatureHex = Buffer.from(signature.signature).toString(
-            "hex"
+            "hex",
           );
           const psbtPubkeyHex = Buffer.from(signature.pubkey).toString("hex");
 
@@ -269,7 +272,7 @@ export class BitcoinVmAttestor extends VmAttestor {
       orderId: string;
       extraData: string;
       deadline: number;
-    }
+    },
   ): Promise<bigint> {
     const trackingId = getTrackingId();
 
@@ -291,14 +294,14 @@ export class BitcoinVmAttestor extends VmAttestor {
       .then((block) => block.time);
     if (transactionTimestamp > payment.deadline) {
       throw externalError(
-        `Transaction ${transactionId} executed after deadline`
+        `Transaction ${transactionId} executed after deadline`,
       );
     }
 
     const decodedVouts = this._decodeTxOpReturnVouts(transaction.vout);
     if (!decodedVouts.some(({ opReturn }) => opReturn === payment.orderId)) {
       throw externalError(
-        `Transaction ${transactionId} does not reference order id`
+        `Transaction ${transactionId} does not reference order id`,
       );
     }
 
@@ -318,7 +321,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     _chainId: string,
     _transactionId: string,
     _calls: string[],
-    _extraData: string
+    _extraData: string,
   ): Promise<boolean> {
     throw internalError("Not implemented");
   }
@@ -327,7 +330,7 @@ export class BitcoinVmAttestor extends VmAttestor {
 
   private _ensureTxFinalization(
     transactionId: string,
-    tx: { confirmations?: number }
+    tx: { confirmations?: number },
   ) {
     if (!tx.confirmations || tx.confirmations < this._FINALIZATION_BLOCKS) {
       throw externalError(`Transaction ${transactionId} is not finalized`);
@@ -345,7 +348,7 @@ export class BitcoinVmAttestor extends VmAttestor {
         type: string;
         address?: string;
       };
-    }[]
+    }[],
   ) {
     return vouts.map((output, i) => {
       if (output.scriptPubKey.asm?.startsWith("OP_RETURN")) {
@@ -355,7 +358,7 @@ export class BitcoinVmAttestor extends VmAttestor {
               i,
               opReturn: Buffer.from(
                 output.scriptPubKey.hex.slice(6),
-                "hex"
+                "hex",
               ).toString("utf8"),
             };
           } else {
@@ -363,7 +366,7 @@ export class BitcoinVmAttestor extends VmAttestor {
               i,
               opReturn: Buffer.from(
                 output.scriptPubKey.hex.slice(4),
-                "hex"
+                "hex",
               ).toString("utf8"),
             };
           }
@@ -411,7 +414,7 @@ export class BitcoinVmAttestor extends VmAttestor {
       };
 
       const data: any = await fetch(blockstreamLoginUrl, options).then(
-        (response) => response.json()
+        (response) => response.json(),
       );
 
       this._esploraAccessToken = {

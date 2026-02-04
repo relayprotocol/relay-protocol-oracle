@@ -21,7 +21,7 @@ class RpcConnection {
       },
       {
         validateStatus: () => true,
-      }
+      },
     );
     if (data.error || data.result?.errors) {
       throw new Error(JSON.stringify(data.error || data.result?.errors));
@@ -86,6 +86,7 @@ class RpcConnection {
         address?: string;
       };
     }[];
+    time?: number;
     blocktime?: number;
     confirmations?: number;
     blockhash: string;
@@ -114,7 +115,7 @@ class RpcConnection {
       vout: result.vout.map((output: any) => ({
         // Convert from btc to sat
         value: Number(
-          parseUnits(Number(output.value).toFixed(8).toString(), 8)
+          parseUnits(Number(output.value).toFixed(8).toString(), 8),
         ),
         n: output.n,
         scriptPubKey: {
