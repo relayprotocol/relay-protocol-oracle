@@ -312,10 +312,14 @@ export class HyperliquidVmAttestor extends VmAttestor {
     // First check if the withdrawal exists in recent transactions
     const recentTxs = userDetails.txs;
     for (const tx of recentTxs) {
-      if (tx.user.toLowerCase() === depository.toLowerCase() && !tx.error) {
+      if (tx.user.toLowerCase() === depository.toLowerCase()) {
         const txMessageHash = this._getMessageHash(tx.action);
         if (txMessageHash && withdrawalId === txMessageHash) {
-          status = DepositoryWithdrawalStatus.EXECUTED;
+          if (!tx.error) {
+            status = DepositoryWithdrawalStatus.EXECUTED;
+          } else {
+            status = DepositoryWithdrawalStatus.EXPIRED;
+          }
           break;
         }
       }
@@ -333,16 +337,17 @@ export class HyperliquidVmAttestor extends VmAttestor {
           `Missing transaction ${transactionId} on chain ${chainId}`,
         );
       }
-      if (txDetails.error) {
-        throw externalError(`Transaction failed: ${transactionId}`);
-      }
 
       // Verify transaction is from depository
       if (txDetails.user.toLowerCase() === depository.toLowerCase()) {
         // Verify the transaction's message hash matches the withdrawal id
         const txMessageHash = this._getMessageHash(txDetails.action);
         if (txMessageHash && withdrawalId === txMessageHash) {
-          status = DepositoryWithdrawalStatus.EXECUTED;
+          if (!txDetails.error) {
+            status = DepositoryWithdrawalStatus.EXECUTED;
+          } else {
+            status = DepositoryWithdrawalStatus.EXPIRED;
+          }
         }
       }
     }

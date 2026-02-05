@@ -795,8 +795,15 @@ describe("HyperliquidVmAttestor", () => {
         time: Date.now(),
         user: testDepositoryAddress,
         action: {
-          type: "sendAsset",
-          nonce: 1761563890150,
+          type: "SendAsset",
+          hyperliquidChain: "Mainnet",
+          destination: testUserAddress,
+          sourceDex: "",
+          destinationDex: "spot",
+          token: "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
+          amount: "10.04",
+          fromSubAccount: "",
+          nonce: "1761563890150",
         },
         hash: transactionId,
         error: "Transaction failed",
@@ -807,17 +814,17 @@ describe("HyperliquidVmAttestor", () => {
         txDetails: async () => ({ tx: failedTx }),
       });
 
-      try {
-        await new AttestationService().attestDepositoryWithdrawal({
+      const message = await new AttestationService().attestDepositoryWithdrawal(
+        {
           chainId: "hyperliquid",
           withdrawal: encodeWithdrawal(decodedWithdrawal),
           transactionId,
           withdrawalAddressRequest,
-        });
-        expect(false).toBe(true); // Should not reach here
-      } catch (error: any) {
-        expect(error.message).toContain(`Transaction failed: ${transactionId}`);
-      }
+        },
+      );
+      expect(message.message.result.status).toBe(
+        DepositoryWithdrawalStatus.EXPIRED,
+      );
     });
 
     it("should return EXPIRED when transaction is expired", async () => {
