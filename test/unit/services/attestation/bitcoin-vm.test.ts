@@ -371,6 +371,9 @@ describe("BitcoinVmAttestor", () => {
         txMatches?: boolean;
         multipleSpendingTxs?: boolean;
         noAllocatorUtxos?: boolean;
+        allocatorScriptHex?: string;
+        legacyOnchainInput?: boolean;
+        unsupportedAllocatorInput?: boolean;
       } = {},
     ) => {
       const {
@@ -378,6 +381,9 @@ describe("BitcoinVmAttestor", () => {
         txMatches = true,
         multipleSpendingTxs = false,
         noAllocatorUtxos = false,
+        allocatorScriptHex = "00147751e76e8199196d454941c45d1b3a323f1433bd6",
+        legacyOnchainInput = false,
+        unsupportedAllocatorInput = false,
       } = options;
 
       // Mock withdrawal data
@@ -412,10 +418,7 @@ describe("BitcoinVmAttestor", () => {
                       "00140000000000000000000000000000000000000000",
                       "hex",
                     ) // Different script
-                  : Buffer.from(
-                      "00147751e76e8199196d454941c45d1b3a323f1433bd6",
-                      "hex",
-                    ),
+                  : Buffer.from(allocatorScriptHex, "hex"),
               },
               partialSig: [
                 {
@@ -438,10 +441,7 @@ describe("BitcoinVmAttestor", () => {
                       "00140000000000000000000000000000000000000000",
                       "hex",
                     ) // Different script
-                  : Buffer.from(
-                      "00147751e76e8199196d454941c45d1b3a323f1433bd6",
-                      "hex",
-                    ),
+                  : Buffer.from(allocatorScriptHex, "hex"),
               },
               partialSig: [
                 {
@@ -471,7 +471,7 @@ describe("BitcoinVmAttestor", () => {
       jest
         .spyOn(bitcoin.address, "toOutputScript")
         .mockImplementation(() =>
-          Buffer.from("00147751e76e8199196d454941c45d1b3a323f1433bd6", "hex"),
+          Buffer.from(allocatorScriptHex, "hex"),
         );
 
       // Mock Esplora API response
@@ -510,58 +510,58 @@ describe("BitcoinVmAttestor", () => {
       }
 
       // Create mock transaction with witness data
+      const matchingWitnessStack = [
+        Buffer.from(
+          "3045022100f4d17785319488c32c4e3d339c5e8f317c94c4978e4b0641fb9cd4eacc89b0e802203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
+          "hex",
+        ),
+        Buffer.from(
+          "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
+          "hex",
+        ),
+      ];
+      const nonMatchingWitnessStack = [
+        Buffer.from(
+          "3045022100aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
+          "hex",
+        ),
+        Buffer.from(
+          "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
+          "hex",
+        ),
+      ];
+      const matchingScriptSig = bitcoin.script.compile(matchingWitnessStack);
+      const nonMatchingScriptSig = bitcoin.script.compile(nonMatchingWitnessStack);
       const mockTx = {
         ins: [
           {
-            witness: txMatches
-              ? [
-                  // Match the signature and pubkey from PSBT
-                  Buffer.from(
-                    "3045022100f4d17785319488c32c4e3d339c5e8f317c94c4978e4b0641fb9cd4eacc89b0e802203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
-                    "hex",
-                  ),
-                  Buffer.from(
-                    "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
-                    "hex",
-                  ),
-                ]
-              : [
-                  // Different signature for non-matching case
-                  Buffer.from(
-                    "3045022100aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
-                    "hex",
-                  ),
-                  Buffer.from(
-                    "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
-                    "hex",
-                  ),
-                ],
+            witness: legacyOnchainInput
+              ? []
+              : unsupportedAllocatorInput
+                ? [matchingWitnessStack[0]]
+                : txMatches
+                  ? matchingWitnessStack
+                  : nonMatchingWitnessStack,
+            script: legacyOnchainInput
+              ? txMatches
+                ? matchingScriptSig
+                : nonMatchingScriptSig
+              : Buffer.alloc(0),
           },
           // Add a second input for multiple spending tx test
           {
-            witness: txMatches
-              ? [
-                  // Match the signature and pubkey from PSBT
-                  Buffer.from(
-                    "3045022100f4d17785319488c32c4e3d339c5e8f317c94c4978e4b0641fb9cd4eacc89b0e802203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
-                    "hex",
-                  ),
-                  Buffer.from(
-                    "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
-                    "hex",
-                  ),
-                ]
-              : [
-                  // Different signature for non-matching case
-                  Buffer.from(
-                    "3045022100aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02203c58f8c3ec9072a5e33a4c12b5641b3c5bca14047b7e1b6969d1d3c6e6210c1b01",
-                    "hex",
-                  ),
-                  Buffer.from(
-                    "0304c01563d46e38264283b99bb352b46e69bf132431f102d4bd9a9d8dab075e7f",
-                    "hex",
-                  ),
-                ],
+            witness: legacyOnchainInput
+              ? []
+              : unsupportedAllocatorInput
+                ? [matchingWitnessStack[0]]
+                : txMatches
+                  ? matchingWitnessStack
+                  : nonMatchingWitnessStack,
+            script: legacyOnchainInput
+              ? txMatches
+                ? matchingScriptSig
+                : nonMatchingScriptSig
+              : Buffer.alloc(0),
           },
         ],
       };
@@ -681,6 +681,40 @@ describe("BitcoinVmAttestor", () => {
       ).rejects.toThrow(
         "No allocator UTXOs detected as part of the withdrawal request",
       );
+    });
+
+    it("should return EXECUTED for legacy allocator spends matched via scriptSig", async () => {
+      const { withdrawalHex } = setupWithdrawalTest({
+        isSpent: true,
+        txMatches: true,
+        legacyOnchainInput: true,
+        allocatorScriptHex: "76a914e58afa142f57509ee9a930810e33592581ad9b3188ac",
+      });
+
+      const { message } =
+        await new AttestationService().attestDepositoryWithdrawal({
+          chainId: "bitcoin",
+          withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
+        });
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXECUTED);
+    });
+
+    it("should throw error for unsupported allocator input formats", async () => {
+      const { withdrawalHex } = setupWithdrawalTest({
+        isSpent: true,
+        txMatches: true,
+        unsupportedAllocatorInput: true,
+      });
+
+      await expect(
+        new AttestationService().attestDepositoryWithdrawal({
+          chainId: "bitcoin",
+          withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
+        }),
+      ).rejects.toThrow("Unsupported allocator input format");
     });
   });
 });

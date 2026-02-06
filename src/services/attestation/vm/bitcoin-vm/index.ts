@@ -145,10 +145,14 @@ export class BitcoinVmAttestor extends VmAttestor {
     const psbtInputs = psbt.data.inputs.map((input, i) => {
       const txid = Buffer.from(psbt.txInputs[i].hash).reverse().toString("hex");
       const vout = psbt.txInputs[i].index;
+      const prevoutScriptHex = this._getPsbtInputPrevoutScriptHex(
+        psbt,
+        i,
+        input,
+      );
 
       return {
-        ownedByAllocator:
-          input.witnessUtxo?.script.toString("hex") === allocatorScript,
+        ownedByAllocator: prevoutScriptHex === allocatorScript,
         txid,
         vout,
       };
@@ -214,9 +218,14 @@ export class BitcoinVmAttestor extends VmAttestor {
           txidsSpendingPsbtInputs.values().next().value,
         ),
       );
-      const psbtMatchesSpendingTx = psbt.data.inputs.every((input, i) => {
-        if (input.witnessUtxo?.script.toString("hex") === allocatorScript) {
-          const signature = input.partialSig?.[0]!;
+      const psbtMatchesSpendingTx = psbtInputs.every((input, i) => {
+        if (input.ownedByAllocator) {
+          const signature = psbt.data.inputs[i].partialSig?.[0];
+          if (!signature) {
+            throw externalError(
+              `Unsupported allocator input format: missing partial signature at input ${i}`,
+            );
+          }
 
           // PSBT values
           const psbtSignatureHex = Buffer.from(signature.signature).toString(
@@ -225,13 +234,25 @@ export class BitcoinVmAttestor extends VmAttestor {
           const psbtPubkeyHex = Buffer.from(signature.pubkey).toString("hex");
 
           // Onchain values
-          const w = tx.ins[i]?.witness ?? [];
-          const onchainSignatureHex = w[0]?.toString("hex");
-          const onchainPubkeyHex = w[1]?.toString("hex");
+          const onchainInput = tx.ins[i];
+          if (!onchainInput) {
+            throw externalError(
+              `Unsupported allocator input format: missing onchain input ${i}`,
+            );
+          }
+          const onchainSignature = this._extractOnchainSignature(
+            onchainInput,
+            i,
+          );
+          if (!onchainSignature) {
+            throw externalError(
+              `Unsupported allocator input format at input ${i}`,
+            );
+          }
 
           if (
-            psbtSignatureHex === onchainSignatureHex &&
-            psbtPubkeyHex === onchainPubkeyHex
+            psbtSignatureHex === onchainSignature.signatureHex &&
+            psbtPubkeyHex === onchainSignature.pubkeyHex
           ) {
             return true;
           }
@@ -380,6 +401,81 @@ export class BitcoinVmAttestor extends VmAttestor {
   }
 
   _esploraAccessToken: { token: string; expiration: number } | undefined;
+  private _getPsbtInputPrevoutScriptHex(
+    psbt: bitcoin.Psbt,
+    inputIndex: number,
+    input: { witnessUtxo?: { script: Buffer }; nonWitnessUtxo?: Buffer },
+  ): string | undefined {
+    if (input.witnessUtxo) {
+      return input.witnessUtxo.script.toString("hex");
+    }
+
+    if (input.nonWitnessUtxo) {
+      const prevTx = bitcoin.Transaction.fromBuffer(input.nonWitnessUtxo);
+      const prevoutIndex = psbt.txInputs[inputIndex].index;
+      const prevout = prevTx.outs[prevoutIndex];
+      if (!prevout) {
+        throw externalError(
+          `Unsupported allocator input format: prevout index out of range at input ${inputIndex}`,
+        );
+      }
+
+      return prevout.script.toString("hex");
+    }
+
+    return undefined;
+  }
+
+  private _extractOnchainSignature(
+    txInput: bitcoin.TxInput,
+    inputIndex: number,
+  ): { signatureHex: string; pubkeyHex: string } | undefined {
+    if (txInput.witness?.length) {
+      const signature = txInput.witness[0];
+      const pubkey = txInput.witness[1];
+      if (!signature || !pubkey || !this._isPubkey(pubkey)) {
+        return undefined;
+      }
+
+      return {
+        signatureHex: signature.toString("hex"),
+        pubkeyHex: pubkey.toString("hex"),
+      };
+    }
+
+    const decompiledScriptSig = bitcoin.script.decompile(txInput.script);
+    if (!decompiledScriptSig) {
+      throw externalError(
+        `Unsupported allocator input format: could not decode scriptSig at input ${inputIndex}`,
+      );
+    }
+
+    const dataPushes = decompiledScriptSig.filter((value) =>
+      Buffer.isBuffer(value),
+    );
+    if (dataPushes.length < 2) {
+      return undefined;
+    }
+
+    const signature = dataPushes[0] as Buffer;
+    const pubkey = dataPushes[1] as Buffer;
+    if (!this._isPubkey(pubkey)) {
+      return undefined;
+    }
+
+    return {
+      signatureHex: signature.toString("hex"),
+      pubkeyHex: pubkey.toString("hex"),
+    };
+  }
+
+  private _isPubkey(buffer: Buffer): boolean {
+    return (
+      (buffer.length === 33 && (buffer[0] === 0x02 || buffer[0] === 0x03)) ||
+      (buffer.length === 65 && buffer[0] === 0x04)
+    );
+  }
+
   private async _getEsploraAccessToken(esploraCompatibleApiUrl: string) {
     if (
       this._esploraAccessToken &&
