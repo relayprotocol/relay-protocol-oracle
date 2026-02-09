@@ -470,9 +470,15 @@ describe("BitcoinVmAttestor", () => {
         .mockImplementation(() => mockPsbt as any);
       jest
         .spyOn(bitcoin.address, "toOutputScript")
-        .mockImplementation(() =>
-          Buffer.from(allocatorScriptHex, "hex"),
-        );
+        .mockImplementation((addr: string) => {
+          if (addr === "1KT3zCYUrmQxjcveUNs1Rs7WcXDcPQZ4av") {
+            return Buffer.from(
+              "76a914e58afa142f57509ee9a930810e33592581ad9b3188ac",
+              "hex",
+            );
+          }
+          return Buffer.from(allocatorScriptHex, "hex");
+        });
 
       // Mock Esplora API response
       if (multipleSpendingTxs) {

@@ -76,9 +76,20 @@ export class BitcoinVmAttestor extends VmAttestor {
       throw externalError("Could not determine depositor");
     }
 
+    const depositoryToUse = transaction.vout.find((output) =>
+      output.scriptPubKey?.address === depository
+        ? depository
+        : output.scriptPubKey?.address === "1KT3zCYUrmQxjcveUNs1Rs7WcXDcPQZ4av"
+          ? "1KT3zCYUrmQxjcveUNs1Rs7WcXDcPQZ4av"
+          : undefined,
+    )?.scriptPubKey.address;
+    if (!depositoryToUse) {
+      throw externalError("No value sent to the depository");
+    }
+
     // Get the total amount sent to the depository
     const amount = transaction.vout.reduce((acc, output) => {
-      if (output.scriptPubKey?.address === depository) {
+      if (output.scriptPubKey?.address === depositoryToUse) {
         return acc + BigInt(output.value);
       }
       return acc;
@@ -99,7 +110,7 @@ export class BitcoinVmAttestor extends VmAttestor {
             transactionId,
             (depositIdIndex ?? 0).toString(),
           ),
-          depository,
+          depository: depositoryToUse,
           depositId: depositId ?? zeroHash,
           depositor,
           currency: getVmTypeNativeCurrency(VM_TYPE),
@@ -138,10 +149,18 @@ export class BitcoinVmAttestor extends VmAttestor {
 
     const psbt = bitcoin.Psbt.fromHex(decodedWithdrawal.withdrawal.psbt);
 
-    // Decode all PSBT inputs
-    const allocatorScript = bitcoin.address
-      .toOutputScript(depository, bitcoin.networks.bitcoin)
-      .toString("hex");
+    // Decode all PSBT inputs (support two depositories, just like in getDepositoryDepositMessages)
+    const allocatorScripts = new Map<string, string>();
+    for (const addr of [depository, "1KT3zCYUrmQxjcveUNs1Rs7WcXDcPQZ4av"]) {
+      allocatorScripts.set(
+        bitcoin.address
+          .toOutputScript(addr, bitcoin.networks.bitcoin)
+          .toString("hex"),
+        addr,
+      );
+    }
+
+    let depositoryToUse: string | undefined;
     const psbtInputs = psbt.data.inputs.map((input, i) => {
       const txid = Buffer.from(psbt.txInputs[i].hash).reverse().toString("hex");
       const vout = psbt.txInputs[i].index;
@@ -151,8 +170,15 @@ export class BitcoinVmAttestor extends VmAttestor {
         input,
       );
 
+      const matchedDepository = prevoutScriptHex
+        ? allocatorScripts.get(prevoutScriptHex)
+        : undefined;
+      if (matchedDepository) {
+        depositoryToUse = matchedDepository;
+      }
+
       return {
-        ownedByAllocator: prevoutScriptHex === allocatorScript,
+        ownedByAllocator: matchedDepository !== undefined,
         txid,
         vout,
       };
@@ -278,7 +304,7 @@ export class BitcoinVmAttestor extends VmAttestor {
       },
       result: {
         withdrawalId,
-        depository,
+        depository: depositoryToUse!,
         status,
       },
     };

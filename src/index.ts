@@ -2,7 +2,6 @@
 import "./http-server";
 
 import { logger } from "./common/logger";
-
 const COMPONENT = "process";
 
 // Log unhandled errors
@@ -13,7 +12,7 @@ process.on("unhandledRejection", (error: any) => {
       msg: "Unhandled rejection",
       error,
       stack: error?.stack,
-    })
+    }),
   );
 });
 process.on("uncaughtException", (error: any) => {
@@ -23,6 +22,6 @@ process.on("uncaughtException", (error: any) => {
       msg: "Uncaught exception",
       error,
       stack: error?.stack,
-    })
+    }),
   );
 });
