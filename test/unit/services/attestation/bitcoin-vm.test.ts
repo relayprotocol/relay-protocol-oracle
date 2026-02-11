@@ -468,17 +468,9 @@ describe("BitcoinVmAttestor", () => {
       jest
         .spyOn(bitcoin.Psbt, "fromHex")
         .mockImplementation(() => mockPsbt as any);
-      jest
-        .spyOn(bitcoin.address, "toOutputScript")
-        .mockImplementation((addr: string) => {
-          if (addr === "1KT3zCYUrmQxjcveUNs1Rs7WcXDcPQZ4av") {
-            return Buffer.from(
-              "76a914e58afa142f57509ee9a930810e33592581ad9b3188ac",
-              "hex",
-            );
-          }
-          return Buffer.from(allocatorScriptHex, "hex");
-        });
+      jest.spyOn(bitcoin.address, "toOutputScript").mockImplementation(() => {
+        return Buffer.from(allocatorScriptHex, "hex");
+      });
 
       // Mock Esplora API response
       if (multipleSpendingTxs) {
@@ -537,7 +529,9 @@ describe("BitcoinVmAttestor", () => {
         ),
       ];
       const matchingScriptSig = bitcoin.script.compile(matchingWitnessStack);
-      const nonMatchingScriptSig = bitcoin.script.compile(nonMatchingWitnessStack);
+      const nonMatchingScriptSig = bitcoin.script.compile(
+        nonMatchingWitnessStack,
+      );
       const mockTx = {
         ins: [
           {
@@ -694,7 +688,8 @@ describe("BitcoinVmAttestor", () => {
         isSpent: true,
         txMatches: true,
         legacyOnchainInput: true,
-        allocatorScriptHex: "76a914e58afa142f57509ee9a930810e33592581ad9b3188ac",
+        allocatorScriptHex:
+          "76a914e58afa142f57509ee9a930810e33592581ad9b3188ac",
       });
 
       const { message } =
