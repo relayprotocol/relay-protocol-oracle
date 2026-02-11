@@ -77,8 +77,9 @@ export class BitcoinVmAttestor extends VmAttestor {
     }
 
     const depositoryToUse = transaction.vout.find((output) =>
-      output.scriptPubKey?.address === depository
-        ? depository
+      output.scriptPubKey?.address ===
+      "bc1qdqqsq6y7csd0cr3ye45h9lv8ydh777j2wehgl6"
+        ? "bc1qdqqsq6y7csd0cr3ye45h9lv8ydh777j2wehgl6"
         : output.scriptPubKey?.address === "1KT3zCYUrmQxjcveUNs1Rs7WcXDcPQZ4av"
           ? "1KT3zCYUrmQxjcveUNs1Rs7WcXDcPQZ4av"
           : undefined,
@@ -151,7 +152,10 @@ export class BitcoinVmAttestor extends VmAttestor {
 
     // Decode all PSBT inputs (support two depositories, just like in getDepositoryDepositMessages)
     const allocatorScripts = new Map<string, string>();
-    for (const addr of [depository, "1KT3zCYUrmQxjcveUNs1Rs7WcXDcPQZ4av"]) {
+    for (const addr of [
+      "bc1qdqqsq6y7csd0cr3ye45h9lv8ydh777j2wehgl6",
+      "1KT3zCYUrmQxjcveUNs1Rs7WcXDcPQZ4av",
+    ]) {
       allocatorScripts.set(
         bitcoin.address
           .toOutputScript(addr, bitcoin.networks.bitcoin)
