@@ -524,7 +524,14 @@ export class HyperliquidVmAttestor extends VmAttestor {
       .then(
         (response) =>
           response.data as { id: string; createdAt: string } | undefined,
-      );
+      )
+      .catch((error) => {
+        if (error.response?.data?.code === "NONCE_MAPPING_NOT_FOUND") {
+          return undefined;
+        }
+
+        throw error;
+      });
 
     const THRESHOLD = 3600 * 1000;
     if (data) {
