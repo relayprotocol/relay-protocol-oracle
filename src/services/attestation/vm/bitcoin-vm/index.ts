@@ -170,7 +170,7 @@ export class BitcoinVmAttestor extends VmAttestor {
       throw externalError("No Esplora-compatible API URL configured");
     }
 
-    const accessToken = await this._getEsploraAccessToken(
+    const authorizationHeader = await this._getEsploraAuthorizationHeader(
       esploraCompatibleApiUrl,
     );
 
@@ -188,11 +188,9 @@ export class BitcoinVmAttestor extends VmAttestor {
       } = await axios
         .get(
           `${esploraCompatibleApiUrl}/tx/${input.txid}/outspend/${input.vout}`,
-          accessToken
+          authorizationHeader
             ? {
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                },
+                headers: authorizationHeader,
               }
             : undefined,
         )
@@ -477,15 +475,17 @@ export class BitcoinVmAttestor extends VmAttestor {
     );
   }
 
-  private async _getEsploraAccessToken(esploraCompatibleApiUrl: string) {
-    if (
-      this._esploraAccessToken &&
-      this._esploraAccessToken.expiration > Math.floor(Date.now() / 1000)
-    ) {
-      return this._esploraAccessToken.token;
-    }
-
+  private async _getEsploraAuthorizationHeader(
+    esploraCompatibleApiUrl: string,
+  ) {
     if (esploraCompatibleApiUrl.includes("enterprise.blockstream")) {
+      if (
+        this._esploraAccessToken &&
+        this._esploraAccessToken.expiration > Math.floor(Date.now() / 1000)
+      ) {
+        return { Authorization: `Bearer ${this._esploraAccessToken.token}` };
+      }
+
       const blockstreamLoginUrl =
         "https://login.blockstream.com/realms/blockstream-public/protocol/openid-connect/token";
 
@@ -494,7 +494,7 @@ export class BitcoinVmAttestor extends VmAttestor {
       const clientId = process.env.BLOCKSTREAM_CLIENT_ID;
       const clientSecret = process.env.BLOCKSTREAM_CLIENT_SECRET;
       if (!clientId || !clientSecret) {
-        throw externalError("Misconfigured Esplora-compatible API URL");
+        throw externalError("Misconfigured Esplora-compatible API credentials");
       }
 
       params.append("client_id", clientId);
@@ -518,8 +518,19 @@ export class BitcoinVmAttestor extends VmAttestor {
         token: data.access_token,
         expiration: Math.floor(Date.now() / 1000) + data.expires_in,
       };
+
+      return { Authorization: `Bearer ${this._esploraAccessToken?.token}` };
     }
 
-    return this._esploraAccessToken?.token;
+    if (esploraCompatibleApiUrl.includes("gomaestro-api")) {
+      const apiKey = process.env.MAESTRO_API_KEY;
+      if (!apiKey) {
+        throw externalError("Misconfigured Esplora-compatible API credentials");
+      }
+
+      return { Authorization: `api-key: ${apiKey}` };
+    }
+
+    return undefined;
   }
 }

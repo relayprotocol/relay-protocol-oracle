@@ -578,7 +578,7 @@
     "httpRpcUrl": "https://billowing-purple-crater.btc.quiknode.pro/0aa8445038a800d6e2fc387d114951b4647c6983",
     "hubChainId": "56960375584792109628315999883526364004747792730920852649053369508622489636429",
     "additionalData": {
-      "esploraCompatibleApiUrl": "https://enterprise.blockstream.info/api"
+      "esploraCompatibleApiUrl": "https://xbt-mainnet.gomaestro-api.org/v0/esplora"
     }
   },
   {
