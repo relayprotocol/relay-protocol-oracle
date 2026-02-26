@@ -528,7 +528,7 @@ export class BitcoinVmAttestor extends VmAttestor {
         throw externalError("Misconfigured Esplora-compatible API credentials");
       }
 
-      return { Authorization: `api-key: ${apiKey}` };
+      return { "api-key": apiKey };
     }
 
     return undefined;
