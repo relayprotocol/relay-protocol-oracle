@@ -1,16 +1,16 @@
 [
-    {
-        "id": "base-sepolia",
-        "vmType": "ethereum-vm",
-        "httpRpcUrl": "http://proxy-base-sepolia.nodes.svc.cluster.local:8545/base-sepolia",
-        "hubChainId": "84532",
-        "depository": "0x5Feab8dB4534F9F7E2669Bb260c57a01aD1c12e3"
-    },
-    {
-        "id": "sepolia",
-        "vmType": "ethereum-vm",
-        "httpRpcUrl": "http://proxy-sepolia.nodes.svc.cluster.local:8545/sepolia",
-        "hubChainId": "11155111",
-        "depository": "0x5Feab8dB4534F9F7E2669Bb260c57a01aD1c12e3"
-    }
+  {
+    "id": "base-sepolia",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "$BASE_SEPOLIA_RPC_URL",
+    "hubChainId": "84532",
+    "depository": "0x5Feab8dB4534F9F7E2669Bb260c57a01aD1c12e3"
+  },
+  {
+    "id": "sepolia",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "$SEPOLIA_RPC_URL",
+    "hubChainId": "11155111",
+    "depository": "0x5Feab8dB4534F9F7E2669Bb260c57a01aD1c12e3"
+  }
 ]
