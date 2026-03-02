@@ -38,7 +38,7 @@ export const getChains = async () => {
     for (const chain of chains) {
       const additionalData: any = {};
       if (chain.additionalData) {
-        for (const [key, value] of Object.values(
+        for (const [key, value] of Object.entries(
           (chain.additionalData ?? {}) as Record<string, any>,
         )) {
           additionalData[key] = readConfigValue(value);
@@ -88,7 +88,7 @@ export const getHubChains = async () => {
   for (const chain of chains) {
     const additionalData: any = {};
     if (chain.additionalData) {
-      for (const [key, value] of Object.values(
+      for (const [key, value] of Object.entries(
         (chain.additionalData ?? {}) as Record<string, any>,
       )) {
         additionalData[key] = readConfigValue(value);
