@@ -36,13 +36,22 @@ export const getChains = async () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const chains = require(`../../configs/chains.${config.environment}.json`);
     for (const chain of chains) {
+      const additionalData: any = {};
+      if (chain.additionalData) {
+        for (const [key, value] of Object.values(
+          (chain.additionalData ?? {}) as Record<string, any>,
+        )) {
+          additionalData[key] = readConfigValue(value);
+        }
+      }
+
       __chains[chain.id] = {
         id: readConfigValue(chain.id),
         vmType: readConfigValue(chain.vmType),
         httpRpcUrl: readConfigValue(chain.httpRpcUrl),
         depository: readConfigValue(chain.depository),
         hubChainId: readConfigValue(chain.hubChainId),
-        additionalData: readConfigValue(chain.additionalData),
+        additionalData,
       };
     }
 
@@ -66,7 +75,7 @@ export const getChainVmType = async (chainId: string) =>
 
 export const getSdkChainsConfig = async () => {
   return Object.fromEntries(
-    Object.values(await getChains()).map((c) => [c.id, c.vmType])
+    Object.values(await getChains()).map((c) => [c.id, c.vmType]),
   );
 };
 
@@ -77,12 +86,21 @@ export const getHubChains = async () => {
   const chains = require(`../../configs/chains.hub.${config.environment}.json`);
   const __chains: { [id: string]: Chain } = {};
   for (const chain of chains) {
+    const additionalData: any = {};
+    if (chain.additionalData) {
+      for (const [key, value] of Object.values(
+        (chain.additionalData ?? {}) as Record<string, any>,
+      )) {
+        additionalData[key] = readConfigValue(value);
+      }
+    }
+
     __chains[chain.id] = {
       id: readConfigValue(chain.id),
       vmType: readConfigValue(chain.vmType),
       httpRpcUrl: readConfigValue(chain.httpRpcUrl),
       hubChainId: readConfigValue(chain.chainId),
-      additionalData: readConfigValue(chain.additionalData) || {},
+      additionalData,
     };
   }
 
