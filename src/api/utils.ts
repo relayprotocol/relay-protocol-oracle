@@ -10,10 +10,12 @@ import type {
 } from "fastify";
 import type { RouteGenericInterface } from "fastify/types/route";
 import type { FastifySchema } from "fastify/types/schema";
+import axios from "axios";
 
 import { isExternalError } from "../common/error";
 import { logger } from "../common/logger";
 import { ExecutionMessage } from "@relay-protocol/settlement-sdk";
+import { config } from "../config";
 
 export type FastifyRequestTypeBox<TSchema extends FastifySchema> =
   FastifyRequest<
@@ -177,4 +179,71 @@ export const areExecutionsEqual = (
     msg1.actions.length === msg2.actions.length &&
     msg1.actions.every((_, i) => msg1.actions[i] === msg2.actions[i])
   );
+};
+
+/** Fan out the same attestation request to peer oracles and collect only
+ * signatures whose execution payload matches the local execution. Failures and
+ * timeouts are logged and skipped so one unhealthy peer does not fail the
+ * entire request path.
+ */
+export const getPeerExecutionSignatures = async ({
+  endpointPath,
+  requestBody,
+  requestApiKey,
+  execution,
+}: {
+  endpointPath: string;
+  requestBody: Record<string, unknown>;
+  requestApiKey?: string | string[];
+  execution?: ExecutionMessage;
+}) => {
+  if (!execution || !config.peers) {
+    return [];
+  }
+
+  const peerResponses = await Promise.all(
+    Object.entries(config.peers).map(async ([url, apiKey]) => {
+      try {
+        const response = await axios.post(
+          `${url}${endpointPath}`,
+          {
+            ...requestBody,
+            requestPeerSignatures: false,
+          },
+          {
+            headers: {
+              "x-api-key": apiKey === "pass-through" ? requestApiKey : apiKey,
+            },
+            timeout: config.peerRequestTimeoutMs,
+          },
+        );
+
+        // Only consider the peer signature if the executions are equal
+        if (areExecutionsEqual(response.data.execution, execution)) {
+          return response.data.execution.signatures;
+        }
+
+        logger.warn(
+          "oracle-peer",
+          `Skipping mismatched peer execution (${endpointPath}): ${url}`,
+        );
+        return [];
+      } catch (error: any) {
+        logger.warn(
+          "oracle-peer",
+          JSON.stringify({
+            msg: "Skipping peer signature",
+            endpointPath,
+            url,
+            timeoutMs: config.peerRequestTimeoutMs,
+            error: String(error),
+            errorResponse: error?.response?.data ?? error?.response?.body,
+          }),
+        );
+        return [];
+      }
+    }),
+  );
+
+  return peerResponses.flat();
 };

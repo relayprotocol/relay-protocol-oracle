@@ -1,13 +1,12 @@
 import { Type } from "@fastify/type-provider-typebox";
-import axios from "axios";
 
 import {
-  areExecutionsEqual,
   Endpoint,
   ErrorResponses,
   executionSchema,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
+  getPeerExecutionSignatures,
   messageSignatureSchema,
 } from "../../utils";
 import {
@@ -83,31 +82,15 @@ export default {
       await attestationService.attestDepositoryDeposits(req.body);
 
     // TODO: Fix the types
-    const peerSignatures: any[] = [];
-    if (execution && req.body.requestPeerSignatures && config.peers) {
-      await Promise.all(
-        Object.entries(config.peers).map(async ([url, apiKey]) => {
-          const response = await axios.post(
-            `${url}/attestations/depository-deposits/v1`,
-            {
-              ...req.body,
-              requestPeerSignatures: false,
-            },
-            {
-              headers: {
-                "x-api-key":
-                  apiKey === "pass-through" ? req.headers["x-api-key"] : apiKey,
-              },
-            },
-          );
-
-          // Only consider the peer signature if the executions are equal
-          if (areExecutionsEqual(response.data.execution, execution)) {
-            peerSignatures.push(...response.data.execution.signatures);
-          }
-        }),
-      );
-    }
+    const peerSignatures =
+      req.body.requestPeerSignatures && config.peers
+        ? await getPeerExecutionSignatures({
+            endpointPath: "/attestations/depository-deposits/v1",
+            requestBody: req.body,
+            requestApiKey: req.headers["x-api-key"],
+            execution,
+          })
+        : [];
 
     return reply.send({
       messages: await Promise.all(
