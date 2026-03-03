@@ -29,6 +29,7 @@ const getTxDetailsWithFallback = async (
   trackingId: string,
   hints?: TxHints,
 ): Promise<Omit<hl.TxDetailsResponse["tx"], "block">> => {
+  const chain = await getChain(chainId);
   const rpc = await httpRpc(chainId);
 
   // If tx hints are provided, we use the `userNonFundingLedgerUpdates` API to get the transaction details.
@@ -101,22 +102,23 @@ const getTxDetailsWithFallback = async (
     .then((tx) => tx?.tx)
     .catch(async (error) => {
       if (
-        (error as any).body ===
+        chain.additionalData?.proxyApiUrl &&
+        ((error as any).body ===
           "More than 100 archived blocks queried in one day" ||
-        (error as any).stack?.startsWith(
-          "HttpRequestError: 429 Too Many Requests",
-        )
+          (error as any).stack?.startsWith(
+            "HttpRequestError: 429 Too Many Requests",
+          ))
       ) {
         return axios
           .post(
-            "https://nfttools.pro",
+            chain.additionalData?.proxyApiUrl,
             {
               type: "txDetails",
               hash: txId,
             },
             {
               headers: {
-                "X-Nft-Api-Key": "039f6b70-3799-40a1-afd7-63087faddaed",
+                "X-Nft-Api-Key": chain.additionalData?.proxyApiKey,
                 url: "https://rpc.hyperliquid.xyz/explorer",
               },
             },
@@ -507,7 +509,8 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const chain = await getChain(chainId);
 
     const hubApiUrl = chain.additionalData?.hubApiUrl;
-    if (!hubApiUrl) {
+    const hubApiKey = chain.additionalData?.hubApiKey;
+    if (!hubApiUrl || !hubApiKey) {
       throw externalError("Chain has no hub API URL configured");
     }
 
@@ -516,7 +519,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
         `${hubApiUrl}/queries/nonce-mappings/${chainId}/${depositor}/${nonce}/v1`,
         {
           headers: {
-            "x-api-key": process.env.HUB_API_KEY,
+            "x-api-key": hubApiKey,
           },
           timeout: 10000,
         },

@@ -27,6 +27,7 @@ jest.mock("../../../../src/common/chains", () => {
       hubChainId: "1",
       additionalData: {
         hubApiUrl: "https://localhost:3000",
+        hubApiKey: "api-key",
       },
     },
   };

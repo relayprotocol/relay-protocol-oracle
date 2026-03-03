@@ -568,7 +568,10 @@
     "depository": "0x865eb9baa5492cef598adf7afb1038654fcb7081",
     "hubChainId": "111378472430415857054556056192544272316610524417112732947551032542507639335976",
     "additionalData": {
-      "hubApiUrl": "$HYPERLIQUID_HUB_API_URL"
+      "hubApiUrl": "$HYPERLIQUID_HUB_API_URL",
+      "hubApiKey": "$HYPERLIQUID_HUB_API_KEY",
+      "proxyApiUrl": "$HYPERLIQUID_PROXY_API_URL",
+      "proxyApiKey": "$HYPERLIQUID_PROXY_API_KEY"
     }
   },
   {
@@ -578,14 +581,20 @@
     "httpRpcUrl": "$BITCOIN_RPC_URL",
     "hubChainId": "56960375584792109628315999883526364004747792730920852649053369508622489636429",
     "additionalData": {
-      "esploraCompatibleApiUrl": "$BITCOIN_ESPLORA_COMPATIBLE_API_URL"
+      "esploraCompatibleApiUrl": "$BITCOIN_ESPLORA_COMPATIBLE_API_URL",
+      "blockstreamClientId": "$BITCOIN_BLOCKSTREAM_CLIENT_ID",
+      "blockstreamClientSecret": "$BITCOIN_BLOCKSTREAM_CLIENT_SECRET",
+      "maestroApiKey": "$BITCOIN_MAESTRO_API_KEY"
     }
   },
   {
     "id": "lighter",
     "vmType": "lighter-vm",
     "httpRpcUrl": "$LIGHTER_RPC_URL",
-    "hubChainId": "24751429388881399765243452447207376042614090386756997212181931796575290791450"
+    "hubChainId": "24751429388881399765243452447207376042614090386756997212181931796575290791450",
+    "additionalData": {
+      "rpcApiKey": "$LIGHTER_RPC_API_KEY"
+    }
   },
   {
     "id": "tron",

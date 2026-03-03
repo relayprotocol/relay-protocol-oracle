@@ -13,7 +13,7 @@ import {
 
 import { getDeterministicId } from "../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
-import { getChain } from "../../../../common/chains";
+import { Chain, getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import { httpRpc } from "../../../../common/vm/bitcoin-vm/rpc";
@@ -172,6 +172,7 @@ export class BitcoinVmAttestor extends VmAttestor {
 
     const authorizationHeader = await this._getEsploraAuthorizationHeader(
       esploraCompatibleApiUrl,
+      chain.additionalData,
     );
 
     // For every PSBT input, get the transaction that spent it
@@ -477,6 +478,7 @@ export class BitcoinVmAttestor extends VmAttestor {
 
   private async _getEsploraAuthorizationHeader(
     esploraCompatibleApiUrl: string,
+    additionalData: Chain["additionalData"],
   ) {
     if (esploraCompatibleApiUrl.includes("enterprise.blockstream")) {
       if (
@@ -491,8 +493,8 @@ export class BitcoinVmAttestor extends VmAttestor {
 
       const params = new URLSearchParams();
 
-      const clientId = process.env.BLOCKSTREAM_CLIENT_ID;
-      const clientSecret = process.env.BLOCKSTREAM_CLIENT_SECRET;
+      const clientId = additionalData?.blockstreamClientId;
+      const clientSecret = additionalData?.blockstreamClientSecret;
       if (!clientId || !clientSecret) {
         throw externalError("Misconfigured Esplora-compatible API credentials");
       }
@@ -523,7 +525,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     }
 
     if (esploraCompatibleApiUrl.includes("gomaestro-api")) {
-      const apiKey = process.env.MAESTRO_API_KEY;
+      const apiKey = additionalData?.maestroApiKey;
       if (!apiKey) {
         throw externalError("Misconfigured Esplora-compatible API credentials");
       }

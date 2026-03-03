@@ -16,10 +16,18 @@ export type Chain = {
   additionalData?: {
     // For "bitcoin-vm"
     esploraCompatibleApiUrl?: string;
+    blockstreamClientSecret?: string;
+    blockstreamClientId?: string;
+    maestroApiKey?: string;
     // For "hyperliquid-vm"
+    proxyApiUrl?: string;
+    proxyApiKey?: string;
     hubApiUrl?: string;
+    hubApiKey?: string;
     // For "ethereum-vm"
     isZksyncStack?: boolean;
+    // For "lighter-vm"
+    rpcApiKey?: string;
     // For "hub-vm"
     oracleAddress?: string;
   };
