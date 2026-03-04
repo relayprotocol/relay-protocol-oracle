@@ -219,7 +219,10 @@ export const getPeerExecutionSignatures = async ({
         );
 
         // Only consider the peer signature if the executions are equal
-        if (areExecutionsEqual(response.data.execution, execution)) {
+        if (
+          areExecutionsEqual(response.data.execution, execution) &&
+          !url.includes("railway")
+        ) {
           return response.data.execution.signatures;
         }
 
