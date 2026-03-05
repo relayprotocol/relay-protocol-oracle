@@ -440,6 +440,13 @@
     "hubChainId": "81457"
   },
   {
+    "id": "doma",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "$DOMA_RPC_URL",
+    "hubChainId": "97477"
+  },
+  {
     "id": "plume",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
