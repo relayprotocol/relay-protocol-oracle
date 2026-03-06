@@ -183,7 +183,6 @@ export default {
       req.body,
     );
 
-    // TODO: Fix the types
     const peerSignatures =
       req.body.requestPeerSignatures && config.peers
         ? await getPeerExecutionSignatures({

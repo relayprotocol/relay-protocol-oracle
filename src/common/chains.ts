@@ -29,7 +29,13 @@ export type Chain = {
     // For "lighter-vm"
     rpcApiKey?: string;
     // For "hub-vm"
+    hubAddress?: string;
     oracleAddress?: string;
+    oracleMultisigAddress?: string;
+    auroraChainId?: number;
+    auroraAllocatorAddress?: string;
+    auroraAllocatorSpenderAddress?: string;
+    auroraOracleMultisigAddress?: string;
   };
 };
 

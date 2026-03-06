@@ -1,4 +1,10 @@
 import { Type, type TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
+import {
+  ExecutionMessage,
+  SubmitWithdrawRequestV2,
+} from "@relay-protocol/settlement-sdk";
+import axios from "axios";
+import crypto from "crypto";
 import type {
   ContextConfigDefault,
   FastifyReply,
@@ -10,11 +16,12 @@ import type {
 } from "fastify";
 import type { RouteGenericInterface } from "fastify/types/route";
 import type { FastifySchema } from "fastify/types/schema";
-import axios from "axios";
+import stringify from "json-stable-stringify";
+import { Address, Hex, verifyMessage } from "viem";
 
-import { isExternalError } from "../common/error";
+import { getChain } from "../common/chains";
+import { externalError, isExternalError } from "../common/error";
 import { logger } from "../common/logger";
-import { ExecutionMessage } from "@relay-protocol/settlement-sdk";
 import { config } from "../config";
 
 export type FastifyRequestTypeBox<TSchema extends FastifySchema> =
@@ -249,4 +256,141 @@ export const getPeerExecutionSignatures = async ({
   );
 
   return peerResponses.flat();
+};
+
+// Utility for comparing two payload params (ignoring signatures)
+export const arePayloadParamsEqual = (
+  p1?: SubmitWithdrawRequestV2,
+  p2?: SubmitWithdrawRequestV2,
+) => {
+  if (!p1 || !p2) {
+    return false;
+  }
+
+  return (
+    p1.chainId === p2.chainId &&
+    p1.depository === p2.depository &&
+    p1.currency === p2.currency &&
+    p1.amount === p2.amount &&
+    p1.spender === p2.spender &&
+    p1.recipient === p2.recipient &&
+    p1.nonce === p2.nonce &&
+    p1.data === p2.data
+  );
+};
+
+/** Fan out the same attestation request to peer oracles and collect only
+ * signatures whose payload params match the local payload params. Failures and
+ * timeouts are logged and skipped so one unhealthy peer does not fail the
+ * entire request path.
+ */
+export const getPeerPayloadParamSignatures = async ({
+  endpointPath,
+  requestBody,
+  requestApiKey,
+  payloadParams,
+}: {
+  endpointPath: string;
+  requestBody: Record<string, unknown>;
+  requestApiKey?: string | string[];
+  payloadParams: SubmitWithdrawRequestV2;
+}) => {
+  if (!config.peers) {
+    return [];
+  }
+
+  const peerResponses = await Promise.all(
+    Object.entries(config.peers).map(async ([url, apiKey]) => {
+      try {
+        const response = await axios.post(
+          `${url}${endpointPath}`,
+          {
+            ...requestBody,
+            requestPeerSignatures: false,
+          },
+          {
+            headers: {
+              "x-api-key": apiKey === "pass-through" ? requestApiKey : apiKey,
+            },
+            timeout: config.peerRequestTimeoutMs,
+          },
+        );
+
+        // Only consider the peer signature if the payload params match
+        if (arePayloadParamsEqual(response.data.payloadParams, payloadParams)) {
+          return response.data.payloadParams.signatures;
+        }
+
+        logger.warn(
+          "oracle-peer",
+          `Skipping mismatched peer payload params (${endpointPath}): ${url}`,
+        );
+        return [];
+      } catch (error: any) {
+        logger.warn(
+          "oracle-peer",
+          JSON.stringify({
+            msg: "Skipping peer signature",
+            endpointPath,
+            url,
+            timeoutMs: config.peerRequestTimeoutMs,
+            error: String(error),
+            errorResponse: error?.response?.data ?? error?.response?.body,
+          }),
+        );
+        return [];
+      }
+    }),
+  );
+
+  return peerResponses.flat();
+};
+
+export const verifyWithdrawalSignature = async (
+  data: {
+    chainId: string;
+    currency: string;
+    amount: string;
+    ownerChainId: string;
+    owner: string;
+    recipient: string;
+    nonce: string;
+    additionalData?: any;
+  },
+  signature: string,
+) => {
+  // Verify the owner signature
+  const hashToVerify = crypto
+    .createHash("sha256")
+    .update(
+      stringify({
+        chainId: data.chainId,
+        currency: data.currency,
+        amount: data.amount,
+        ownerChainId: data.ownerChainId,
+        owner: data.owner,
+        recipient: data.recipient,
+        nonce: data.nonce,
+        additionalData: data.additionalData,
+      })!,
+    )
+    .digest()
+    .toString("hex");
+
+  const ownerChain = await getChain(data.ownerChainId);
+  if (ownerChain.vmType !== "ethereum-vm") {
+    throw externalError("Signature verification not supported for owner chain");
+  }
+
+  // For now we only support "ethereum-vm" signatures
+  const isSignatureValid = await verifyMessage({
+    address: data.owner as Address,
+    message: {
+      raw: `0x${hashToVerify}`,
+    },
+    signature: signature as Hex,
+  });
+  if (!isSignatureValid) {
+    throw externalError("Invalid signature");
+  }
 };

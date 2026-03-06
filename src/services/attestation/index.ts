@@ -23,6 +23,10 @@ import {
   generateTokenId,
   generateAddress,
   computeWithdrawerBalanceMessage,
+  DenormalizedSubmitWithdrawRequestV2,
+  getWithdrawalAddressV2,
+  normalizePayloadParamsV2,
+  SubmitWithdrawRequestV2,
 } from "@relay-protocol/settlement-sdk";
 import { Address, encodePacked, Hex, verifyMessage, zeroHash } from "viem";
 
@@ -254,6 +258,154 @@ export class AttestationService {
           withdrawalAddress,
         },
       },
+    };
+  }
+
+  public async attestWithdrawalInitiation(
+    settlementChainId: string,
+    data: DenormalizedSubmitWithdrawRequestV2,
+  ): Promise<{
+    withdrawalAddress: string;
+    execution: ExecutionMessage;
+  }> {
+    // Ensure the amount is non-zero
+    if (BigInt(data.amount) <= 0) {
+      throw externalError("Withdrawn amount must be non-zero");
+    }
+
+    // The token to be withdrawn from depository
+    const hubTokenId = generateTokenId({
+      address: data.currency,
+      chainId: data.chainId,
+      family: await getChainVmType(data.chainId),
+    });
+
+    // Safety check to ensure the owner has sufficient balance
+    const balance = await getHubAttestor().then((attestor) =>
+      attestor.getBalanceOnHub(settlementChainId, data.spender, hubTokenId),
+    );
+    if (!balance || BigInt(balance) < BigInt(data.amount)) {
+      throw externalError("Insufficient balance for requested withdrawal");
+    }
+
+    // Compute withdrawal address
+    const chain = await getChain(data.chainId);
+    const withdrawalAddress = getWithdrawalAddressV2({
+      vmType: chain.vmType,
+      chainId: data.chainId,
+      depository: chain.depository!,
+      currency: data.currency,
+      recipient: data.recipient,
+      ownerAlias: data.spender,
+      nonce: data.nonce,
+    });
+
+    const execution = {
+      idempotencyKey: getDeterministicId(
+        settlementChainId,
+        hubTokenId.toString(),
+        withdrawalAddress,
+      ),
+      actions: [
+        encodeAction({
+          type: ActionType.TRANSFER,
+          data: {
+            hubTokenId: hubTokenId,
+            hubFromAddress: data.spender,
+            hubToAddress: withdrawalAddress,
+            amount: data.amount,
+          },
+        }),
+      ],
+    };
+
+    return {
+      withdrawalAddress,
+      execution,
+    };
+  }
+
+  public async attestWithdrawalInitiated(
+    settlementChainId: string,
+    data: DenormalizedSubmitWithdrawRequestV2,
+  ): Promise<{
+    payloadParams: SubmitWithdrawRequestV2;
+  }> {
+    // Ensure the amount is non-zero
+    if (BigInt(data.amount) <= 0) {
+      throw externalError("Withdrawn amount must be non-zero");
+    }
+
+    // The token to be withdrawn from depository
+    const hubTokenId = generateTokenId({
+      address: data.currency,
+      chainId: data.chainId,
+      family: await getChainVmType(data.chainId),
+    });
+
+    // Compute withdrawal address
+    const chain = await getChain(data.chainId);
+    const withdrawalAddress = getWithdrawalAddressV2({
+      vmType: chain.vmType,
+      chainId: data.chainId,
+      depository: chain.depository!,
+      currency: data.currency,
+      recipient: data.recipient,
+      ownerAlias: data.spender,
+      nonce: data.nonce,
+    });
+
+    // Safety check to ensure the withdrawn amount matches the withdrawal address balance
+    const balance = await getHubAttestor().then((attestor) =>
+      attestor.getBalanceOnHub(
+        settlementChainId,
+        withdrawalAddress,
+        hubTokenId,
+      ),
+    );
+    if (BigInt(balance) !== BigInt(data.amount)) {
+      throw externalError(
+        "Withdrawn amount different from withdrawal address balance",
+      );
+    }
+
+    // Ensure any additional data is present if needed
+    switch (chain.vmType) {
+      case "bitcoin-vm": {
+        const additionalData = data.additionalData?.["bitcoin-vm"];
+        if (!additionalData) {
+          throw externalError(
+            "Additional data is required for generating the withdrawal request",
+          );
+        }
+
+        break;
+      }
+
+      case "hyperliquid-vm": {
+        const isNativeCurrency =
+          data.currency === getVmTypeNativeCurrency(chain.vmType);
+        if (!isNativeCurrency) {
+          const additionalData = data.additionalData?.["hyperliquid-vm"];
+          if (!additionalData) {
+            throw externalError(
+              "Additional data is required for generating the withdrawal request",
+            );
+          }
+        }
+
+        break;
+      }
+    }
+
+    const payloadParams = normalizePayloadParamsV2({
+      ...data,
+      chainId: chain.hubChainId!,
+      vmType: chain.vmType,
+    });
+
+    return {
+      payloadParams,
     };
   }
 

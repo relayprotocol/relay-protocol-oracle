@@ -8,8 +8,9 @@ import {
   getSolverRefundMessageId,
   SolverFillMessage,
   SolverRefundMessage,
+  SubmitWithdrawRequestV2,
 } from "@relay-protocol/settlement-sdk";
-import { Hex } from "viem";
+import { Address, Hex } from "viem";
 
 import { getHubChain, getHubChains, getSdkChainsConfig } from "./chains";
 import { config } from "../config";
@@ -53,6 +54,82 @@ export const signExecutionMessage = async (m: ExecutionMessage) => {
   return signatures;
 };
 
+export const signPayloadParamsForChain = async (
+  m: SubmitWithdrawRequestV2,
+  chainId: string,
+) => {
+  const wallet = await getSigningWallet(
+    (config.signingModule as SigningModule) ?? "raw-private-key",
+  );
+
+  const { additionalData } = await getHubChain(chainId);
+
+  const signature = await wallet.signTypedData({
+    domain: {
+      chainId: additionalData!.auroraChainId!,
+      name: "RelayAllocatorSpender",
+      verifyingContract: additionalData!
+        .auroraAllocatorSpenderAddress! as Address,
+      version: "1",
+    },
+    message: {
+      chainId: BigInt(m.chainId),
+      depository: m.depository,
+      currency: m.currency,
+      amount: BigInt(m.amount),
+      spender: m.spender as Address,
+      receiver: m.recipient,
+      data: m.data as Hex,
+      nonce: m.nonce as Hex,
+    },
+    primaryType: "SubmitWithdrawRequest",
+    types: {
+      SubmitWithdrawRequest: [
+        {
+          name: "chainId",
+          type: "uint256",
+        },
+        {
+          name: "depository",
+          type: "string",
+        },
+        {
+          name: "currency",
+          type: "string",
+        },
+        {
+          name: "amount",
+          type: "uint256",
+        },
+        {
+          name: "spender",
+          type: "address",
+        },
+        {
+          name: "receiver",
+          type: "string",
+        },
+        {
+          name: "data",
+          type: "bytes",
+        },
+        {
+          name: "nonce",
+          type: "bytes32",
+        },
+      ],
+    },
+  });
+
+  return {
+    allocatorSpenderChainId: BigInt(additionalData!.auroraChainId!),
+    allocatorSpenderContract: additionalData!
+      .auroraAllocatorSpenderAddress! as Address,
+    oracleSigner: wallet.address.toLowerCase(),
+    signature,
+  };
+};
+
 export const signExecutionMessageForChain = async (
   m: ExecutionMessage,
   chainId: string,
@@ -68,7 +145,7 @@ export const signExecutionMessageForChain = async (
     domain: {
       chainId: BigInt(oracleChainId!),
       name: "RelayOracle",
-      verifyingContract: additionalData!.oracleAddress as `0x${string}`,
+      verifyingContract: additionalData!.oracleAddress as Address,
       version: "1",
     },
     message: {
@@ -92,7 +169,7 @@ export const signExecutionMessageForChain = async (
 
   return {
     oracleChainId: BigInt(oracleChainId!),
-    oracleContract: additionalData!.oracleAddress as `0x${string}`,
+    oracleContract: additionalData!.oracleAddress as Address,
     oracleSigner: wallet.address.toLowerCase(),
     signature,
   };

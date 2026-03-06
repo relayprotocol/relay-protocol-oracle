@@ -27,7 +27,7 @@
     "@mysten/sui": "1.37.1",
     "@nktkas/hyperliquid": "0.25.1",
     "@relay-protocol/abis": "2.0.0",
-    "@relay-protocol/settlement-sdk": "0.0.85",
+    "@relay-protocol/settlement-sdk": "0.0.88",
     "@reservoir0x/lighter-ts-sdk": "1.0.7-alpha11",
     "@sinclair/typebox": "0.34.38",
     "@solana/spl-memo": "0.2.5",
@@ -38,6 +38,7 @@
     "bn.js": "5.2.2",
     "bs58": "6.0.0",
     "fastify": "5.4.0",
+    "json-stable-stringify": "1.3.0",
     "tronweb": "6.0.4",
     "viem": "2.33.3",
     "winston": "3.17.0"
