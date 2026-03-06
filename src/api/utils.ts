@@ -317,7 +317,10 @@ export const getPeerPayloadParamSignatures = async ({
         );
 
         // Only consider the peer signature if the payload params match
-        if (arePayloadParamsEqual(response.data.payloadParams, payloadParams)) {
+        if (
+          arePayloadParamsEqual(response.data.payloadParams, payloadParams) &&
+          !url.includes("railway")
+        ) {
           return response.data.payloadParams.signatures;
         }
 
