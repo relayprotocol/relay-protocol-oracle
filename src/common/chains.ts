@@ -1,6 +1,11 @@
 import { VmType } from "@relay-protocol/settlement-sdk";
 
 import { externalError } from "./error";
+import { logger } from "./logger";
+import {
+  getSettlementChainDefaultsForChain,
+  SettlementChainDefaults,
+} from "./settlement-networks";
 import { readConfigValue } from "./utils";
 import { config } from "../config";
 
@@ -42,31 +47,104 @@ export type Chain = {
 export const HUB_VM_TYPE = "hub-vm" as any as VmType;
 export const HUB_CHAIN_ID = 0n;
 
+const DEPOSITORY_REQUIRED_VM_TYPES = new Set<VmType>([
+  "ethereum-vm",
+  "solana-vm",
+  "sui-vm",
+  "bitcoin-vm",
+  "tron-vm",
+  "hyperliquid-vm",
+] as VmType[]);
+
+const readAdditionalData = (rawChain: Record<string, any>) => {
+  const additionalData: Record<string, any> = {};
+  if (!rawChain.additionalData) {
+    return additionalData;
+  }
+
+  for (const [key, value] of Object.entries(
+    (rawChain.additionalData ?? {}) as Record<string, any>,
+  )) {
+    additionalData[key] = readConfigValue(value);
+  }
+
+  return additionalData;
+};
+
+const resolveHttpRpcUrl = (
+  rawChain: Record<string, any>,
+  settlementDefaults: SettlementChainDefaults | undefined,
+) => {
+  const settlementRpcFallback = settlementDefaults?.httpRpcUrl;
+  const localRpcRawValue = rawChain.httpRpcUrl;
+  const localRpcValue = readConfigValue(rawChain.httpRpcUrl);
+
+  // Keep literal local values authoritative.
+  // Only use settlement fallback when the local value is an unresolved env placeholder.
+  if (typeof localRpcRawValue === "string" && localRpcRawValue.startsWith("$")) {
+    return localRpcValue ?? settlementRpcFallback;
+  }
+
+  return localRpcValue ?? settlementRpcFallback;
+};
+
+const warnInvalidChainConfiguration = (chain: Chain) => {
+  const chainName = chain.id ?? "<missing-id>";
+
+  if (!chain.id) {
+    logger.warn("chains", "Configured chain is missing id");
+  }
+  if (!chain.vmType) {
+    logger.warn("chains", `Chain ${chainName} is missing vmType`);
+  }
+  if (!chain.httpRpcUrl) {
+    logger.warn("chains", `Chain ${chainName} is missing httpRpcUrl`);
+  }
+  if (chain.vmType && DEPOSITORY_REQUIRED_VM_TYPES.has(chain.vmType) && !chain.depository) {
+    logger.warn(
+      "chains",
+      `Chain ${chainName} (${chain.vmType}) is missing depository`,
+    );
+  }
+};
+
 let _chains: { [id: string]: Chain } | undefined;
 export const getChains = async () => {
   if (!_chains) {
     const __chains: { [id: string]: Chain } = {};
 
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const chains = require(`../../configs/chains.${config.environment}.json`);
+    const chains = require(`../../configs/chains.${config.environment}.json`) as Record<
+      string,
+      any
+    >[];
     for (const chain of chains) {
-      const additionalData: any = {};
-      if (chain.additionalData) {
-        for (const [key, value] of Object.entries(
-          (chain.additionalData ?? {}) as Record<string, any>,
-        )) {
-          additionalData[key] = readConfigValue(value);
-        }
-      }
+      const chainId = readConfigValue(chain.id);
+      const localHubChainId = readConfigValue(chain.hubChainId);
+      const settlementDefaults = chainId
+        ? getSettlementChainDefaultsForChain(
+            chainId as string,
+            localHubChainId as string | undefined,
+          )
+        : undefined;
+      const additionalData = readAdditionalData(chain);
 
-      __chains[chain.id] = {
-        id: readConfigValue(chain.id),
-        vmType: readConfigValue(chain.vmType),
-        httpRpcUrl: readConfigValue(chain.httpRpcUrl),
-        depository: readConfigValue(chain.depository),
-        hubChainId: readConfigValue(chain.hubChainId),
+      const resolvedChain: Chain = {
+        id: (chainId ?? settlementDefaults?.id) as string,
+        vmType: (readConfigValue(chain.vmType) ?? settlementDefaults?.vmType) as VmType,
+        httpRpcUrl: resolveHttpRpcUrl(chain, settlementDefaults) as string,
+        depository: (readConfigValue(chain.depository) ??
+          settlementDefaults?.depository) as string | undefined,
+        hubChainId: (localHubChainId ??
+          settlementDefaults?.hubChainId) as string | undefined,
         additionalData,
       };
+
+      warnInvalidChainConfiguration(resolvedChain);
+      if (!resolvedChain.id) {
+        continue;
+      }
+      __chains[resolvedChain.id] = resolvedChain;
     }
 
     _chains = __chains;
@@ -100,14 +178,7 @@ export const getHubChains = async () => {
   const chains = require(`../../configs/chains.hub.${config.environment}.json`);
   const __chains: { [id: string]: Chain } = {};
   for (const chain of chains) {
-    const additionalData: any = {};
-    if (chain.additionalData) {
-      for (const [key, value] of Object.entries(
-        (chain.additionalData ?? {}) as Record<string, any>,
-      )) {
-        additionalData[key] = readConfigValue(value);
-      }
-    }
+    const additionalData = readAdditionalData(chain);
 
     __chains[chain.id] = {
       id: readConfigValue(chain.id),
