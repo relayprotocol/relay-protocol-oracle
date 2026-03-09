@@ -195,6 +195,8 @@ export class TronVmAttestor extends VmAttestor {
             if (endOfCalldata.length >= 64) {
               // We take the first 32 bytes from the end of calldata
               const parsedId = "0x" + endOfCalldata.slice(0, 64);
+              // If the id starts with a zero prefix it means it was not intended
+              // to be a deposit id, but rather unrelated trailing calldata
               if (
                 parsedId !== zeroHash &&
                 !parsedId.startsWith(zeroHash.slice(0, 34))

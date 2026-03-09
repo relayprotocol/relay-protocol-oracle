@@ -244,6 +244,8 @@ export class EthereumVmAttestor extends VmAttestor {
                   t.id === transfersToDepository[0].id,
               ))
           ) {
+            // If the id starts with a zero prefix it means it was not intended
+            // to be a deposit id, but rather unrelated trailing calldata
             if (
               transfersToDepository[0].id &&
               !transfersToDepository[0].id.startsWith(zeroHash.slice(0, 34))
