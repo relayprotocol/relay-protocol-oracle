@@ -244,7 +244,12 @@ export class EthereumVmAttestor extends VmAttestor {
                   t.id === transfersToDepository[0].id,
               ))
           ) {
-            depositId = transfersToDepository[0].id;
+            if (
+              transfersToDepository[0].id &&
+              !transfersToDepository[0].id.startsWith(zeroHash.slice(0, 34))
+            ) {
+              depositId = transfersToDepository[0].id;
+            }
           }
         }
 

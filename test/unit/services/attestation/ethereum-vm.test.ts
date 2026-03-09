@@ -573,6 +573,118 @@ describe("EthereumVmAttestor", () => {
     expect(msg.result.depositId).toEqual(id);
   });
 
+  it("attestDepositoryDeposits - single Transfer event with zero-prefix id appended at the end of calldata", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const from = randomHex(20);
+    const token = randomHex(20);
+    const amount = randomNumber(1e10).toString();
+    // An id that starts with the zero hash prefix (first 16 bytes are zeros)
+    const zeroishId =
+      zeroHash.slice(0, 34) +
+      "abcdef1234567890abcdef1234567890";
+
+    const transferLog = generateTransferLog({
+      transactionHash,
+      logIndex: 0,
+      from,
+      to: chain.depository!,
+      token,
+      amount,
+    });
+    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+      transferLog,
+    ]);
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getBlock: getBlockMock,
+      getTransaction: async () => ({
+        input:
+          encodeFunctionData({
+            abi: ABI,
+            functionName: "transfer",
+            args: [chain.depository as Hex, BigInt(amount)],
+          }) + zeroishId.slice(2),
+      }),
+      getTransactionReceipt: async () => transactionReceipt,
+    }));
+
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
+    expect(messages.length === 1).toBeTruthy();
+
+    const msg = messages[0];
+
+    expect(msg.data.chainId).toEqual(chain.id);
+    expect(msg.data.transactionId).toEqual(transactionHash);
+    expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.depository).toEqual(chain.depository);
+    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.amount).toEqual(amount);
+    // Zero-prefix id should be ignored, falling back to zeroHash
+    expect(msg.result.depositId).toEqual(zeroHash);
+  });
+
+  it("attestDepositoryDeposits - single Transfer event with full zero hash id appended at the end of calldata", async () => {
+    const chains = Object.values(await getChains());
+
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+
+    const from = randomHex(20);
+    const token = randomHex(20);
+    const amount = randomNumber(1e10).toString();
+
+    const transferLog = generateTransferLog({
+      transactionHash,
+      logIndex: 0,
+      from,
+      to: chain.depository!,
+      token,
+      amount,
+    });
+    const transactionReceipt = generateTransactionReceipt(transactionHash, [
+      transferLog,
+    ]);
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getBlock: getBlockMock,
+      getTransaction: async () => ({
+        input:
+          encodeFunctionData({
+            abi: ABI,
+            functionName: "transfer",
+            args: [chain.depository as Hex, BigInt(amount)],
+          }) + zeroHash.slice(2),
+      }),
+      getTransactionReceipt: async () => transactionReceipt,
+    }));
+
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
+        chainId: chain.id,
+        transactionId: transactionHash,
+      });
+    expect(messages.length === 1).toBeTruthy();
+
+    const msg = messages[0];
+
+    expect(msg.data.chainId).toEqual(chain.id);
+    expect(msg.data.transactionId).toEqual(transactionHash);
+    expect(msg.result.depositor).toEqual(from);
+    expect(msg.result.depository).toEqual(chain.depository);
+    expect(msg.result.currency).toEqual(token);
+    expect(msg.result.amount).toEqual(amount);
+    // Full zero hash id should be ignored, falling back to zeroHash
+    expect(msg.result.depositId).toEqual(zeroHash);
+  });
+
   it("attestDepositoryDeposits - Transfer event with consecutive RelayErc20Deposit event", async () => {
     const chains = Object.values(await getChains());
 
