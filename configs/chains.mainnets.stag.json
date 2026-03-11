@@ -1,14 +1,14 @@
 [
   {
     "id": "ethereum",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ETHEREUM_RPC_URL",
     "hubChainId": "1"
   },
   {
     "id": "optimism",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$OPTIMISM_RPC_URL",
     "hubChainId": "10"
@@ -22,70 +22,70 @@
   },
   {
     "id": "bnb",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$BNB_RPC_URL",
     "hubChainId": "56"
   },
   {
     "id": "gnosis",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$GNOSIS_RPC_URL",
     "hubChainId": "100"
   },
   {
     "id": "unichain",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$UNICHAIN_RPC_URL",
     "hubChainId": "130"
   },
   {
     "id": "polygon",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$POLYGON_RPC_URL",
     "hubChainId": "137"
   },
   {
     "id": "monad",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$MONAD_RPC_URL",
     "hubChainId": "143"
   },
   {
     "id": "sonic",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SONIC_RPC_URL",
     "hubChainId": "146"
   },
   {
     "id": "manta",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$MANTA_RPC_URL",
     "hubChainId": "169"
   },
   {
     "id": "mint",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$MINT_RPC_URL",
     "hubChainId": "185"
   },
   {
     "id": "boba",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$BOBA_RPC_URL",
     "hubChainId": "288"
   },
   {
     "id": "zksync",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ZKSYNC_RPC_URL",
     "hubChainId": "324",
@@ -95,133 +95,133 @@
   },
   {
     "id": "shape",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SHAPE_RPC_URL",
     "hubChainId": "360"
   },
   {
     "id": "appchain",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$APPCHAIN_RPC_URL",
     "hubChainId": "466"
   },
   {
     "id": "worldchain",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$WORLDCHAIN_RPC_URL",
     "hubChainId": "480"
   },
   {
     "id": "redstone",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$REDSTONE_RPC_URL",
     "hubChainId": "690"
   },
   {
     "id": "flow",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$FLOW_RPC_URL",
     "hubChainId": "747"
   },
   {
     "id": "stable",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$STABLE_RPC_URL",
     "hubChainId": "988"
   },
   {
     "id": "hyperevm",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$HYPEREVM_RPC_URL",
     "hubChainId": "999"
   },
   {
     "id": "metis",
-    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
+    "depository": "0xee10e648ad3efdfe07552192ef443f7ca5fbccc6",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$METIS_RPC_URL",
     "hubChainId": "1088"
   },
   {
     "id": "polygon_zkevm",
-    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
+    "depository": "0xee10e648ad3efdfe07552192ef443f7ca5fbccc6",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$POLYGON_ZKEVM_RPC_URL",
     "hubChainId": "1101"
   },
   {
     "id": "lisk",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$LISK_RPC_URL",
     "hubChainId": "1135"
   },
   {
     "id": "sei",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SEI_RPC_URL",
     "hubChainId": "1329"
   },
   {
     "id": "perennial",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$PERENNIAL_RPC_URL",
     "hubChainId": "1424"
   },
   {
     "id": "story",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$STORY_RPC_URL",
     "hubChainId": "1514"
   },
   {
     "id": "gravity",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$GRAVITY_RPC_URL",
     "hubChainId": "1625"
   },
   {
     "id": "soneium",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SONEIUM_RPC_URL",
     "hubChainId": "1868"
   },
   {
     "id": "swellchain",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SWELLCHAIN_RPC_URL",
     "hubChainId": "1923"
   },
   {
     "id": "sanko",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SANKO_RPC_URL",
     "hubChainId": "1996"
   },
   {
     "id": "ronin",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$RONIN_RPC_URL",
     "hubChainId": "2020"
   },
   {
     "id": "abstract",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ABSTRACT_RPC_URL",
     "hubChainId": "2741",
@@ -231,245 +231,245 @@
   },
   {
     "id": "morph",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$MORPH_RPC_URL",
     "hubChainId": "2818"
   },
   {
     "id": "tempo",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$TEMPO_RPC_URL",
     "hubChainId": "4217"
   },
   {
     "id": "megaeth",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$MEGAETH_RPC_URL",
     "hubChainId": "4326"
   },
   {
     "id": "mantle",
-    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
+    "depository": "0xee10e648ad3efdfe07552192ef443f7ca5fbccc6",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$MANTLE_RPC_URL",
     "hubChainId": "5000"
   },
   {
     "id": "somnia",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SOMNIA_RPC_URL",
     "hubChainId": "5031"
   },
   {
     "id": "superseed",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SUPERSEED_RPC_URL",
     "hubChainId": "5330"
   },
   {
     "id": "cyber",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$CYBER_RPC_URL",
     "hubChainId": "7560"
   },
   {
     "id": "powerloom",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$POWERLOOM_RPC_URL",
     "hubChainId": "7869"
   },
   {
     "id": "arena_z",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ARENA_Z_RPC_URL",
     "hubChainId": "7897"
   },
   {
     "id": "b3",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$B3_RPC_URL",
     "hubChainId": "8333"
   },
   {
     "id": "base",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$BASE_RPC_URL",
     "hubChainId": "8453"
   },
   {
     "id": "plasma",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$PLASMA_RPC_URL",
     "hubChainId": "9745"
   },
   {
     "id": "apechain",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$APECHAIN_RPC_URL",
     "hubChainId": "33139"
   },
   {
     "id": "funki",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$FUNKI_RPC_URL",
     "hubChainId": "33979"
   },
   {
     "id": "mode",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$MODE_RPC_URL",
     "hubChainId": "34443"
   },
   {
     "id": "mythos",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$MYTHOS_RPC_URL",
     "hubChainId": "42018"
   },
   {
     "id": "arbitrum",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ARBITRUM_RPC_URL",
     "hubChainId": "42161"
   },
   {
     "id": "arbitrum_nova",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ARBITRUM_NOVA_RPC_URL",
     "hubChainId": "42170"
   },
   {
     "id": "celo",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$CELO_RPC_URL",
     "hubChainId": "42220"
   },
   {
     "id": "hemi",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$HEMI_RPC_URL",
     "hubChainId": "43111"
   },
   {
     "id": "avalanche",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$AVALANCHE_RPC_URL",
     "hubChainId": "43114"
   },
   {
     "id": "gunz",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$GUNZ_RPC_URL",
     "hubChainId": "43419"
   },
   {
     "id": "zircuit",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ZIRCUIT_RPC_URL",
     "hubChainId": "48900"
   },
   {
     "id": "superposition",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SUPERPOSITION_RPC_URL",
     "hubChainId": "55244"
   },
   {
     "id": "ink",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$INK_RPC_URL",
     "hubChainId": "57073"
   },
   {
     "id": "linea",
-    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$LINEA_RPC_URL",
     "hubChainId": "59144"
   },
   {
     "id": "bob",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$BOB_RPC_URL",
     "hubChainId": "60808"
   },
   {
     "id": "anime",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ANIME_RPC_URL",
     "hubChainId": "69000"
   },
   {
     "id": "berachain",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$BERACHAIN_RPC_URL",
     "hubChainId": "80094"
   },
   {
     "id": "blast",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$BLAST_RPC_URL",
     "hubChainId": "81457"
   },
   {
     "id": "plume",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$PLUME_RPC_URL",
     "hubChainId": "98866"
   },
   {
     "id": "taiko",
-    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$TAIKO_RPC_URL",
     "hubChainId": "167000"
   },
   {
     "id": "syndicate",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SYNDICATE_RPC_URL",
     "hubChainId": "510003"
   },
   {
     "id": "scroll",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SCROLL_RPC_URL",
     "hubChainId": "534352"
   },
   {
     "id": "zero",
-    "depository": "0xa88cf7864951147a08707ed732237eaa9b1c3b9b",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ZERO_RPC_URL",
     "hubChainId": "543210",
@@ -479,63 +479,63 @@
   },
   {
     "id": "xai",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$XAI_RPC_URL",
     "hubChainId": "660279"
   },
   {
     "id": "katana",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$KATANA_RPC_URL",
     "hubChainId": "747474"
   },
   {
     "id": "forma",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$FORMA_RPC_URL",
     "hubChainId": "984122"
   },
   {
     "id": "ethereal",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ETHEREAL_RPC_URL",
     "hubChainId": "5064014"
   },
   {
     "id": "zora",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ZORA_RPC_URL",
     "hubChainId": "7777777"
   },
   {
     "id": "corn",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$CORN_RPC_URL",
     "hubChainId": "21000000"
   },
   {
     "id": "degen",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$DEGEN_RPC_URL",
     "hubChainId": "666666666"
   },
   {
     "id": "ancient8",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ANCIENT8_RPC_URL",
     "hubChainId": "888888888"
   },
   {
     "id": "rari",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$RARI_RPC_URL",
     "hubChainId": "1380012617"
@@ -565,7 +565,7 @@
     "id": "hyperliquid",
     "vmType": "hyperliquid-vm",
     "httpRpcUrl": "$HYPERLIQUID_RPC_URL",
-    "depository": "0x865eb9baa5492cef598adf7afb1038654fcb7081",
+    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "hubChainId": "111378472430415857054556056192544272316610524417112732947551032542507639335976",
     "additionalData": {
       "hubApiUrl": "$HYPERLIQUID_HUB_API_URL",
