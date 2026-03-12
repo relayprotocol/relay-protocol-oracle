@@ -1,49 +1,12 @@
 import {
-  DepositoryDepositMessage,
-  DepositoryWithdrawalMessage,
   ExecutionMessage,
-  getDepositoryDepositMessageId,
-  getDepositoryWithdrawalMessageId,
-  getSolverFillMessageId,
-  getSolverRefundMessageId,
-  SolverFillMessage,
-  SolverRefundMessage,
   SubmitWithdrawRequestV2,
 } from "@relay-protocol/settlement-sdk";
 import { Address, Hex } from "viem";
 
-import { getHubChain, getHubChains, getSdkChainsConfig } from "./chains";
+import { getHubChain, getHubChains } from "./chains";
 import { config } from "../config";
 import { getSigningWallet, SigningModule } from "../signers";
-
-const sign = async (data: Hex) => {
-  const wallet = await getSigningWallet(
-    (config.signingModule as SigningModule) ?? "raw-private-key",
-  );
-
-  return {
-    oracle: wallet.address.toLowerCase(),
-    signature: await wallet.signMessage({
-      message: {
-        raw: data,
-      },
-    }),
-  };
-};
-
-export const signDepositoryDepositMessage = async (
-  m: DepositoryDepositMessage,
-) => sign(getDepositoryDepositMessageId(m, await getSdkChainsConfig()));
-
-export const signDepositoryWithdrawalMessage = async (
-  m: DepositoryWithdrawalMessage,
-) => sign(getDepositoryWithdrawalMessageId(m, await getSdkChainsConfig()));
-
-export const signSolverFillMessage = async (m: SolverFillMessage) =>
-  sign(getSolverFillMessageId(m, await getSdkChainsConfig()));
-
-export const signSolverRefundMessage = async (m: SolverRefundMessage) =>
-  sign(getSolverRefundMessageId(m, await getSdkChainsConfig()));
 
 export const signExecutionMessage = async (m: ExecutionMessage) => {
   const signatures = await Promise.all(

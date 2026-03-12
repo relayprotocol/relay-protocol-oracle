@@ -1,4 +1,5 @@
 import { Type } from "@fastify/type-provider-typebox";
+import { generateAddress } from "@relay-protocol/settlement-sdk";
 
 import {
   BigIntString,
@@ -9,11 +10,10 @@ import {
   getPeerPayloadParamSignatures,
   verifyWithdrawalSignature,
 } from "../../utils";
-import { AttestationService } from "../../../services/attestation";
 import { getChain } from "../../../common/chains";
-import { generateAddress } from "@relay-protocol/settlement-sdk";
 import { signPayloadParamsForChain } from "../../../common/signer";
 import { config } from "../../../config";
+import { AttestationService } from "../../../services/attestation";
 
 const Schema = {
   body: Type.Object({

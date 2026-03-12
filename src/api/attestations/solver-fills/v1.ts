@@ -7,12 +7,8 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
   getPeerExecutionSignatures,
-  messageSignatureSchema,
 } from "../../utils";
-import {
-  signExecutionMessage,
-  signSolverFillMessage,
-} from "../../../common/signer";
+import { signExecutionMessage } from "../../../common/signer";
 import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
@@ -144,7 +140,6 @@ const Schema = {
                 "The bps difference between the quoted amount and the deposited amount",
             }),
           }),
-          signature: messageSignatureSchema,
         },
         {
           description: "The resulting 'solver-fill' message",
@@ -197,7 +192,6 @@ export default {
       message: {
         data: message.data,
         result: message.result,
-        signature: await signSolverFillMessage(message),
       },
       execution: execution
         ? {

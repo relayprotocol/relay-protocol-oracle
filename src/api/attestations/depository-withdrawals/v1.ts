@@ -7,13 +7,9 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
   getPeerExecutionSignatures,
-  messageSignatureSchema,
   WithdrawalAddressSchema,
 } from "../../utils";
-import {
-  signDepositoryWithdrawalMessage,
-  signExecutionMessage,
-} from "../../../common/signer";
+import { signExecutionMessage } from "../../../common/signer";
 import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
@@ -59,7 +55,6 @@ const Schema = {
                 "The status of the withdrawal (0 = pending, 1 = executed, 2 = expired)",
             }),
           }),
-          signature: messageSignatureSchema,
         },
         {
           description: "The resulting 'depository-withdrawal' message",
@@ -99,7 +94,6 @@ export default {
           withdrawalAddressRequest: req.body.withdrawalAddressRequest,
         },
         result: message.result,
-        signature: await signDepositoryWithdrawalMessage(message),
       },
       execution: execution
         ? {

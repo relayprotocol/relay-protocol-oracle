@@ -7,12 +7,8 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
   getPeerExecutionSignatures,
-  messageSignatureSchema,
 } from "../../utils";
-import {
-  signDepositoryDepositMessage,
-  signExecutionMessage,
-} from "../../../common/signer";
+import { signExecutionMessage } from "../../../common/signer";
 import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
@@ -57,7 +53,6 @@ const Schema = {
             }),
             amount: Type.String({ description: "The deposited amount" }),
           }),
-          signature: messageSignatureSchema,
         }),
         {
           description:
@@ -92,12 +87,7 @@ export default {
         : [];
 
     return reply.send({
-      messages: await Promise.all(
-        messages.map(async (message) => ({
-          ...message,
-          signature: await signDepositoryDepositMessage(message),
-        })),
-      ),
+      messages,
       execution: execution
         ? {
             ...execution,

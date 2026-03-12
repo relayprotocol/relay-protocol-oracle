@@ -13,8 +13,6 @@ import {
   SolverFillStatus,
   SolverRefundMessage,
   SolverRefundStatus,
-  WithdrawalInitiationMessage,
-  WithdrawalInitiatedMessage,
   getWithdrawalAddress,
   getOrderAddress,
   ExecutionMessageMetadata,
@@ -22,13 +20,12 @@ import {
   getVmTypeNativeCurrency,
   generateTokenId,
   generateAddress,
-  computeWithdrawerBalanceMessage,
   DenormalizedSubmitWithdrawRequestV2,
   getWithdrawalAddressV2,
   normalizePayloadParamsV2,
   SubmitWithdrawRequestV2,
 } from "@relay-protocol/settlement-sdk";
-import { Address, encodePacked, Hex, verifyMessage, zeroHash } from "viem";
+import { Address, Hex, verifyMessage, zeroHash } from "viem";
 
 import { getVmAttestor, getHubAttestor } from "./vm";
 import { EnhancedDepositoryDepositMessage } from "./vm/types";
@@ -40,7 +37,6 @@ import {
   getSdkChainsConfig,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
-import { createHash } from "crypto";
 
 type ExecutionMetadata = Omit<
   ExecutionMessageMetadata,
@@ -141,123 +137,6 @@ export class AttestationService {
     return {
       messages,
       execution,
-    };
-  }
-
-  public async attestWithdrawerBalance(
-    data: WithdrawalInitiationMessage["data"],
-  ): Promise<{
-    message: WithdrawalInitiationMessage;
-    execution?: ExecutionMessage;
-  }> {
-    const { hubTokenId, withdrawalAddress, withdrawerAlias } =
-      await this._getWithdrawalAddress(data);
-
-    // recompute hash data
-    const signedMessage = computeWithdrawerBalanceMessage(
-      withdrawerAlias,
-      BigInt(data.expectedAmount),
-      data.withdrawalNonce,
-    );
-    const hash = createHash("sha256").update(signedMessage).digest("hex");
-
-    // only EVM sig supported atm
-    const signatureVmType = await getChainVmType(data.withdrawerChainId);
-    if (signatureVmType !== "ethereum-vm") {
-      throw externalError("Only 'ethereum-vm' signatures are supported");
-    }
-
-    // validate withdrawer address from signature
-    const isSignatureValid = await verifyMessage({
-      address: data.withdrawer as Address,
-      message: {
-        raw: `0x${hash}`,
-      },
-      signature: data.signature as Hex,
-    });
-
-    if (!isSignatureValid) {
-      throw externalError("Invalid signature. Can't trigger withdrawal");
-    }
-
-    // check balance on the hub
-    const balance = await getHubAttestor().then((attestor) =>
-      attestor.getBalanceOnHub(
-        data.settlementChainId,
-        withdrawerAlias,
-        hubTokenId,
-      ),
-    );
-
-    if (!balance || BigInt(balance) < BigInt(data.expectedAmount)) {
-      throw externalError("Insufficient initial withdrawal balance");
-    }
-
-    const execution = {
-      idempotencyKey: getDeterministicId(
-        data.settlementChainId,
-        hubTokenId.toString(),
-        withdrawalAddress,
-      ),
-      actions: [
-        encodeAction({
-          type: ActionType.TRANSFER,
-          data: {
-            hubTokenId: hubTokenId,
-            hubFromAddress: withdrawerAlias,
-            hubToAddress: withdrawalAddress,
-            amount: data.expectedAmount,
-          },
-        }),
-      ],
-    };
-
-    return {
-      message: {
-        data,
-        result: {
-          withdrawalAddress,
-        },
-      },
-      execution,
-    };
-  }
-
-  public async attestWithdrawalAddressBalance(
-    data: WithdrawalInitiatedMessage["data"],
-  ): Promise<{
-    message: WithdrawalInitiatedMessage;
-  }> {
-    const { hubTokenId, withdrawalAddress } =
-      await this._getWithdrawalAddress(data);
-
-    const balance = await getHubAttestor().then((attestor) =>
-      attestor.getBalanceOnHub(
-        data.settlementChainId,
-        withdrawalAddress,
-        hubTokenId,
-      ),
-    );
-
-    if (!balance || BigInt(balance) < BigInt(data.expectedAmount)) {
-      throw externalError("Insufficient withdrawal address balance");
-    }
-
-    const proofOfWithdrawalAddressBalance =
-      await this._getProofOfWithdrawalAddressBalance({
-        withdrawalNonce: data.withdrawalNonce,
-        withdrawalAddress,
-        amount: BigInt(data.expectedAmount),
-      });
-
-    return {
-      message: {
-        data,
-        result: {
-          proofOfWithdrawalAddressBalance,
-          withdrawalAddress,
-        },
-      },
     };
   }
 
@@ -988,21 +867,5 @@ export class AttestationService {
       withdrawalAddress,
       withdrawerAlias,
     };
-  }
-
-  private async _getProofOfWithdrawalAddressBalance(data: {
-    amount: bigint;
-    withdrawalAddress: string;
-    withdrawalNonce: string;
-  }): Promise<string> {
-    const proof = encodePacked(
-      ["address", "uint256", "bytes32"],
-      [
-        data.withdrawalAddress as `0x${string}`,
-        data.amount,
-        data.withdrawalNonce as `0x${string}`,
-      ],
-    );
-    return proof;
   }
 }
