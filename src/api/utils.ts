@@ -1,7 +1,7 @@
 import { Type, type TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import {
   ExecutionMessage,
-  SubmitWithdrawRequestV2,
+  SubmitWithdrawRequest,
 } from "@relay-protocol/settlement-sdk";
 import axios from "axios";
 import crypto from "crypto";
@@ -93,15 +93,6 @@ export const errorWrapper = (
 // BigInt is serialized as string in JSON, but TypeBox doesn't have a native BigInt type
 // This creates a custom type that tells TypeScript to expect bigint while serializing as string
 export const BigIntString = Type.Unsafe<bigint>({ type: "string" });
-
-export const messageSignatureSchema = Type.Object({
-  oracle: Type.String({
-    description: "The address of the signing oracle",
-  }),
-  signature: Type.String({
-    description: "The message signature",
-  }),
-});
 
 export const executionMessageSignatureSchema = Type.Object({
   oracleChainId: BigIntString,
@@ -265,8 +256,8 @@ export const getPeerExecutionSignatures = async ({
 
 // Utility for comparing two payload params (ignoring signatures)
 export const arePayloadParamsEqual = (
-  p1?: SubmitWithdrawRequestV2,
-  p2?: SubmitWithdrawRequestV2,
+  p1?: SubmitWithdrawRequest,
+  p2?: SubmitWithdrawRequest,
 ) => {
   if (!p1 || !p2) {
     return false;
@@ -298,7 +289,7 @@ export const getPeerPayloadParamSignatures = async ({
   endpointPath: string;
   requestBody: Record<string, unknown>;
   requestApiKey?: string | string[];
-  payloadParams: SubmitWithdrawRequestV2;
+  payloadParams: SubmitWithdrawRequest;
 }) => {
   if (!config.peers) {
     return [];

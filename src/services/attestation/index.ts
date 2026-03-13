@@ -13,17 +13,15 @@ import {
   SolverFillStatus,
   SolverRefundMessage,
   SolverRefundStatus,
-  getWithdrawalAddress,
   getOrderAddress,
   ExecutionMessageMetadata,
-  WithdrawalAddressRequest,
   getVmTypeNativeCurrency,
   generateTokenId,
   generateAddress,
-  DenormalizedSubmitWithdrawRequestV2,
-  getWithdrawalAddressV2,
-  normalizePayloadParamsV2,
-  SubmitWithdrawRequestV2,
+  DenormalizedSubmitWithdrawRequest,
+  getWithdrawalAddress,
+  normalizePayloadParams,
+  SubmitWithdrawRequest,
 } from "@relay-protocol/settlement-sdk";
 import { Address, Hex, verifyMessage, zeroHash } from "viem";
 
@@ -42,6 +40,15 @@ type ExecutionMetadata = Omit<
   ExecutionMessageMetadata,
   "oracleContract" | "oracleChainId"
 >;
+
+type WithdrawalAddressRequest = {
+  chainId: string;
+  currency: string;
+  withdrawer: string;
+  withdrawerChainId: string;
+  recipient: string;
+  withdrawalNonce: string;
+};
 
 export type TxHints = {
   "hyperliquid-vm"?: {
@@ -142,7 +149,7 @@ export class AttestationService {
 
   public async attestWithdrawalInitiation(
     settlementChainId: string,
-    data: DenormalizedSubmitWithdrawRequestV2,
+    data: DenormalizedSubmitWithdrawRequest,
   ): Promise<{
     withdrawalAddress: string;
     execution: ExecutionMessage;
@@ -169,7 +176,7 @@ export class AttestationService {
 
     // Compute withdrawal address
     const chain = await getChain(data.chainId);
-    const withdrawalAddress = getWithdrawalAddressV2({
+    const withdrawalAddress = getWithdrawalAddress({
       vmType: chain.vmType,
       chainId: data.chainId,
       depository: chain.depository!,
@@ -206,9 +213,9 @@ export class AttestationService {
 
   public async attestWithdrawalInitiated(
     settlementChainId: string,
-    data: DenormalizedSubmitWithdrawRequestV2,
+    data: DenormalizedSubmitWithdrawRequest,
   ): Promise<{
-    payloadParams: SubmitWithdrawRequestV2;
+    payloadParams: SubmitWithdrawRequest;
   }> {
     // Ensure the amount is non-zero
     if (BigInt(data.amount) <= 0) {
@@ -224,7 +231,7 @@ export class AttestationService {
 
     // Compute withdrawal address
     const chain = await getChain(data.chainId);
-    const withdrawalAddress = getWithdrawalAddressV2({
+    const withdrawalAddress = getWithdrawalAddress({
       vmType: chain.vmType,
       chainId: data.chainId,
       depository: chain.depository!,
@@ -277,7 +284,7 @@ export class AttestationService {
       }
     }
 
-    const payloadParams = normalizePayloadParamsV2({
+    const payloadParams = normalizePayloadParams({
       ...data,
       chainId: chain.hubChainId!,
       vmType: chain.vmType,
@@ -714,21 +721,6 @@ export class AttestationService {
     };
   }
 
-  private async _getOrderAddress(data: {
-    chainId: string;
-    timestamp: string;
-    depositor: string;
-    depositId: string;
-  }): Promise<string> {
-    return getOrderAddress({
-      depositChainVmType: await getChainVmType(data.chainId),
-      depositChainId: data.chainId,
-      depositor: data.depositor,
-      depositTimestamp: BigInt(data.timestamp),
-      depositId: data.depositId,
-    });
-  }
-
   private async _getSolverFillOrRefundExecution(data: {
     order: Order;
     totalWeightedInputPaymentBpsDiff: bigint;
@@ -825,17 +817,23 @@ export class AttestationService {
     };
   }
 
-  private async _getDepositoryAddress(chainId: string) {
-    const chain = await getChain(chainId);
-    const depositoryAddress = chain.depository;
-    if (!depositoryAddress) {
-      throw externalError("Chain has no depository configured");
-    }
-    return depositoryAddress;
+  private async _getOrderAddress(data: {
+    chainId: string;
+    timestamp: string;
+    depositor: string;
+    depositId: string;
+  }): Promise<string> {
+    return getOrderAddress({
+      vmType: await getChainVmType(data.chainId),
+      chainId: data.chainId,
+      depositor: data.depositor,
+      timestamp: BigInt(data.timestamp),
+      depositId: data.depositId,
+    });
   }
 
   private async _getWithdrawalAddress(data: WithdrawalAddressRequest) {
-    const depositoryAddress = await this._getDepositoryAddress(data.chainId);
+    const chain = await getChain(data.chainId);
 
     // The token to be withdrawn from depository
     const hubTokenId = generateTokenId({
@@ -853,13 +851,13 @@ export class AttestationService {
 
     // Compute address
     const withdrawalAddress = getWithdrawalAddress({
-      depository: depositoryAddress,
-      depositoryChainId: data.chainId,
-      depositoryVmType: await getChainVmType(data.chainId),
+      depository: chain.depository!,
+      chainId: data.chainId,
+      vmType: await getChainVmType(data.chainId),
       recipient: data.recipient,
       currency: data.currency,
-      withdrawerAlias,
-      withdrawalNonce: data.withdrawalNonce,
+      ownerAlias: withdrawerAlias,
+      nonce: data.withdrawalNonce,
     });
 
     return {

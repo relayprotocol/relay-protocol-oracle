@@ -328,12 +328,12 @@ describe("AttestationService", () => {
 
       const withdrawalAddress = getWithdrawalAddress({
         depository: depositoryAddress!,
-        depositoryChainId: "ethereum",
-        depositoryVmType: "ethereum-vm",
+        chainId: "ethereum",
+        vmType: "ethereum-vm",
         currency: withdrawalAddressRequestWithCurrency.currency,
-        withdrawerAlias: withdrawalAddressRequestWithCurrency.withdrawerAlias,
+        ownerAlias: withdrawalAddressRequestWithCurrency.withdrawerAlias,
         recipient: withdrawalAddressRequest.recipient,
-        withdrawalNonce: withdrawalAddressRequestWithCurrency.withdrawalNonce,
+        nonce: withdrawalAddressRequestWithCurrency.withdrawalNonce,
       });
 
       const result = await service.attestDepositoryWithdrawal(requestBody);
@@ -441,12 +441,12 @@ describe("AttestationService", () => {
 
       const withdrawalAddress = getWithdrawalAddress({
         depository: depositoryAddress!,
-        depositoryChainId: "ethereum",
-        depositoryVmType: "ethereum-vm",
+        chainId: "ethereum",
+        vmType: "ethereum-vm",
         currency: withdrawalAddressRequestWithCurrency.currency,
-        withdrawerAlias: withdrawalAddressRequestWithCurrency.withdrawerAlias,
+        ownerAlias: withdrawalAddressRequestWithCurrency.withdrawerAlias,
         recipient: withdrawalAddressRequest.recipient,
-        withdrawalNonce: withdrawalAddressRequestWithCurrency.withdrawalNonce,
+        nonce: withdrawalAddressRequestWithCurrency.withdrawalNonce,
       });
 
       const result = await service.attestDepositoryWithdrawal(requestBody);
@@ -537,7 +537,7 @@ describe("AttestationService", () => {
         },
       };
 
-      const withdrawerAlias = generateAddress({
+      const ownerAlias = generateAddress({
         address: owner,
         chainId: ownerChainId,
         family: await getChainVmType(ownerChainId),
@@ -545,12 +545,12 @@ describe("AttestationService", () => {
 
       const withdrawalAddress = getWithdrawalAddress({
         depository: solanaDepositoryAddress,
-        depositoryChainId: "solana",
-        depositoryVmType: "solana-vm",
+        chainId: "solana",
+        vmType: "solana-vm",
         currency: solanaWithdrawalAddressRequest.currency,
-        withdrawerAlias,
+        ownerAlias,
         recipient: solanaWithdrawalAddressRequest.recipient,
-        withdrawalNonce: solanaWithdrawalAddressRequest.withdrawalNonce,
+        nonce: solanaWithdrawalAddressRequest.withdrawalNonce,
       });
 
       const mockAttestor: any = {

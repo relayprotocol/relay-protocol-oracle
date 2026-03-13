@@ -1,6 +1,6 @@
 import {
   ExecutionMessage,
-  SubmitWithdrawRequestV2,
+  SubmitWithdrawRequest,
 } from "@relay-protocol/settlement-sdk";
 import { Address, Hex } from "viem";
 
@@ -18,7 +18,7 @@ export const signExecutionMessage = async (m: ExecutionMessage) => {
 };
 
 export const signPayloadParamsForChain = async (
-  m: SubmitWithdrawRequestV2,
+  m: SubmitWithdrawRequest,
   chainId: string,
 ) => {
   const wallet = await getSigningWallet(
