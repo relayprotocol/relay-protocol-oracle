@@ -158,15 +158,10 @@ export default {
     req: FastifyRequestTypeBox<typeof Schema>,
     reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
-    // Restrict the `force` option to specific integrators
+    // Restrict the `force` option to only valid API keys
     if (req.body.force) {
       const apiKey = req.headers["x-api-key"] as string | undefined;
-      if (
-        !apiKey ||
-        !config.apiKeys ||
-        !config.apiKeys[apiKey] ||
-        config.apiKeys[apiKey] !== "relay"
-      ) {
+      if (!apiKey || !config.apiKeys || !config.apiKeys[apiKey]) {
         return reply
           .status(400)
           .send({ message: "Unauthorized to use the `force` option" });
