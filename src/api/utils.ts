@@ -179,11 +179,6 @@ export const areExecutionsEqual = (
   );
 };
 
-// shadow peers can receive traffic, but their signatures should not be
-// included in oracle responses yet
-const isShadowPeer = (url: string) =>
-  url.includes("railway") || url.includes("relay-oracle.sovereign-labs.xyz");
-
 /** Fan out the same attestation request to peer oracles and collect only
  * signatures whose execution payload matches the local execution. Failures and
  * timeouts are logged and skipped so one unhealthy peer does not fail the
@@ -222,10 +217,7 @@ export const getPeerExecutionSignatures = async ({
         );
 
         // Only consider the peer signature if the executions are equal
-        if (
-          areExecutionsEqual(response.data.execution, execution) &&
-          !isShadowPeer(url)
-        ) {
+        if (areExecutionsEqual(response.data.execution, execution)) {
           return response.data.execution.signatures;
         }
 
@@ -313,10 +305,7 @@ export const getPeerPayloadParamSignatures = async ({
         );
 
         // Only consider the peer signature if the payload params match
-        if (
-          arePayloadParamsEqual(response.data.payloadParams, payloadParams) &&
-          !isShadowPeer(url)
-        ) {
+        if (arePayloadParamsEqual(response.data.payloadParams, payloadParams)) {
           return response.data.payloadParams.signatures;
         }
 
