@@ -83,9 +83,9 @@ export default {
             endpointPath: "/attestations/depository-deposits/v1",
             requestBody: req.body,
             requestApiKey: req.headers["x-api-key"],
-            validateAndExtractResponse: (peerResponse: any) => {
-              if (areExecutionsEqual(peerResponse.data.execution, execution)) {
-                return peerResponse.data.execution.signatures;
+            validateAndExtractResponse: (peerData: any) => {
+              if (areExecutionsEqual(peerData.execution, execution)) {
+                return peerData.execution.signatures;
               }
 
               return [];

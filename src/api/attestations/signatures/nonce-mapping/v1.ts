@@ -91,14 +91,11 @@ export default {
             endpointPath: "/attestations/signatures/nonce-mappings/v1",
             requestBody: req.body,
             requestApiKey: req.headers["x-api-key"],
-            validateAndExtractResponse: (peerResponse: any) => {
+            validateAndExtractResponse: (peerData: any) => {
               if (
-                areGenericMappingsEqual(
-                  peerResponse.data.genericMapping,
-                  genericMapping,
-                )
+                areGenericMappingsEqual(peerData.genericMapping, genericMapping)
               ) {
-                return peerResponse.data.genericMapping.signatures;
+                return peerData.genericMapping.signatures;
               }
 
               return [];

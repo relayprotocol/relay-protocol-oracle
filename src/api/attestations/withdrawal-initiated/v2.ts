@@ -153,14 +153,11 @@ export default {
             endpointPath: "/attestations/withdrawal-initiated/v2",
             requestBody: req.body,
             requestApiKey: req.headers["x-api-key"],
-            validateAndExtractResponse: (peerResponse: any) => {
+            validateAndExtractResponse: (peerData: any) => {
               if (
-                arePayloadParamsEqual(
-                  peerResponse.data.payloadParams,
-                  payloadParams,
-                )
+                arePayloadParamsEqual(peerData.payloadParams, payloadParams)
               ) {
-                return peerResponse.data.payloadParams.signatures;
+                return peerData.payloadParams.signatures;
               }
 
               return [];
