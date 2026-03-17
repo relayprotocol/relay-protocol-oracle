@@ -37,6 +37,7 @@ export type Chain = {
     hubAddress?: string;
     oracleAddress?: string;
     oracleMultisigAddress?: string;
+    genericMappingAddress?: string;
     auroraChainId?: number;
     auroraAllocatorAddress?: string;
     auroraAllocatorSpenderAddress?: string;
@@ -81,7 +82,10 @@ const resolveHttpRpcUrl = (
 
   // Keep literal local values authoritative.
   // Only use settlement fallback when the local value is an unresolved env placeholder.
-  if (typeof localRpcRawValue === "string" && localRpcRawValue.startsWith("$")) {
+  if (
+    typeof localRpcRawValue === "string" &&
+    localRpcRawValue.startsWith("$")
+  ) {
     return localRpcValue ?? settlementRpcFallback;
   }
 
@@ -100,7 +104,11 @@ const warnInvalidChainConfiguration = (chain: Chain) => {
   if (!chain.httpRpcUrl) {
     logger.warn("chains", `Chain ${chainName} is missing httpRpcUrl`);
   }
-  if (chain.vmType && DEPOSITORY_REQUIRED_VM_TYPES.has(chain.vmType) && !chain.depository) {
+  if (
+    chain.vmType &&
+    DEPOSITORY_REQUIRED_VM_TYPES.has(chain.vmType) &&
+    !chain.depository
+  ) {
     logger.warn(
       "chains",
       `Chain ${chainName} (${chain.vmType}) is missing depository`,
@@ -114,10 +122,9 @@ export const getChains = async () => {
     const __chains: { [id: string]: Chain } = {};
 
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const chains = require(`../../configs/chains.${config.environment}.json`) as Record<
-      string,
-      any
-    >[];
+    const chains = require(
+      `../../configs/chains.${config.environment}.json`,
+    ) as Record<string, any>[];
     for (const chain of chains) {
       const chainId = readConfigValue(chain.id);
       const localHubChainId = readConfigValue(chain.hubChainId);
@@ -131,12 +138,14 @@ export const getChains = async () => {
 
       const resolvedChain: Chain = {
         id: (chainId ?? settlementDefaults?.id) as string,
-        vmType: (readConfigValue(chain.vmType) ?? settlementDefaults?.vmType) as VmType,
+        vmType: (readConfigValue(chain.vmType) ??
+          settlementDefaults?.vmType) as VmType,
         httpRpcUrl: resolveHttpRpcUrl(chain, settlementDefaults) as string,
         depository: (readConfigValue(chain.depository) ??
           settlementDefaults?.depository) as string | undefined,
-        hubChainId: (localHubChainId ??
-          settlementDefaults?.hubChainId) as string | undefined,
+        hubChainId: (localHubChainId ?? settlementDefaults?.hubChainId) as
+          | string
+          | undefined,
         additionalData,
       };
 

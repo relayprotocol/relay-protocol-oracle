@@ -1,5 +1,5 @@
 import { describe, expect, it, jest, beforeEach } from "@jest/globals";
-import { zeroHash, keccak256, encodePacked, Hex } from "viem";
+import { zeroHash, keccak256, encodePacked, Hex, verifyTypedData } from "viem";
 
 import { AttestationService } from "../../../../src/services/attestation";
 import { getVmAttestor } from "../../../../src/services/attestation/vm";
@@ -17,6 +17,7 @@ import {
   generateTokenId,
   generateAddress,
   encodeAddress,
+  getNonceMappingMessage,
 } from "@relay-protocol/settlement-sdk";
 
 import {
@@ -42,6 +43,7 @@ jest.mock("viem", () => {
   return {
     ...viem,
     verifyMessage: jest.fn().mockImplementation(() => Promise.resolve(true)),
+    verifyTypedData: jest.fn().mockImplementation(() => Promise.resolve(true)),
   };
 });
 
@@ -586,6 +588,110 @@ describe("AttestationService", () => {
           amount,
         },
       });
+    });
+  });
+
+  describe("attestNonceMappingSignature", () => {
+    const wallet = "0x1234567890123456789012345678901234567890";
+    const nonce = "1";
+    const id = keccak256("0x1234" as Hex);
+    const signatureChainId = "ethereum";
+    const walletChainId = "ethereum";
+    const mockSignature = "0x" + "ab".repeat(65);
+
+    it("returns correct generic mapping for valid signature", async () => {
+      const result = await service.attestNonceMappingSignature({
+        walletChainId,
+        wallet,
+        nonce,
+        id,
+        signatureChainId,
+        signature: mockSignature,
+      });
+
+      const expectedUser = generateAddress({
+        family: "ethereum-vm",
+        chainId: "ethereum",
+        address: wallet,
+      });
+
+      const expectedGenericMapping = getNonceMappingMessage(
+        expectedUser,
+        nonce,
+        id,
+      );
+
+      expect(result.genericMapping).toEqual(expectedGenericMapping);
+      expect(result.genericMapping.user).toBe(expectedUser);
+      expect(result.genericMapping.data).toBe(id);
+    });
+
+    it("verifies the typed data signature with correct parameters", async () => {
+      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
+
+      await service.attestNonceMappingSignature({
+        walletChainId,
+        wallet,
+        nonce,
+        id,
+        signatureChainId,
+        signature: mockSignature,
+      });
+
+      expect(mockedVerifyTypedData).toHaveBeenCalledWith({
+        address: wallet,
+        domain: {
+          name: "RelayNonceMapping",
+          version: "1",
+          chainId: 1, // hubChainId for "ethereum"
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
+        types: {
+          NonceMapping: [
+            { name: "chainId", type: "string" },
+            { name: "wallet", type: "address" },
+            { name: "id", type: "bytes32" },
+            { name: "nonce", type: "uint256" },
+          ],
+        },
+        primaryType: "NonceMapping",
+        message: {
+          chainId: walletChainId,
+          wallet,
+          id,
+          nonce: BigInt(nonce),
+        },
+        signature: mockSignature,
+      });
+    });
+
+    it("throws on invalid signature", async () => {
+      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
+      mockedVerifyTypedData.mockResolvedValueOnce(false);
+
+      await expect(
+        service.attestNonceMappingSignature({
+          walletChainId,
+          wallet,
+          nonce,
+          id,
+          signatureChainId,
+          signature: mockSignature,
+        }),
+      ).rejects.toThrow("Invalid signature");
+    });
+
+    it("throws on unsupported signature chain", async () => {
+      await expect(
+        service.attestNonceMappingSignature({
+          walletChainId,
+          wallet,
+          nonce,
+          id,
+          signatureChainId: "solana",
+          signature: mockSignature,
+        }),
+      ).rejects.toThrow("Unsupported signature chain");
     });
   });
 

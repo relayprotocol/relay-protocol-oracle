@@ -1,12 +1,13 @@
 import { Type } from "@fastify/type-provider-typebox";
 
 import {
+  areExecutionsEqual,
   Endpoint,
   ErrorResponses,
   executionSchema,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
-  getPeerExecutionSignatures,
+  getPeerResponses,
 } from "../../utils";
 import { signExecutionMessage } from "../../../common/signer";
 import { config } from "../../../config";
@@ -189,11 +190,17 @@ export default {
 
     const peerSignatures =
       req.body.requestPeerSignatures && config.peers
-        ? await getPeerExecutionSignatures({
+        ? await getPeerResponses({
             endpointPath: "/attestations/solver-refunds/v1",
             requestBody: req.body,
             requestApiKey: req.headers["x-api-key"],
-            execution,
+            validateAndExtractResponse: (peerResponse: any) => {
+              if (areExecutionsEqual(peerResponse.data.execution, execution)) {
+                return peerResponse.data.execution.signatures;
+              }
+
+              return [];
+            },
           })
         : [];
 

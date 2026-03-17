@@ -1,6 +1,7 @@
 import { Type, type TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import {
   ExecutionMessage,
+  GenericMappingMessage,
   SubmitWithdrawRequest,
 } from "@relay-protocol/settlement-sdk";
 import axios from "axios";
@@ -137,32 +138,6 @@ export const executionSchema = Type.Optional(
   ),
 );
 
-// Fastify schema for the params needed to create a withdrawal address
-
-export const WithdrawalAddressSchema = Type.Object({
-  chainId: Type.String({
-    description:
-      "The hub chain id of the depository contract currently holding the funds",
-  }),
-  currency: Type.String({
-    description: "The id of the currency as expressed on origin chain (string)",
-  }),
-  withdrawer: Type.String({
-    description: "The address that is requiring the withdrawal",
-  }),
-  withdrawerChainId: Type.String({
-    description: "The chain id of the address that is requiring the withdrawal",
-  }),
-  recipient: Type.String({
-    description:
-      "The address that will receive the withdrawn funds on destination chain",
-  }),
-  withdrawalNonce: Type.String({
-    description:
-      "Optional nonce to prevent collisions for similar withdrawals in the same block",
-  }),
-});
-
 // Utility for comparing two execution messages
 export const areExecutionsEqual = (
   msg1?: ExecutionMessage,
@@ -179,109 +154,59 @@ export const areExecutionsEqual = (
   );
 };
 
+// Utility for comparing two payload params (ignoring signatures)
+export const arePayloadParamsEqual = (
+  msg1?: SubmitWithdrawRequest,
+  msg2?: SubmitWithdrawRequest,
+) => {
+  if (!msg1 || !msg2) {
+    return false;
+  }
+
+  return (
+    msg1.chainId === msg2.chainId &&
+    msg1.depository === msg2.depository &&
+    msg1.currency === msg2.currency &&
+    msg1.amount === msg2.amount &&
+    msg1.spender === msg2.spender &&
+    msg1.recipient === msg2.recipient &&
+    msg1.nonce === msg2.nonce &&
+    msg1.data === msg2.data
+  );
+};
+
+// Utility for comparing two generic mappings (ignoring signatures)
+export const areGenericMappingsEqual = (
+  msg1?: GenericMappingMessage,
+  msg2?: GenericMappingMessage,
+) => {
+  if (!msg1 || !msg2) {
+    return false;
+  }
+
+  return (
+    msg1.user === msg2.user &&
+    msg1.id === msg2.id &&
+    msg1.data === msg2.data &&
+    msg1.nonce === msg2.nonce
+  );
+};
+
 /** Fan out the same attestation request to peer oracles and collect only
  * signatures whose execution payload matches the local execution. Failures and
  * timeouts are logged and skipped so one unhealthy peer does not fail the
  * entire request path.
  */
-export const getPeerExecutionSignatures = async ({
+export const getPeerResponses = async ({
   endpointPath,
   requestBody,
   requestApiKey,
-  execution,
+  validateAndExtractResponse,
 }: {
   endpointPath: string;
   requestBody: Record<string, unknown>;
   requestApiKey?: string | string[];
-  execution?: ExecutionMessage;
-}) => {
-  if (!execution || !config.peers) {
-    return [];
-  }
-
-  const peerResponses = await Promise.all(
-    Object.entries(config.peers).map(async ([url, apiKey]) => {
-      try {
-        const response = await axios.post(
-          `${url}${endpointPath}`,
-          {
-            ...requestBody,
-            requestPeerSignatures: false,
-          },
-          {
-            headers: {
-              "x-api-key": apiKey === "pass-through" ? requestApiKey : apiKey,
-            },
-            timeout: config.peerRequestTimeoutMs,
-          },
-        );
-
-        // Only consider the peer signature if the executions are equal
-        if (areExecutionsEqual(response.data.execution, execution)) {
-          return response.data.execution.signatures;
-        }
-
-        logger.warn(
-          "oracle-peer",
-          `Skipping mismatched peer execution (${endpointPath}): ${url}`,
-        );
-        return [];
-      } catch (error: any) {
-        logger.warn(
-          "oracle-peer",
-          JSON.stringify({
-            msg: "Skipping peer signature",
-            endpointPath,
-            url,
-            timeoutMs: config.peerRequestTimeoutMs,
-            error: String(error),
-            errorResponse: error?.response?.data ?? error?.response?.body,
-          }),
-        );
-        return [];
-      }
-    }),
-  );
-
-  return peerResponses.flat();
-};
-
-// Utility for comparing two payload params (ignoring signatures)
-export const arePayloadParamsEqual = (
-  p1?: SubmitWithdrawRequest,
-  p2?: SubmitWithdrawRequest,
-) => {
-  if (!p1 || !p2) {
-    return false;
-  }
-
-  return (
-    p1.chainId === p2.chainId &&
-    p1.depository === p2.depository &&
-    p1.currency === p2.currency &&
-    p1.amount === p2.amount &&
-    p1.spender === p2.spender &&
-    p1.recipient === p2.recipient &&
-    p1.nonce === p2.nonce &&
-    p1.data === p2.data
-  );
-};
-
-/** Fan out the same attestation request to peer oracles and collect only
- * signatures whose payload params match the local payload params. Failures and
- * timeouts are logged and skipped so one unhealthy peer does not fail the
- * entire request path.
- */
-export const getPeerPayloadParamSignatures = async ({
-  endpointPath,
-  requestBody,
-  requestApiKey,
-  payloadParams,
-}: {
-  endpointPath: string;
-  requestBody: Record<string, unknown>;
-  requestApiKey?: string | string[];
-  payloadParams: SubmitWithdrawRequest;
+  validateAndExtractResponse: (peerData: any) => any[];
 }) => {
   if (!config.peers) {
     return [];
@@ -304,16 +229,7 @@ export const getPeerPayloadParamSignatures = async ({
           },
         );
 
-        // Only consider the peer signature if the payload params match
-        if (arePayloadParamsEqual(response.data.payloadParams, payloadParams)) {
-          return response.data.payloadParams.signatures;
-        }
-
-        logger.warn(
-          "oracle-peer",
-          `Skipping mismatched peer payload params (${endpointPath}): ${url}`,
-        );
-        return [];
+        return validateAndExtractResponse(response.data);
       } catch (error: any) {
         logger.warn(
           "oracle-peer",

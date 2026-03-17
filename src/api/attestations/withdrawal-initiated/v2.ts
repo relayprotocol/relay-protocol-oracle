@@ -2,12 +2,13 @@ import { Type } from "@fastify/type-provider-typebox";
 import { generateAddress } from "@relay-protocol/settlement-sdk";
 
 import {
+  arePayloadParamsEqual,
   BigIntString,
   Endpoint,
   ErrorResponses,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
-  getPeerPayloadParamSignatures,
+  getPeerResponses,
   verifyWithdrawalSignature,
 } from "../../utils";
 import { getChain } from "../../../common/chains";
@@ -148,11 +149,22 @@ export default {
 
     const peerSignatures =
       req.body.requestPeerSignatures && config.peers
-        ? await getPeerPayloadParamSignatures({
+        ? await getPeerResponses({
             endpointPath: "/attestations/withdrawal-initiated/v2",
             requestBody: req.body,
             requestApiKey: req.headers["x-api-key"],
-            payloadParams,
+            validateAndExtractResponse: (peerResponse: any) => {
+              if (
+                arePayloadParamsEqual(
+                  peerResponse.data.payloadParams,
+                  payloadParams,
+                )
+              ) {
+                return peerResponse.data.payloadParams.signatures;
+              }
+
+              return [];
+            },
           })
         : [];
 

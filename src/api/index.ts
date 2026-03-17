@@ -5,6 +5,7 @@ import { Endpoint, errorWrapper } from "./utils";
 // Import all endpoints
 import attestationsDepositoryDepositsV1 from "./attestations/depository-deposits/v1";
 import attestationsDepositoryWithdrawalsV1 from "./attestations/depository-withdrawals/v1";
+import attestationsSignaturesNonceMappingV1 from "./attestations/signatures/nonce-mapping/v1";
 import attestationsSolverFillV1 from "./attestations/solver-fills/v1";
 import attestationsSolverRefundV1 from "./attestations/solver-refunds/v1";
 import attestationsWithdrawalsInitiationV2 from "./attestations/withdrawal-initiation/v2";
@@ -16,6 +17,7 @@ import livesV1 from "./lives/v1";
 const endpoints = [
   attestationsDepositoryDepositsV1,
   attestationsDepositoryWithdrawalsV1,
+  attestationsSignaturesNonceMappingV1,
   attestationsWithdrawalsInitiationV2,
   attestationsWithdrawalsInitiatedV2,
   attestationsSolverFillV1,

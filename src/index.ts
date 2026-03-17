@@ -2,6 +2,7 @@
 import "./http-server";
 
 import { logger } from "./common/logger";
+
 const COMPONENT = "process";
 
 // Log unhandled errors

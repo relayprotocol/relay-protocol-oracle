@@ -22,8 +22,17 @@ import {
   getWithdrawalAddress,
   normalizePayloadParams,
   SubmitWithdrawRequest,
+  GenericMappingMessage,
+  getNonceMappingMessage,
 } from "@relay-protocol/settlement-sdk";
-import { Address, Hex, verifyMessage, zeroHash } from "viem";
+import {
+  Address,
+  Hex,
+  verifyMessage,
+  verifyTypedData,
+  zeroAddress,
+  zeroHash,
+} from "viem";
 
 import { getVmAttestor, getHubAttestor } from "./vm";
 import { EnhancedDepositoryDepositMessage } from "./vm/types";
@@ -615,6 +624,68 @@ export class AttestationService {
         depositoryDeposits,
         type: "refund",
       }),
+    };
+  }
+
+  public async attestNonceMappingSignature(data: {
+    walletChainId: string;
+    wallet: string;
+    nonce: string;
+    id: string;
+    signatureChainId: string;
+    signature: string;
+  }): Promise<{
+    genericMapping: GenericMappingMessage;
+  }> {
+    const NONCE_MAPPING_DOMAIN = (chainId: number) => ({
+      name: "RelayNonceMapping",
+      version: "1",
+      chainId,
+      verifyingContract: zeroAddress,
+    });
+
+    const NONCE_MAPPING_TYPES = {
+      NonceMapping: [
+        { name: "chainId", type: "string" },
+        { name: "wallet", type: "address" },
+        { name: "id", type: "bytes32" },
+        { name: "nonce", type: "uint256" },
+      ],
+    };
+
+    const message = {
+      chainId: data.walletChainId,
+      wallet: data.wallet as Address,
+      id: data.id as Hex,
+      nonce: BigInt(data.nonce),
+    };
+
+    const signatureChain = await getChain(data.signatureChainId);
+    if (signatureChain.vmType !== "ethereum-vm") {
+      throw externalError("Unsupported signature chain");
+    }
+
+    const isValidSignature = await verifyTypedData({
+      address: data.wallet as Address,
+      domain: NONCE_MAPPING_DOMAIN(Number(signatureChain.hubChainId!)),
+      types: NONCE_MAPPING_TYPES,
+      primaryType: "NonceMapping",
+      message,
+      signature: data.signature as Hex,
+    }).catch(() => false);
+    if (!isValidSignature) {
+      throw externalError("Invalid signature");
+    }
+
+    const walletChain = await getChain(data.walletChainId);
+    const user = generateAddress({
+      family: walletChain.vmType,
+      chainId: walletChain.id,
+      address: data.wallet,
+    });
+
+    return {
+      genericMapping: getNonceMappingMessage(user, data.nonce, data.id),
     };
   }
 
