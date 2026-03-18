@@ -1,7 +1,7 @@
 export const config = {
   httpPort: Number(process.env.HTTP_PORT ?? process.env.PORT ?? 3000),
   environment: process.env.ENVIRONMENT!,
-  peerRequestTimeoutMs: Number(process.env.PEER_REQUEST_TIMEOUT_MS ?? 10000),
+  peerRequestTimeoutMs: Number(process.env.PEER_REQUEST_TIMEOUT_MS ?? 5000),
 
   apiKeys: process.env.API_KEYS
     ? Object.fromEntries(
