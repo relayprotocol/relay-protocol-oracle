@@ -4,18 +4,29 @@ import {
   decodeWithdrawal,
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
+  generateAddress,
   getDecodedWithdrawalId,
+  getNonceMappingMessage,
   getVmTypeNativeCurrency,
 } from "@relay-protocol/settlement-sdk";
 import axios from "axios";
-import { parseUnits, hashStruct, zeroHash } from "viem";
+import {
+  parseUnits,
+  hashStruct,
+  zeroHash,
+  getContract,
+  Address,
+  parseAbi,
+  Hex,
+} from "viem";
 
 import { getDeterministicId } from "../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { TxHints } from "../../../attestation";
-import { getChain } from "../../../../common/chains";
+import { getChain, getHubChains } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/hyperliquid-vm/rpc";
+import { httpRpc as hubHttpRpc } from "../../../../common/vm/hub-vm/rpc";
 import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import { logger } from "../../../../common/logger";
 
@@ -528,8 +539,17 @@ export class HyperliquidVmAttestor extends VmAttestor {
         (response) =>
           response.data as { id: string; createdAt: string } | undefined,
       )
-      .catch((error) => {
+      .catch(async (error) => {
         if (error.response?.data?.code === "NONCE_MAPPING_NOT_FOUND") {
+          const hubLookup = await this._lookupIdOnHub(
+            chainId,
+            depositor,
+            nonce,
+          );
+          if (hubLookup) {
+            return hubLookup;
+          }
+
           return undefined;
         }
 
@@ -554,6 +574,54 @@ export class HyperliquidVmAttestor extends VmAttestor {
         );
       }
     }
+  }
+
+  private async _lookupIdOnHub(
+    chainId: string,
+    depositor: string,
+    nonce: number,
+  ): Promise<{ id: string; createdAt: string } | undefined> {
+    const hubChains = await getHubChains();
+    const hub = hubChains[Object.keys(hubChains)[0]];
+
+    if (!hub.additionalData?.genericMappingAddress) {
+      return undefined;
+    }
+
+    const genericMappingContract = getContract({
+      address: hub.additionalData.genericMappingAddress as Address,
+      abi: parseAbi([
+        "function getEntry(address user, bytes32 id) view returns (bytes data, uint256 createdAt)",
+      ]),
+      client: await hubHttpRpc(hub.id),
+    });
+
+    const chain = await getChain(chainId);
+    const user = generateAddress({
+      family: chain.vmType,
+      chainId: chain.id,
+      address: depositor,
+    });
+
+    const { id } = getNonceMappingMessage(
+      user,
+      String(nonce),
+      // Use a random `depositId` since all we care is getting the correct entry id
+      zeroHash,
+    );
+
+    const [data, createdAt] = await genericMappingContract.read.getEntry([
+      user,
+      id as Hex,
+    ]);
+    if (createdAt > 0n) {
+      return {
+        id: data,
+        createdAt: new Date(Number(createdAt * 1000n)).toISOString(),
+      };
+    }
+
+    return undefined;
   }
 
   private _getMessageHash(action: any): string | undefined {
