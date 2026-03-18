@@ -1179,6 +1179,30 @@ describe("SolanaVmAttestor", () => {
     expect(deposits.messages).toEqual([]);
   });
 
+  it("attestDepositoryDeposits - should throw when transaction failed on-chain", async () => {
+    const transactionId = randomBase58(32);
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: async () => ({
+        meta: {
+          err: {
+            InstructionError: [0, "Custom"],
+          },
+        },
+      }),
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
+    }));
+
+    const service = new AttestationService();
+
+    await expect(
+      service.attestDepositoryDeposits({
+        chainId: Object.values(await getChains())[0].id,
+        transactionId,
+      })
+    ).rejects.toThrow(`Transaction failed: ${transactionId}`);
+  });
+
   it("attestSolverFill - validates solver fill correctly", async () => {
     await testAttestSolverFill({});
   });

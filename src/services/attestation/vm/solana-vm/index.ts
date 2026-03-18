@@ -34,13 +34,13 @@ export class SolanaVmAttestor extends VmAttestor {
     super();
 
     this.instructionCoder = new BorshInstructionCoder(
-      RelayDepositoryIdl as Idl
+      RelayDepositoryIdl as Idl,
     );
   }
 
   public async getDepositoryDepositMessages(
     chainId: string,
-    transactionId: string
+    transactionId: string,
   ): Promise<EnhancedDepositoryDepositMessage[]> {
     const trackingId = getTrackingId();
 
@@ -54,6 +54,9 @@ export class SolanaVmAttestor extends VmAttestor {
     });
     if (!transaction) {
       return [];
+    }
+    if (transaction.meta?.err) {
+      throw externalError(`Transaction failed: ${transactionId}`);
     }
 
     // Get the timestamp of the transaction
@@ -80,7 +83,7 @@ export class SolanaVmAttestor extends VmAttestor {
         chainId,
         transaction,
         rpc,
-        trackingId
+        trackingId,
       );
     if (!instructions.length) {
       return [];
@@ -118,7 +121,7 @@ export class SolanaVmAttestor extends VmAttestor {
           const onchainId = getDeterministicId(
             chainId,
             transactionId,
-            i.toString()
+            i.toString(),
           );
           messages.push({
             data: {
@@ -157,7 +160,7 @@ export class SolanaVmAttestor extends VmAttestor {
           const onchainId = getDeterministicId(
             chainId,
             transactionId,
-            i.toString()
+            i.toString(),
           );
           messages.push({
             data: {
@@ -192,7 +195,7 @@ export class SolanaVmAttestor extends VmAttestor {
    */
   public async getDepositoryWithdrawalMessage(
     chainId: string,
-    withdrawal: string
+    withdrawal: string,
   ): Promise<DepositoryWithdrawalMessage> {
     const trackingId = getTrackingId();
 
@@ -206,7 +209,7 @@ export class SolanaVmAttestor extends VmAttestor {
 
     const decodedWithdrawal = decodeWithdrawal(
       withdrawal,
-      chain.vmType
+      chain.vmType,
     ) as DecodedSolanaVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
@@ -217,20 +220,20 @@ export class SolanaVmAttestor extends VmAttestor {
       } as Idl,
       new anchor.AnchorProvider(
         new anchor.web3.Connection(rpc.rpcEndpoint, "finalized"),
-        new anchor.Wallet(anchor.web3.Keypair.generate())
-      )
+        new anchor.Wallet(anchor.web3.Keypair.generate()),
+      ),
     );
 
     const [usedRequestPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("used_request"), Buffer.from(withdrawalId.slice(2), "hex")],
-      program.programId
+      program.programId,
     );
 
     let usedRequestState: { isUsed: boolean } | undefined;
     try {
       await logRpcUsage(chainId, "fetch", trackingId);
       usedRequestState = await (program.account as any).usedRequest.fetch(
-        usedRequestPda
+        usedRequestPda,
       );
     } catch {
       // Skip errors (`usedRequestState` will be undefined if not found)
@@ -285,7 +288,7 @@ export class SolanaVmAttestor extends VmAttestor {
       orderId: string;
       extraData: string;
       deadline: number;
-    }
+    },
   ): Promise<bigint> {
     const trackingId = getTrackingId();
 
@@ -308,7 +311,7 @@ export class SolanaVmAttestor extends VmAttestor {
     // Check deadline
     if (transaction.blockTime && transaction.blockTime > payment.deadline) {
       throw externalError(
-        `Transaction executed after deadline: ${payment.deadline}`
+        `Transaction executed after deadline: ${payment.deadline}`,
       );
     }
 
@@ -317,7 +320,7 @@ export class SolanaVmAttestor extends VmAttestor {
         chainId,
         transaction,
         rpc,
-        trackingId
+        trackingId,
       );
 
     let hasOrderId = false;
@@ -334,7 +337,7 @@ export class SolanaVmAttestor extends VmAttestor {
 
     if (!hasOrderId) {
       throw externalError(
-        `Transaction ${transactionId} does not reference order id`
+        `Transaction ${transactionId} does not reference order id`,
       );
     }
 
@@ -342,7 +345,7 @@ export class SolanaVmAttestor extends VmAttestor {
     if (payment.currency === "11111111111111111111111111111111") {
       const recipientPubkey = new PublicKey(payment.recipient);
       const recipientIndex = accountKeys.findIndex((key) =>
-        key.equals(recipientPubkey)
+        key.equals(recipientPubkey),
       );
       if (recipientIndex === -1) {
         return 0n;
@@ -360,13 +363,13 @@ export class SolanaVmAttestor extends VmAttestor {
       const preTokenBalance = transaction.meta?.preTokenBalances?.find(
         (b) =>
           b.owner === recipientPubkey.toBase58() &&
-          b.mint === tokenMintPubkey.toBase58()
+          b.mint === tokenMintPubkey.toBase58(),
       );
 
       const postTokenBalance = transaction.meta?.postTokenBalances?.find(
         (b) =>
           b.owner === recipientPubkey.toBase58() &&
-          b.mint === tokenMintPubkey.toBase58()
+          b.mint === tokenMintPubkey.toBase58(),
       );
 
       if (!preTokenBalance && !postTokenBalance) {
@@ -397,7 +400,7 @@ export class SolanaVmAttestor extends VmAttestor {
     _chainId: string,
     _transactionId: string,
     _calls: string[],
-    _extraData: string
+    _extraData: string,
   ): Promise<boolean> {
     throw internalError("Not implemented");
   }
@@ -406,7 +409,7 @@ export class SolanaVmAttestor extends VmAttestor {
     chainId: string,
     transaction: VersionedTransactionResponse,
     rpc: Connection,
-    trackingId: string
+    trackingId: string,
   ): Promise<{
     instructions: MessageCompiledInstruction[];
     accountKeys: PublicKey[];
@@ -441,8 +444,8 @@ export class SolanaVmAttestor extends VmAttestor {
               return rpc
                 .getAddressLookupTable(accountKey)
                 .then((res) => res.value!);
-            }
-          )
+            },
+          ),
         ),
       }).staticAccountKeys,
       // First we have `writable` and then `readonly`
