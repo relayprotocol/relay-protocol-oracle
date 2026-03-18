@@ -122,7 +122,7 @@ export default {
     const peerSignatures =
       req.body.requestPeerSignatures && config.peers
         ? await getPeerResponses({
-            endpointPath: "/attestations/withdrawal-initiation/v2",
+            endpointPath: req.originalUrl,
             requestBody: req.body,
             requestApiKey: req.headers["x-api-key"],
             validateAndExtractResponse: (peerData: any) => {

@@ -177,7 +177,7 @@ export default {
     const peerSignatures =
       req.body.requestPeerSignatures && config.peers
         ? await getPeerResponses({
-            endpointPath: "/attestations/solver-fills/v1",
+            endpointPath: req.originalUrl,
             requestBody: req.body,
             requestApiKey: req.headers["x-api-key"],
             validateAndExtractResponse: (peerData: any) => {

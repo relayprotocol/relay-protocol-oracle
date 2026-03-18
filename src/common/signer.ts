@@ -40,7 +40,7 @@ export const signGenericMappingMessageForChain = async (
       user: m.user as Address,
       id: m.id as Hex,
       data: m.data as Hex,
-      nonce: m.data as Hex,
+      nonce: m.nonce as Hex,
     },
     primaryType: "SetEntry",
     types: {
