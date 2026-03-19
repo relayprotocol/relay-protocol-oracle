@@ -8,10 +8,10 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
   getPeerResponses,
-  verifyWithdrawalSignature,
 } from "../../utils";
 import { getChain } from "../../../common/chains";
 import { signExecutionMessageForChain } from "../../../common/signer";
+import { verifyWithdrawalSignature } from "../../../common/signature-verification";
 import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
@@ -93,7 +93,10 @@ export default {
     reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
     // Ensure the owner authorized the withdrawal
-    await verifyWithdrawalSignature(req.body, req.body.ownerSignature);
+    await verifyWithdrawalSignature({
+      data: req.body,
+      signature: req.body.ownerSignature,
+    });
 
     const chain = await getChain(req.body.chainId);
 

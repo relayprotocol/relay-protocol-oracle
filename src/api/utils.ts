@@ -5,7 +5,6 @@ import {
   SubmitWithdrawRequest,
 } from "@relay-protocol/settlement-sdk";
 import axios from "axios";
-import crypto from "crypto";
 import type {
   ContextConfigDefault,
   FastifyReply,
@@ -17,11 +16,8 @@ import type {
 } from "fastify";
 import type { RouteGenericInterface } from "fastify/types/route";
 import type { FastifySchema } from "fastify/types/schema";
-import stringify from "json-stable-stringify";
-import { Address, Hex, verifyMessage } from "viem";
 
-import { getChain } from "../common/chains";
-import { externalError, isExternalError } from "../common/error";
+import { isExternalError } from "../common/error";
 import { logger } from "../common/logger";
 import { config } from "../config";
 
@@ -248,53 +244,4 @@ export const getPeerResponses = async ({
   );
 
   return peerResponses.flat();
-};
-
-export const verifyWithdrawalSignature = async (
-  data: {
-    chainId: string;
-    currency: string;
-    amount: string;
-    ownerChainId: string;
-    owner: string;
-    recipient: string;
-    nonce: string;
-    additionalData?: any;
-  },
-  signature: string,
-) => {
-  // Verify the owner signature
-  const hashToVerify = crypto
-    .createHash("sha256")
-    .update(
-      stringify({
-        chainId: data.chainId,
-        currency: data.currency,
-        amount: data.amount,
-        ownerChainId: data.ownerChainId,
-        owner: data.owner,
-        recipient: data.recipient,
-        nonce: data.nonce,
-        additionalData: data.additionalData,
-      })!,
-    )
-    .digest()
-    .toString("hex");
-
-  const ownerChain = await getChain(data.ownerChainId);
-  if (ownerChain.vmType !== "ethereum-vm") {
-    throw externalError("Signature verification not supported for owner chain");
-  }
-
-  // For now we only support "ethereum-vm" signatures
-  const isSignatureValid = await verifyMessage({
-    address: data.owner as Address,
-    message: {
-      raw: `0x${hashToVerify}`,
-    },
-    signature: signature as Hex,
-  });
-  if (!isSignatureValid) {
-    throw externalError("Invalid signature");
-  }
 };
