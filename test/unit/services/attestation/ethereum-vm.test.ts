@@ -3,6 +3,8 @@ import {
   decodeWithdrawal,
   encodeWithdrawal,
   DepositoryWithdrawalStatus,
+  encodeOrderCall,
+  encodeOrderExtraData,
   getOrderId,
   Order,
   SolverFillStatus,
@@ -28,7 +30,10 @@ import {
 } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/ethereum-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
-import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
+import {
+  ABI,
+  EthereumVmAttestor,
+} from "../../../../src/services/attestation/vm/ethereum-vm";
 
 import { ONE_BILLION, randomHex, randomNumber } from "../../../common/utils";
 import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
@@ -270,6 +275,43 @@ const generateSolverNativeTransferLog = ({
     transactionHash,
     logIndex,
     address: solverContract,
+    data,
+    topics: topics as string[],
+  });
+};
+
+const generateSolverCallExecutedLog = ({
+  transactionHash,
+  logIndex,
+  fillContract,
+  to,
+  data: callData,
+  amount,
+}: {
+  transactionHash: string;
+  logIndex: number;
+  fillContract: string;
+  to: string;
+  data: string;
+  amount: string;
+}) => {
+  const topics = encodeEventTopics({
+    abi: ABI,
+    eventName: "SolverCallExecuted",
+  });
+  const data = encodeAbiParameters(
+    [
+      { name: "to", type: "address" },
+      { name: "data", type: "bytes" },
+      { name: "amount", type: "uint256" },
+    ],
+    [to as Hex, callData as Hex, BigInt(amount)]
+  );
+
+  return generateTransactionLog({
+    transactionHash,
+    logIndex,
+    address: fillContract,
     data,
     topics: topics as string[],
   });
@@ -1363,6 +1405,65 @@ describe("EthereumVmAttestor", () => {
     await testAttestSolverRefund({
       useErc20Token: true,
     });
+  });
+
+  it("verifySolverCalls - preserves SolverCallExecuted ordering", async () => {
+    const chains = Object.values(await getChains());
+    const chain = chains[randomNumber(chains.length)];
+    const transactionHash = randomHex(32);
+    const fillContract = randomHex(20);
+
+    const firstCall = {
+      to: randomHex(20),
+      data: randomHex(32),
+      value: randomNumber(ONE_BILLION).toString(),
+      allowFailure: false,
+    };
+    const secondCall = {
+      to: randomHex(20),
+      data: randomHex(32),
+      value: randomNumber(ONE_BILLION).toString(),
+      allowFailure: false,
+    };
+
+    const receipt = generateTransactionReceipt(transactionHash, [
+      generateSolverCallExecutedLog({
+        transactionHash,
+        logIndex: 1,
+        fillContract,
+        to: secondCall.to,
+        data: secondCall.data,
+        amount: secondCall.value,
+      }),
+      generateSolverCallExecutedLog({
+        transactionHash,
+        logIndex: 2,
+        fillContract,
+        to: firstCall.to,
+        data: firstCall.data,
+        amount: firstCall.value,
+      }),
+    ]);
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getBlock: getBlockMock,
+      getTransactionReceipt: async () => receipt,
+    }));
+
+    const result = await new EthereumVmAttestor().verifySolverCalls(
+      chain.id,
+      transactionHash,
+      [
+        encodeOrderCall({ vmType: "ethereum-vm", call: firstCall }),
+        encodeOrderCall({ vmType: "ethereum-vm", call: secondCall }),
+      ],
+      encodeOrderExtraData({
+        vmType: "ethereum-vm",
+        extraData: { fillContract },
+      })
+    );
+
+    expect(result).toBe(false);
   });
 });
 

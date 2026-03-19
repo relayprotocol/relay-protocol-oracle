@@ -508,23 +508,24 @@ export class EthereumVmAttestor extends VmAttestor {
 
       return false;
     });
+    parsedLogs.sort((l1, l2) => l1.logIndex - l2.logIndex);
 
-    const usedParsedLogIndexes = new Set<number>();
+    let logSearchStartIndex = 0;
     for (const call of calls) {
       const decodedCall = decodeOrderCall(call, chain.vmType);
 
       const relevantLogIndex = parsedLogs.findIndex(
         (log, i) =>
+          i >= logSearchStartIndex &&
           log.args.to.toLowerCase() === decodedCall.call.to.toLowerCase() &&
           log.args.data.toLowerCase() === decodedCall.call.data.toLowerCase() &&
-          log.args.amount === BigInt(decodedCall.call.value) &&
-          !usedParsedLogIndexes.has(i),
+          log.args.amount === BigInt(decodedCall.call.value),
       );
       if (relevantLogIndex === -1) {
         return false;
-      } else {
-        usedParsedLogIndexes.add(relevantLogIndex);
       }
+
+      logSearchStartIndex = relevantLogIndex + 1;
     }
 
     return true;
