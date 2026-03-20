@@ -36,6 +36,7 @@ export type Chain = {
     oracleAddress?: string;
     oracleMultisigAddress?: string;
     genericMappingAddress?: string;
+    auroraHttpRpcUrl?: string;
     auroraChainId?: number;
     auroraAllocatorAddress?: string;
     auroraAllocatorSpenderAddress?: string;
@@ -215,4 +216,10 @@ export const getChainHubChainId = async (chainId: string) => {
   }
 
   return BigInt(hubChainId);
+};
+
+// We only ever have a single Hub chain
+export const getUniqueHubChain = async () => {
+  const hubChains = await getHubChains();
+  return hubChains[Object.keys(hubChains)[0]];
 };

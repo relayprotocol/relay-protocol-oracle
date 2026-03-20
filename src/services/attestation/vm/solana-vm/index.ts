@@ -18,7 +18,7 @@ import {
 import bs58 from "bs58";
 
 import { RelayDepositoryIdl } from "./idls/RelayDepositoryIdl";
-import { getDeterministicId } from "../utils";
+import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";

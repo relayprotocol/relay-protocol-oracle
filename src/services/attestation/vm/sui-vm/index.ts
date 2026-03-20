@@ -9,7 +9,7 @@ import {
   getDecodedWithdrawalId,
 } from "@relay-protocol/settlement-sdk";
 
-import { getDeterministicId } from "../utils";
+import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { externalError, internalError } from "../../../../common/error";
 import { getChain } from "../../../../common/chains";
@@ -18,7 +18,7 @@ import { httpRpc } from "../../../../common/vm/sui-vm/rpc";
 export class SuiVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
-    transactionId: string
+    transactionId: string,
   ): Promise<EnhancedDepositoryDepositMessage[]> {
     const connection = await httpRpc(chainId);
     const transaction = await connection.getTransactionBlock({
@@ -49,7 +49,7 @@ export class SuiVmAttestor extends VmAttestor {
       const onchainId = getDeterministicId(
         chainId,
         transactionId,
-        messageIndex.toString()
+        messageIndex.toString(),
       );
 
       if (event.type.includes("DepositEvent")) {
@@ -88,7 +88,7 @@ export class SuiVmAttestor extends VmAttestor {
 
   public async getDepositoryWithdrawalMessage(
     chainId: string,
-    withdrawal: string
+    withdrawal: string,
   ): Promise<DepositoryWithdrawalMessage> {
     const rpc = await httpRpc(chainId);
     const chain = await getChain(chainId);
@@ -100,7 +100,7 @@ export class SuiVmAttestor extends VmAttestor {
 
     const decodedWithdrawal = decodeWithdrawal(
       withdrawal,
-      chain.vmType
+      chain.vmType,
     ) as DecodedSuiVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
@@ -128,7 +128,7 @@ export class SuiVmAttestor extends VmAttestor {
         throw internalError("Failed to cal check_request_executed");
       }
       const isExecuted = bcs.Bool.parse(
-        new Uint8Array(response.results[0].returnValues[0][0])
+        new Uint8Array(response.results[0].returnValues[0][0]),
       );
       if (isExecuted) {
         onChainStatus = true;
@@ -174,7 +174,7 @@ export class SuiVmAttestor extends VmAttestor {
       orderId: string;
       extraData: string;
       deadline: number;
-    }
+    },
   ): Promise<bigint> {
     const connection = await httpRpc(chainId);
     // Get the transaction with all details
@@ -193,11 +193,11 @@ export class SuiVmAttestor extends VmAttestor {
 
     // Check deadline
     const transactionTimestamp = Math.floor(
-      Number(transaction.timestampMs) / 1000
+      Number(transaction.timestampMs) / 1000,
     );
     if (transactionTimestamp > payment.deadline) {
       throw externalError(
-        `Transaction executed after deadline: ${payment.deadline}`
+        `Transaction executed after deadline: ${payment.deadline}`,
       );
     }
 
@@ -219,7 +219,7 @@ export class SuiVmAttestor extends VmAttestor {
 
     if (!orderIdFound) {
       throw externalError(
-        `Order hash not found in transaction: ${transactionId}`
+        `Order hash not found in transaction: ${transactionId}`,
       );
     }
 
@@ -243,7 +243,7 @@ export class SuiVmAttestor extends VmAttestor {
 
     if (paidAmount === 0n) {
       throw externalError(
-        `No payment found to recipient: ${payment.recipient}`
+        `No payment found to recipient: ${payment.recipient}`,
       );
     }
 
@@ -254,7 +254,7 @@ export class SuiVmAttestor extends VmAttestor {
     _chainId: string,
     _transactionId: string,
     _calls: string[],
-    _extraData: string
+    _extraData: string,
   ): Promise<boolean> {
     throw internalError("Not implemented");
   }

@@ -3,7 +3,7 @@ import { zeroHash, keccak256, encodePacked, Hex, verifyTypedData } from "viem";
 
 import { AttestationService } from "../../../../src/services/attestation";
 import { getVmAttestor } from "../../../../src/services/attestation/vm";
-import { getDeterministicId } from "../../../../src/services/attestation/vm/utils";
+import { getDeterministicId } from "../../../../src/services/attestation/utils";
 import {
   ActionType,
   decodeAction,

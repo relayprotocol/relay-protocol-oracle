@@ -11,7 +11,7 @@ import {
   getVmTypeNativeCurrency,
 } from "@relay-protocol/settlement-sdk";
 
-import { getDeterministicId } from "../utils";
+import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { Chain, getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";

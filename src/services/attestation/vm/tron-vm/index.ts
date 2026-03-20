@@ -19,7 +19,7 @@ import {
 } from "viem";
 
 import { ABI } from "../ethereum-vm/index";
-import { getDeterministicId } from "../utils";
+import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
@@ -30,7 +30,7 @@ const VM_TYPE = "tron-vm";
 
 export const fromHexAddress = (address: string) => {
   return tronweb.utils.address.fromHex(
-    address.replace("0x", tronweb.utils.address.ADDRESS_PREFIX)
+    address.replace("0x", tronweb.utils.address.ADDRESS_PREFIX),
   );
 };
 
@@ -43,7 +43,7 @@ export const toHexAddress = (address: string) => {
 export class TronVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
-    transactionId: string
+    transactionId: string,
   ): Promise<EnhancedDepositoryDepositMessage[]> {
     const rpc = await httpRpc(chainId);
 
@@ -55,7 +55,7 @@ export class TronVmAttestor extends VmAttestor {
       .catch((error) => {
         if ((error as any).name === "TransactionReceiptNotFoundError") {
           throw externalError(
-            `Missing transaction ${transactionId} on chain ${chainId}`
+            `Missing transaction ${transactionId} on chain ${chainId}`,
           );
         }
 
@@ -64,7 +64,7 @@ export class TronVmAttestor extends VmAttestor {
 
     if (receipt.status !== "success") {
       throw externalError(
-        `Reverted transaction ${transactionId} on chain ${chainId}`
+        `Reverted transaction ${transactionId} on chain ${chainId}`,
       );
     }
 
@@ -133,7 +133,7 @@ export class TronVmAttestor extends VmAttestor {
             onchainId: getDeterministicId(
               chainId,
               transactionId,
-              currentLog.logIndex.toString()
+              currentLog.logIndex.toString(),
             ),
             depository,
             depositId,
@@ -181,7 +181,7 @@ export class TronVmAttestor extends VmAttestor {
             decodeFunctionData({
               abi: ABI,
               data: transactionCalldata,
-            })
+            }),
           );
           if (decodedFunctionData) {
             const endOfCalldata = transactionCalldata.slice(
@@ -190,7 +190,7 @@ export class TronVmAttestor extends VmAttestor {
                 // The 4byte method signature
                 8 +
                 // Either 64 or 96 bytes depending on the called method
-                64 * (decodedFunctionData.functionName === "transfer" ? 2 : 3)
+                64 * (decodedFunctionData.functionName === "transfer" ? 2 : 3),
             );
             if (endOfCalldata.length >= 64) {
               // We take the first 32 bytes from the end of calldata
@@ -216,7 +216,7 @@ export class TronVmAttestor extends VmAttestor {
             onchainId: getDeterministicId(
               chainId,
               transactionId,
-              currentLog.logIndex.toString()
+              currentLog.logIndex.toString(),
             ),
             depository,
             depositId: depositId ?? zeroHash,
@@ -236,7 +236,7 @@ export class TronVmAttestor extends VmAttestor {
 
   public async getDepositoryWithdrawalMessage(
     chainId: string,
-    withdrawal: string
+    withdrawal: string,
   ): Promise<DepositoryWithdrawalMessage> {
     const rpc = await httpRpc(chainId);
     const chain = await getChain(chainId);
@@ -248,7 +248,7 @@ export class TronVmAttestor extends VmAttestor {
 
     const decodedWithdrawal = decodeWithdrawal(
       withdrawal,
-      chain.vmType
+      chain.vmType,
     ) as DecodedEthereumVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
@@ -301,7 +301,7 @@ export class TronVmAttestor extends VmAttestor {
       orderId: string;
       extraData: string;
       deadline: number;
-    }
+    },
   ): Promise<bigint> {
     const rpc = await httpRpc(chainId);
 
@@ -313,7 +313,7 @@ export class TronVmAttestor extends VmAttestor {
       .catch((error) => {
         if ((error as any).name === "TransactionReceiptNotFoundError") {
           throw externalError(
-            `Missing transaction ${transactionId} on chain ${chainId}`
+            `Missing transaction ${transactionId} on chain ${chainId}`,
           );
         }
 
@@ -322,7 +322,7 @@ export class TronVmAttestor extends VmAttestor {
 
     if (receipt.status !== "success") {
       throw externalError(
-        `Reverted transaction ${transactionId} on chain ${chainId}`
+        `Reverted transaction ${transactionId} on chain ${chainId}`,
       );
     }
 
@@ -334,7 +334,7 @@ export class TronVmAttestor extends VmAttestor {
       .then((block) => block.timestamp);
     if (transactionTimestamp > payment.deadline) {
       throw externalError(
-        `Transaction ${transactionId} executed after deadline`
+        `Transaction ${transactionId} executed after deadline`,
       );
     }
 
@@ -347,7 +347,7 @@ export class TronVmAttestor extends VmAttestor {
 
     if (!transaction.input.endsWith(payment.orderId.slice(2))) {
       throw externalError(
-        `Transaction ${transactionId} does not reference order id`
+        `Transaction ${transactionId} does not reference order id`,
       );
     }
 
@@ -365,7 +365,7 @@ export class TronVmAttestor extends VmAttestor {
         .filter(
           (log) =>
             fromHexAddress(fillContract) === fromHexAddress(log.address) &&
-            fromHexAddress(log.args.to) === payment.recipient
+            fromHexAddress(log.args.to) === payment.recipient,
         )
         .map((log) => log.args.amount)
         .reduce((a, b) => a + b, 0n);
@@ -379,7 +379,7 @@ export class TronVmAttestor extends VmAttestor {
         .filter(
           (log) =>
             fromHexAddress(log.address) === payment.currency &&
-            fromHexAddress(log.args.to) === payment.recipient
+            fromHexAddress(log.args.to) === payment.recipient,
         )
         .map((log) => log.args.amount)
         .reduce((a, b) => a + b, 0n);
@@ -390,7 +390,7 @@ export class TronVmAttestor extends VmAttestor {
     _chainId: string,
     _transactionId: string,
     _calls: string[],
-    _extraData: string
+    _extraData: string,
   ): Promise<boolean> {
     throw internalError("Not implemented");
   }

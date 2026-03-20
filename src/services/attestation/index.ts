@@ -24,10 +24,19 @@ import {
   SubmitWithdrawRequest,
   GenericMappingMessage,
   getNonceMappingMessage,
+  getSubmitWithdrawRequestHash,
+  encodeWithdrawal,
 } from "@relay-protocol/settlement-sdk";
+import * as bitcoin from "bitcoinjs-lib";
+import TronWeb from "tronweb";
 import {
   Address,
+  createPublicClient,
+  decodeAbiParameters,
+  getContract,
   Hex,
+  http,
+  parseAbi,
   verifyMessage,
   verifyTypedData,
   zeroAddress,
@@ -36,12 +45,18 @@ import {
 
 import { getVmAttestor, getHubAttestor } from "./vm";
 import { EnhancedDepositoryDepositMessage } from "./vm/types";
-import { getDeterministicId } from "./vm/utils";
+import {
+  extractEcdsaSignature,
+  getBitcoinSignerPubkey,
+  getDeterministicId,
+  normalizeBitcoinPartialSignature,
+} from "./utils";
 import {
   getChain,
   getChainVmType,
   getHubChains,
   getSdkChainsConfig,
+  getUniqueHubChain,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
 
@@ -264,40 +279,7 @@ export class AttestationService {
       );
     }
 
-    // Ensure any additional data is present if needed
-    switch (chain.vmType) {
-      case "bitcoin-vm": {
-        const additionalData = data.additionalData?.["bitcoin-vm"];
-        if (!additionalData) {
-          throw externalError(
-            "Additional data is required for generating the withdrawal request",
-          );
-        }
-
-        break;
-      }
-
-      case "hyperliquid-vm": {
-        const isNativeCurrency =
-          data.currency === getVmTypeNativeCurrency(chain.vmType);
-        if (!isNativeCurrency) {
-          const additionalData = data.additionalData?.["hyperliquid-vm"];
-          if (!additionalData) {
-            throw externalError(
-              "Additional data is required for generating the withdrawal request",
-            );
-          }
-        }
-
-        break;
-      }
-    }
-
-    const payloadParams = normalizePayloadParams({
-      ...data,
-      chainId: chain.hubChainId!,
-      vmType: chain.vmType,
-    });
+    const payloadParams = await this._getPayloadParams(data);
 
     return {
       payloadParams,
@@ -307,7 +289,7 @@ export class AttestationService {
   public async attestDepositoryWithdrawal(
     data: DepositoryWithdrawalMessage["data"] & {
       transactionId?: string;
-      withdrawalAddressRequest?: WithdrawalAddressRequest;
+      withdrawalAddressRequest: WithdrawalAddressRequest;
     },
   ): Promise<{
     message: DepositoryWithdrawalMessage;
@@ -322,61 +304,91 @@ export class AttestationService {
     );
 
     // Generate onchain hub execution
+    const { withdrawalAddress, hubTokenId, withdrawerAlias } =
+      await this._getWithdrawalAddress(data.withdrawalAddressRequest);
+
+    const decodedWithdrawal = decodeWithdrawal(
+      data.withdrawal,
+      await getChainVmType(data.chainId),
+    );
+    const amount = getDecodedWithdrawalAmount(decodedWithdrawal);
+
     let execution: ExecutionMessage | undefined;
-    if (data.withdrawalAddressRequest) {
-      const { withdrawalAddress, hubTokenId, withdrawerAlias } =
-        await this._getWithdrawalAddress(data.withdrawalAddressRequest);
-
-      const decodedWithdrawal = decodeWithdrawal(
-        data.withdrawal,
-        await getChainVmType(data.chainId),
-      );
-      const amount = getDecodedWithdrawalAmount(decodedWithdrawal);
-
-      if (message.result.status === DepositoryWithdrawalStatus.EXECUTED) {
-        // Burn the funds from withdrawal address
-        execution = {
-          idempotencyKey: getDeterministicId(
-            message.result.withdrawalId,
-            data.transactionId!,
-          ),
-          actions: [
-            encodeAction({
-              type: ActionType.BURN,
-              data: {
-                hubTokenId,
-                hubFromAddress: withdrawalAddress,
-                amount,
-              },
-            }),
-          ],
-        };
-      } else if (message.result.status === DepositoryWithdrawalStatus.EXPIRED) {
-        // Transfer back the funds from withdrawal address to depositor
-        execution = {
-          idempotencyKey: getDeterministicId(
-            message.result.withdrawalId,
-            data.transactionId!,
-            DepositoryWithdrawalStatus.EXPIRED.toString(),
-          ),
-          actions: [
-            encodeAction({
-              type: ActionType.TRANSFER,
-              data: {
-                hubTokenId,
-                hubFromAddress: withdrawalAddress,
-                hubToAddress: withdrawerAlias,
-                amount,
-              },
-            }),
-          ],
-        };
-      }
+    if (message.result.status === DepositoryWithdrawalStatus.EXECUTED) {
+      // Burn the funds from withdrawal address
+      execution = {
+        idempotencyKey: getDeterministicId(
+          message.result.withdrawalId,
+          data.transactionId!,
+        ),
+        actions: [
+          encodeAction({
+            type: ActionType.BURN,
+            data: {
+              hubTokenId,
+              hubFromAddress: withdrawalAddress,
+              amount,
+            },
+          }),
+        ],
+      };
+    } else if (message.result.status === DepositoryWithdrawalStatus.EXPIRED) {
+      // Transfer back the funds from withdrawal address to depositor
+      execution = {
+        idempotencyKey: getDeterministicId(
+          message.result.withdrawalId,
+          data.transactionId!,
+          DepositoryWithdrawalStatus.EXPIRED.toString(),
+        ),
+        actions: [
+          encodeAction({
+            type: ActionType.TRANSFER,
+            data: {
+              hubTokenId,
+              hubFromAddress: withdrawalAddress,
+              hubToAddress: withdrawerAlias,
+              amount,
+            },
+          }),
+        ],
+      };
     }
 
     return {
       message,
       execution,
+    };
+  }
+
+  public async attestDepositoryWithdrawalV2(
+    data: DenormalizedSubmitWithdrawRequest & {
+      transactionId?: string;
+      withdrawalAddressRequest: WithdrawalAddressRequest;
+    },
+  ): Promise<{
+    status: DepositoryWithdrawalStatus;
+    execution?: ExecutionMessage;
+  }> {
+    const payloadParams = await this._getPayloadParams(data);
+    const withdrawal = await this._getEncodedWithdrawal(
+      data.chainId,
+      payloadParams,
+    );
+
+    if (!withdrawal) {
+      return { status: DepositoryWithdrawalStatus.PENDING };
+    }
+
+    const result = await this.attestDepositoryWithdrawal({
+      chainId: data.chainId,
+      withdrawal,
+      transactionId: data.transactionId,
+      withdrawalAddressRequest: data.withdrawalAddressRequest,
+    });
+
+    return {
+      status: result.message.result.status,
+      execution: result.execution,
     };
   }
 
@@ -936,5 +948,282 @@ export class AttestationService {
       withdrawalAddress,
       withdrawerAlias,
     };
+  }
+
+  private async _getPayloadParams(data: DenormalizedSubmitWithdrawRequest) {
+    const chain = await getChain(data.chainId);
+
+    // Ensure any additional data is present if needed
+    switch (chain.vmType) {
+      case "bitcoin-vm": {
+        const additionalData = data.additionalData?.["bitcoin-vm"];
+        if (!additionalData) {
+          throw externalError(
+            "Additional data is required for generating the withdrawal request",
+          );
+        }
+
+        break;
+      }
+
+      case "hyperliquid-vm": {
+        const isNativeCurrency =
+          data.currency === getVmTypeNativeCurrency(chain.vmType);
+        if (!isNativeCurrency) {
+          const additionalData = data.additionalData?.["hyperliquid-vm"];
+          if (!additionalData) {
+            throw externalError(
+              "Additional data is required for generating the withdrawal request",
+            );
+          }
+        }
+
+        break;
+      }
+    }
+
+    const payloadParams = normalizePayloadParams({
+      ...data,
+      chainId: chain.hubChainId!,
+      vmType: chain.vmType,
+    });
+
+    return payloadParams;
+  }
+
+  private async _getEncodedWithdrawal(
+    chainId: string,
+    payloadParams: SubmitWithdrawRequest,
+  ): Promise<string | undefined> {
+    const hubChain = await getUniqueHubChain();
+    const client = createPublicClient({
+      chain: {
+        id: hubChain.additionalData!.auroraChainId!,
+        name: "Aurora",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        rpcUrls: {
+          default: { http: [hubChain.additionalData!.auroraHttpRpcUrl!] },
+        },
+      },
+      transport: http(),
+    });
+
+    const allocator = getContract({
+      address: hubChain.additionalData!.auroraAllocatorAddress! as Address,
+      abi: parseAbi([
+        "function payloads(bytes32 payloadId) view returns (bytes unsignedPayload)",
+        "function payloadTimestamps(bytes32 payloadId) view returns (uint256 timestamp)",
+        "function payloadBuilders(uint256 chainId, string depository) view returns (address)",
+        "function signedPayloads(bytes32 payloadId, bytes32 hashToSign) view returns (bytes)",
+      ]),
+      client,
+    });
+
+    const payloadBuilderAddress = await allocator.read.payloadBuilders([
+      BigInt(payloadParams.chainId),
+      payloadParams.depository,
+    ]);
+    if (payloadBuilderAddress === zeroAddress) {
+      throw new Error(
+        `No payload builder configured for chain ${payloadParams.chainId}`,
+      );
+    }
+
+    const payloadBuilder = getContract({
+      address: payloadBuilderAddress,
+      abi: parseAbi([
+        "function family() view returns (string)",
+        "function hashToSign(uint256 chainId, string depository, bytes payload, uint32 index) view returns (bytes32)",
+      ]),
+      client,
+    });
+    const family = await payloadBuilder.read.family();
+
+    const depository =
+      family === "tron-vm"
+        ? TronWeb.utils.address
+            .toHex(payloadParams.depository)
+            .replace(TronWeb.utils.address.ADDRESS_PREFIX_REGEX, "0x")
+        : payloadParams.depository;
+
+    const payloadId = getSubmitWithdrawRequestHash(payloadParams);
+    const payload = await allocator.read.payloads([payloadId as Hex]);
+
+    switch (family) {
+      case "ethereum-vm":
+      case "hyperliquid-vm":
+      case "tron-vm": {
+        const hashToSign = await payloadBuilder.read.hashToSign([
+          BigInt(payloadParams.chainId),
+          depository,
+          payload,
+          0,
+        ]);
+
+        const signature = await allocator.read.signedPayloads([
+          payloadId as Hex,
+          hashToSign,
+        ]);
+        if (signature === "0x") {
+          return undefined;
+        } else {
+          return payload;
+        }
+      }
+
+      case "solana-vm": {
+        const hashToSign = await payloadBuilder.read.hashToSign([
+          BigInt(payloadParams.chainId),
+          depository,
+          payload,
+          0,
+        ]);
+
+        const signature = await allocator.read.signedPayloads([
+          payloadId as Hex,
+          hashToSign,
+        ]);
+        if (signature === "0x") {
+          return undefined;
+        } else {
+          return payload;
+        }
+      }
+
+      case "bitcoin-vm": {
+        const decodeBitcoinTransactionData = (encodedData: Hex) =>
+          decodeAbiParameters(
+            [
+              {
+                type: "tuple",
+                components: [
+                  {
+                    type: "tuple[]",
+                    name: "inputs",
+                    components: [
+                      { type: "bytes", name: "txid" },
+                      { type: "bytes", name: "index" },
+                      { type: "bytes", name: "script" },
+                      { type: "bytes", name: "value" },
+                    ],
+                  },
+                  {
+                    type: "tuple[]",
+                    name: "outputs",
+                    components: [
+                      { type: "bytes", name: "value" },
+                      { type: "bytes", name: "script" },
+                    ],
+                  },
+                ],
+              },
+            ],
+            encodedData,
+          )[0] as {
+            inputs: { txid: Hex; index: Hex; script: Hex; value: Hex }[];
+            outputs: { value: Hex; script: Hex }[];
+          };
+
+        const transactionData = decodeBitcoinTransactionData(payload as Hex);
+        const signatures = await Promise.all(
+          transactionData.inputs.map(async (_, i) => {
+            const hashToSign = await payloadBuilder.read.hashToSign([
+              BigInt(payloadParams.chainId),
+              depository,
+              payload,
+              i,
+            ]);
+            const signature = await allocator.read.signedPayloads([
+              payloadId as Hex,
+              hashToSign,
+            ]);
+            if (signature === "0x") {
+              return undefined;
+            } else {
+              return extractEcdsaSignature(signature);
+            }
+          }),
+        );
+        if (signatures.some((signature) => !signature)) {
+          return undefined;
+        }
+
+        const fromLittleEndian = (value: Hex): number => {
+          const bytes = Buffer.from(value.slice(2), "hex");
+          const reversed = Buffer.from(bytes).reverse();
+          const normalized = reversed.toString("hex").replace(/^0+/, "") || "0";
+          return Number(BigInt(`0x${normalized}`));
+        };
+
+        const psbt = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin });
+        psbt.setVersion(1);
+
+        const signerPublicKey = await getBitcoinSignerPubkey(chainId);
+        for (const input of transactionData.inputs) {
+          const txid = Buffer.from(input.txid.slice(2), "hex")
+            .reverse()
+            .toString("hex");
+
+          psbt.addInput({
+            hash: txid,
+            index: Number(fromLittleEndian(input.index)),
+            sequence: 0xfffffffd,
+            sighashType: bitcoin.Transaction.SIGHASH_ALL,
+            witnessUtxo: {
+              script: Buffer.from(input.script.slice(2), "hex"),
+              value: fromLittleEndian(input.value),
+            },
+            // The allocator pubkey is included so signers can identify inputs by key
+            bip32Derivation: [
+              {
+                masterFingerprint: Buffer.alloc(4),
+                path: "m",
+                pubkey: signerPublicKey,
+              },
+            ],
+          });
+        }
+
+        for (const output of transactionData.outputs) {
+          psbt.addOutput({
+            script: Buffer.from(output.script.slice(2), "hex"),
+            value: fromLittleEndian(output.value),
+          });
+        }
+
+        if (signatures.length !== transactionData.inputs.length) {
+          throw new Error(
+            `Invalid bitcoin signature count: expected ${transactionData.inputs.length}, got ${signatures.length}`,
+          );
+        }
+
+        for (let i = 0; i < signatures.length; i++) {
+          const partialSig = psbt.data.inputs[i].partialSig ?? [];
+          const normalizedSignature = normalizeBitcoinPartialSignature(
+            signatures[i]!,
+            bitcoin.Transaction.SIGHASH_ALL,
+          );
+
+          psbt.updateInput(i, {
+            partialSig: [
+              ...partialSig,
+              {
+                pubkey: signerPublicKey,
+                signature: normalizedSignature,
+              },
+            ],
+          });
+        }
+
+        return encodeWithdrawal({
+          vmType: "bitcoin-vm",
+          withdrawal: { psbt: psbt.toHex() },
+        });
+      }
+
+      default: {
+        throw new Error("Vm type not implemented");
+      }
+    }
   }
 }

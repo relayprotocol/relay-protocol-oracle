@@ -1,0 +1,167 @@
+import { Type } from "@fastify/type-provider-typebox";
+import { generateAddress } from "@relay-protocol/settlement-sdk";
+
+import {
+  areExecutionsEqual,
+  Endpoint,
+  ErrorResponses,
+  executionSchema,
+  FastifyReplyTypeBox,
+  FastifyRequestTypeBox,
+  getPeerResponses,
+} from "../../utils";
+import { getChain } from "../../../common/chains";
+import { signExecutionMessage } from "../../../common/signer";
+import { verifyWithdrawalSignature } from "../../../common/signature-verification";
+import { config } from "../../../config";
+import { AttestationService } from "../../../services/attestation";
+
+const MessageData = Type.Object({
+  chainId: Type.String({
+    description: "The chain id to withdraw on",
+  }),
+  currency: Type.String({
+    description: "The currency to withdraw",
+  }),
+  amount: Type.String({
+    description: "The amount to withdraw",
+  }),
+  ownerChainId: Type.String({
+    description: "The chain id of the funds owner",
+  }),
+  owner: Type.String({
+    description: "The owner of the funds",
+  }),
+  ownerSignature: Type.String({
+    description: "Owner signature authorizing the withdrawal",
+  }),
+  recipient: Type.String({
+    description: "The withdrawal recipient",
+  }),
+  nonce: Type.String({
+    description: "Nonce for replay protection",
+  }),
+  additionalData: Type.Optional(
+    Type.Object({
+      "bitcoin-vm": Type.Optional(
+        Type.Object({
+          allocatorUtxos: Type.Array(
+            Type.Object({
+              txid: Type.String(),
+              vout: Type.Number(),
+              value: Type.String(),
+            }),
+          ),
+          feeRate: Type.Number(),
+        }),
+      ),
+      "hyperliquid-vm": Type.Optional(
+        Type.Object({
+          currencyHyperliquidSymbol: Type.String(),
+          currentTime: Type.Number(),
+        }),
+      ),
+    }),
+  ),
+  requestPeerSignatures: Type.Optional(
+    Type.Boolean({
+      description:
+        "Whether to request signatures from any configured oracle peers",
+    }),
+  ),
+  transactionId: Type.Optional(
+    Type.String({
+      description:
+        "The transaction id that executed the withdrawal (required for Hyperliquid VM)",
+    }),
+  ),
+});
+
+const Schema = {
+  body: MessageData,
+  response: {
+    ...ErrorResponses,
+    200: Type.Object({
+      status: Type.Number({
+        description:
+          "The status of the withdrawal (0 = pending, 1 = executed, 2 = expired)",
+      }),
+      execution: executionSchema,
+    }),
+  },
+};
+
+export default {
+  method: "POST",
+  url: "/attestations/depository-withdrawals/v2",
+  schema: Schema,
+  handler: async (
+    req: FastifyRequestTypeBox<typeof Schema>,
+    reply: FastifyReplyTypeBox<typeof Schema>,
+  ) => {
+    // Ensure the owner authorized the withdrawal
+    await verifyWithdrawalSignature({
+      data: req.body,
+      signature: req.body.ownerSignature,
+    });
+
+    const chain = await getChain(req.body.chainId);
+
+    const attestationService = new AttestationService();
+    const { status, execution } =
+      await attestationService.attestDepositoryWithdrawalV2({
+        chainId: req.body.chainId,
+        depository: chain.depository!,
+        currency: req.body.currency,
+        amount: req.body.amount,
+        spender: generateAddress({
+          family: await getChain(req.body.ownerChainId).then(
+            (chain) => chain.vmType,
+          ),
+          chainId: req.body.ownerChainId,
+          address: req.body.owner,
+        }),
+        recipient: req.body.recipient,
+        nonce: req.body.nonce,
+        additionalData: req.body.additionalData,
+        transactionId: req.body.transactionId,
+        withdrawalAddressRequest: {
+          chainId: req.body.chainId,
+          currency: req.body.currency,
+          recipient: req.body.recipient,
+          withdrawerChainId: req.body.ownerChainId,
+          withdrawer: req.body.owner,
+          withdrawalNonce: req.body.nonce,
+        },
+      });
+
+    const peerSignatures =
+      req.body.requestPeerSignatures && config.peers
+        ? await getPeerResponses({
+            endpointPath: req.originalUrl,
+            requestBody: req.body,
+            requestApiKey: req.headers["x-api-key"],
+            validateAndExtractResponse: (peerData: any) => {
+              if (areExecutionsEqual(peerData.execution, execution)) {
+                return peerData.execution.signatures;
+              }
+
+              return [];
+            },
+          })
+        : [];
+
+    return reply.send({
+      status,
+      execution: execution
+        ? {
+            ...execution,
+            signatures: [
+              ...(await signExecutionMessage(execution)),
+              ...peerSignatures,
+            ],
+          }
+        : undefined,
+    });
+  },
+} as Endpoint;

@@ -20,10 +20,10 @@ import {
   Hex,
 } from "viem";
 
-import { getDeterministicId } from "../utils";
+import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { TxHints } from "../../../attestation";
-import { getChain, getHubChains } from "../../../../common/chains";
+import { getChain, getUniqueHubChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/hyperliquid-vm/rpc";
 import { httpRpc as hubHttpRpc } from "../../../../common/vm/hub-vm/rpc";
@@ -544,9 +544,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
     depositor: string,
     nonce: number,
   ): Promise<{ id: string; createdAt: string } | undefined> {
-    const hubChains = await getHubChains();
-    const hub = hubChains[Object.keys(hubChains)[0]];
-
+    const hub = await getUniqueHubChain();
     if (!hub.additionalData?.genericMappingAddress) {
       return undefined;
     }

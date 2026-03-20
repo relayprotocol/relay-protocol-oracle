@@ -19,7 +19,7 @@ import {
   zeroHash,
 } from "viem";
 
-import { getDeterministicId } from "../utils";
+import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError } from "../../../../common/error";

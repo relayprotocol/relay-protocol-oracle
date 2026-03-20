@@ -26,33 +26,31 @@ const MessageData = Type.Object({
         "The transaction id that executed the withdrawal (required for Hyperliquid VM)",
     }),
   ),
-  withdrawalAddressRequest: Type.Optional(
-    Type.Object({
-      chainId: Type.String({
-        description:
-          "The hub chain id of the depository contract currently holding the funds",
-      }),
-      currency: Type.String({
-        description:
-          "The id of the currency as expressed on origin chain (string)",
-      }),
-      withdrawer: Type.String({
-        description: "The address that is requiring the withdrawal",
-      }),
-      withdrawerChainId: Type.String({
-        description:
-          "The chain id of the address that is requiring the withdrawal",
-      }),
-      recipient: Type.String({
-        description:
-          "The address that will receive the withdrawn funds on destination chain",
-      }),
-      withdrawalNonce: Type.String({
-        description:
-          "Optional nonce to prevent collisions for similar withdrawals in the same block",
-      }),
+  withdrawalAddressRequest: Type.Object({
+    chainId: Type.String({
+      description:
+        "The hub chain id of the depository contract currently holding the funds",
     }),
-  ),
+    currency: Type.String({
+      description:
+        "The id of the currency as expressed on origin chain (string)",
+    }),
+    withdrawer: Type.String({
+      description: "The address that is requiring the withdrawal",
+    }),
+    withdrawerChainId: Type.String({
+      description:
+        "The chain id of the address that is requiring the withdrawal",
+    }),
+    recipient: Type.String({
+      description:
+        "The address that will receive the withdrawn funds on destination chain",
+    }),
+    withdrawalNonce: Type.String({
+      description:
+        "Optional nonce to prevent collisions for similar withdrawals in the same block",
+    }),
+  }),
   requestPeerSignatures: Type.Optional(
     Type.Boolean({
       description:
