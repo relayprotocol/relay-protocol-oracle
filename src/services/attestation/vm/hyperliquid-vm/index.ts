@@ -517,46 +517,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
     nonce: number,
     timestamp: number,
   ): Promise<string | undefined> {
-    const chain = await getChain(chainId);
-
-    const hubApiUrl = chain.additionalData?.hubApiUrl;
-    const hubApiKey = chain.additionalData?.hubApiKey;
-    if (!hubApiUrl || !hubApiKey) {
-      throw externalError("Chain has no hub API URL configured");
-    }
-
-    const data = await axios
-      .get(
-        `${hubApiUrl}/queries/nonce-mappings/${chainId}/${depositor}/${nonce}/v1`,
-        {
-          headers: {
-            "x-api-key": hubApiKey,
-          },
-          timeout: 10000,
-        },
-      )
-      .then(
-        (response) =>
-          response.data as { id: string; createdAt: string } | undefined,
-      )
-      .catch(async (error) => {
-        if (error.response?.data?.code === "NONCE_MAPPING_NOT_FOUND") {
-          const hubLookup = await this._lookupIdOnHub(
-            chainId,
-            depositor,
-            nonce,
-          );
-          if (hubLookup) {
-            return hubLookup;
-          }
-
-          return undefined;
-        }
-
-        throw error;
-      });
-
     const THRESHOLD = 3600 * 1000;
+
+    const data = await this._lookupIdOnHub(chainId, depositor, nonce);
     if (data) {
       // If we have a nonce-mapping available, make sure it was created within the time threshold
       if (new Date(data.createdAt).getTime() > timestamp + THRESHOLD) {

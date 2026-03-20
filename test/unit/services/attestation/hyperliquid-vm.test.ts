@@ -4,11 +4,11 @@ import {
   decodeWithdrawal,
   DepositoryWithdrawalStatus,
 } from "@relay-protocol/settlement-sdk";
-import axios from "axios";
 import { zeroHash } from "viem";
 
 import { Chain } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/hyperliquid-vm/rpc";
+import { httpRpc as hubHttpRpc } from "../../../../src/common/vm/hub-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 
 import { randomHex } from "../../../common/utils";
@@ -25,17 +25,24 @@ jest.mock("../../../../src/common/chains", () => {
       httpRpcUrl: "https://api.hyperliquid.xyz",
       depository: "0x1234567890abcdef1234567890abcdef12345678",
       hubChainId: "1",
-      additionalData: {
-        hubApiUrl: "https://localhost:3000",
-        hubApiKey: "api-key",
-      },
     },
   };
   return {
     HUB_VM_TYPE: "hub-vm",
     HUB_CHAIN_ID: 0n,
     getChains: async () => chains,
-    getHubChains: async () => [],
+    getHubChains: async () => ({
+      "hub-chain": {
+        id: "hub-chain",
+        vmType: "hub-vm",
+        httpRpcUrl: "http://localhost:8545",
+        depository: "0x0000000000000000000000000000000000000000",
+        hubChainId: "0",
+        additionalData: {
+          genericMappingAddress: "0x0000000000000000000000000000000000000001",
+        },
+      },
+    }),
     getChain: async (chainId: string) => chains[chainId],
     getChainVmType: async (chainId: string) =>
       chainId === "base" ? "ethereum-vm" : chains[chainId].vmType,
@@ -48,14 +55,13 @@ jest.mock("../../../../src/common/chains", () => {
   };
 });
 
-jest.mock("axios", () => {
-  const mockAxios = {
-    get: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+jest.mock("../../../../src/common/vm/hyperliquid-vm/rpc", () => {
+  return {
+    httpRpc: jest.fn(),
   };
-  return mockAxios;
 });
 
-jest.mock("../../../../src/common/vm/hyperliquid-vm/rpc", () => {
+jest.mock("../../../../src/common/vm/hub-vm/rpc", () => {
   return {
     httpRpc: jest.fn(),
   };
@@ -71,11 +77,23 @@ const setupRpcMock = (mockData: any) => {
 
 describe("HyperliquidVmAttestor", () => {
   describe("getDepositoryDepositMessages", () => {
+    const setupHubRpcMock = (
+      data?: { id: string; createdAt?: number },
+    ) => {
+      const mockHubClient = {
+        readContract: jest.fn<any>().mockResolvedValue(
+          data
+            ? [data.id, BigInt(data.createdAt ?? Math.floor(Date.now() / 1000))]
+            : ["0x", 0n],
+        ),
+      };
+      (hubHttpRpc as jest.Mock<any>).mockResolvedValue(mockHubClient);
+    };
+
     beforeEach(() => {
       jest.clearAllMocks();
-      (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: { id: randomHex(32) } }),
-      );
+      // Default: no hub mapping found
+      setupHubRpcMock();
     });
 
     it("should correctly parse UsdSend deposit transaction", async () => {
@@ -98,12 +116,8 @@ describe("HyperliquidVmAttestor", () => {
         error: null,
       };
 
-      // Mock the hub API response for deposit lookup
-      (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({
-          data: { id: expectedDepositId, createdAt: new Date().toISOString() },
-        }),
-      );
+      // Mock the hub on-chain lookup for deposit ID
+      setupHubRpcMock({ id: expectedDepositId });
 
       setupRpcMock({
         txDetails: async () => ({
@@ -154,11 +168,8 @@ describe("HyperliquidVmAttestor", () => {
         error: null,
       };
 
-      (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({
-          data: { id: expectedDepositId, createdAt: new Date().toISOString() },
-        }),
-      );
+      // Mock the hub on-chain lookup for deposit ID
+      setupHubRpcMock({ id: expectedDepositId });
 
       setupRpcMock({
         txDetails: async () => ({
@@ -342,11 +353,8 @@ describe("HyperliquidVmAttestor", () => {
         error: null,
       };
 
-      (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({
-          data: { id: expectedDepositId, createdAt: new Date().toISOString() },
-        }),
-      );
+      // Mock the hub on-chain lookup for deposit ID
+      setupHubRpcMock({ id: expectedDepositId });
 
       setupRpcMock({
         txDetails: async () => ({
@@ -390,11 +398,8 @@ describe("HyperliquidVmAttestor", () => {
         error: null,
       };
 
-      (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({
-          data: { id: expectedDepositId, createdAt: new Date().toISOString() },
-        }),
-      );
+      // Mock the hub on-chain lookup for deposit ID
+      setupHubRpcMock({ id: expectedDepositId });
 
       setupRpcMock({
         txDetails: async () => ({
@@ -441,10 +446,7 @@ describe("HyperliquidVmAttestor", () => {
         error: null,
       };
 
-      // Mock axios to return empty data
-      (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: undefined }),
-      );
+      // Default hub mock returns no entry (readContract returns ["0x", 0n])
 
       setupRpcMock({
         txDetails: async () => ({
@@ -479,12 +481,8 @@ describe("HyperliquidVmAttestor", () => {
         error: null,
       };
 
-      // Mock axios to return empty data
-      (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({
-          data: { id: randomHex(32), createdAt: new Date().toISOString() },
-        }),
-      );
+      // Hub lookup returns a mapping, but createdAt is recent (outside threshold relative to old tx)
+      setupHubRpcMock({ id: randomHex(32) });
 
       setupRpcMock({
         txDetails: async () => ({
@@ -526,10 +524,7 @@ describe("HyperliquidVmAttestor", () => {
         error: null,
       };
 
-      // Mock axios to return empty data
-      (axios.get as jest.Mock).mockImplementation(() =>
-        Promise.resolve({ data: undefined }),
-      );
+      // Default hub mock returns no entry (readContract returns ["0x", 0n])
 
       setupRpcMock({
         txDetails: async () => ({

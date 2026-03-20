@@ -27,8 +27,6 @@ export type Chain = {
     // For "hyperliquid-vm"
     proxyApiUrl?: string;
     proxyApiKey?: string;
-    hubApiUrl?: string;
-    hubApiKey?: string;
     // For "ethereum-vm"
     isZksyncStack?: boolean;
     // For "lighter-vm"

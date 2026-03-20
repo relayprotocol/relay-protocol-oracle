@@ -568,8 +568,6 @@
     "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "hubChainId": "111378472430415857054556056192544272316610524417112732947551032542507639335976",
     "additionalData": {
-      "hubApiUrl": "$HYPERLIQUID_HUB_API_URL",
-      "hubApiKey": "$HYPERLIQUID_HUB_API_KEY",
       "proxyApiUrl": "$HYPERLIQUID_PROXY_API_URL",
       "proxyApiKey": "$HYPERLIQUID_PROXY_API_KEY"
     }
