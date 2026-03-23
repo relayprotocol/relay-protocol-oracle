@@ -6,6 +6,7 @@ import { Endpoint, errorWrapper } from "./utils";
 import attestationsDepositoryDepositsV1 from "./attestations/depository-deposits/v1";
 import attestationsDepositoryWithdrawalsV1 from "./attestations/depository-withdrawals/v1";
 import attestationsDepositoryWithdrawalsV2 from "./attestations/depository-withdrawals/v2";
+import attestationsSignaturesNoFillOrRefundV1 from "./attestations/signatures/no-fill-or-refund/v1";
 import attestationsSignaturesNonceMappingV1 from "./attestations/signatures/nonce-mapping/v1";
 import attestationsSolverFillV1 from "./attestations/solver-fills/v1";
 import attestationsSolverRefundV1 from "./attestations/solver-refunds/v1";
@@ -19,6 +20,7 @@ const endpoints = [
   attestationsDepositoryDepositsV1,
   attestationsDepositoryWithdrawalsV1,
   attestationsDepositoryWithdrawalsV2,
+  attestationsSignaturesNoFillOrRefundV1,
   attestationsSignaturesNonceMappingV1,
   attestationsWithdrawalsInitiationV2,
   attestationsWithdrawalsInitiatedV2,

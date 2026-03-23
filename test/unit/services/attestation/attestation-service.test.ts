@@ -17,6 +17,7 @@ import {
   generateTokenId,
   generateAddress,
   encodeAddress,
+  getNoFillOrRefundMessage,
   getNonceMappingMessage,
 } from "@relay-protocol/settlement-sdk";
 
@@ -689,6 +690,97 @@ describe("AttestationService", () => {
           nonce,
           id,
           signatureChainId: "solana",
+          signature: mockSignature,
+        }),
+      ).rejects.toThrow("Unsupported signature chain");
+    });
+  });
+
+  describe("attestNoFillOrRefundSignature", () => {
+    const solver = "0x1234567890123456789012345678901234567890";
+    const orderId = keccak256("0x5678" as Hex);
+    const solverChainId = "ethereum";
+    const mockSignature = "0x" + "ab".repeat(65);
+
+    it("returns correct generic mapping for valid signature", async () => {
+      const result = await service.attestNoFillOrRefundSignature({
+        solverChainId,
+        solver,
+        orderId,
+        signature: mockSignature,
+      });
+
+      const expectedSolver = generateAddress({
+        family: "ethereum-vm",
+        chainId: "ethereum",
+        address: solver,
+      });
+
+      const expectedGenericMapping = getNoFillOrRefundMessage(
+        expectedSolver,
+        orderId,
+      );
+
+      expect(result.genericMapping).toEqual(expectedGenericMapping);
+      expect(result.genericMapping.user).toBe(expectedSolver);
+      expect(result.genericMapping.data).toBe("0x01");
+    });
+
+    it("verifies the typed data signature with correct parameters", async () => {
+      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
+
+      await service.attestNoFillOrRefundSignature({
+        solverChainId,
+        solver,
+        orderId,
+        signature: mockSignature,
+      });
+
+      expect(mockedVerifyTypedData).toHaveBeenCalledWith({
+        address: solver,
+        domain: {
+          name: "RelayNoFillOrRefund",
+          version: "1",
+          chainId: 1, // hubChainId for "ethereum"
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
+        types: {
+          NoFillOrRefund: [
+            { name: "chainId", type: "string" },
+            { name: "solver", type: "address" },
+            { name: "orderId", type: "bytes32" },
+          ],
+        },
+        primaryType: "NoFillOrRefund",
+        message: {
+          chainId: solverChainId,
+          solver,
+          orderId,
+        },
+        signature: mockSignature,
+      });
+    });
+
+    it("throws on invalid signature", async () => {
+      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
+      mockedVerifyTypedData.mockResolvedValueOnce(false);
+
+      await expect(
+        service.attestNoFillOrRefundSignature({
+          solverChainId,
+          solver,
+          orderId,
+          signature: mockSignature,
+        }),
+      ).rejects.toThrow("Invalid signature");
+    });
+
+    it("throws on unsupported signature chain", async () => {
+      await expect(
+        service.attestNoFillOrRefundSignature({
+          solverChainId: "solana",
+          solver,
+          orderId,
           signature: mockSignature,
         }),
       ).rejects.toThrow("Unsupported signature chain");

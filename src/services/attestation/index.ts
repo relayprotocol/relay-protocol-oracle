@@ -23,6 +23,7 @@ import {
   normalizePayloadParams,
   SubmitWithdrawRequest,
   GenericMappingMessage,
+  getNoFillOrRefundMessage,
   getNonceMappingMessage,
   getSubmitWithdrawRequestHash,
   encodeWithdrawal,
@@ -677,6 +678,63 @@ export class AttestationService {
 
     return {
       genericMapping: getNonceMappingMessage(user, data.nonce, data.id),
+    };
+  }
+
+  public async attestNoFillOrRefundSignature(data: {
+    solverChainId: string;
+    solver: string;
+    orderId: string;
+    signature: string;
+  }): Promise<{
+    genericMapping: GenericMappingMessage;
+  }> {
+    const NO_FILL_OR_REFUND_DOMAIN = (chainId: number) => ({
+      name: "RelayNoFillOrRefund",
+      version: "1",
+      chainId,
+      verifyingContract: zeroAddress,
+    });
+
+    const NO_FILL_OR_REFUND_TYPES = {
+      NoFillOrRefund: [
+        { name: "chainId", type: "string" },
+        { name: "solver", type: "address" },
+        { name: "orderId", type: "bytes32" },
+      ],
+    };
+
+    const solverChain = await getChain(data.solverChainId);
+    if (solverChain.vmType !== "ethereum-vm") {
+      throw externalError("Unsupported signature chain");
+    }
+
+    const message = {
+      chainId: data.solverChainId,
+      solver: data.solver as Address,
+      orderId: data.orderId as Hex,
+    };
+
+    const isValidSignature = await verifyTypedData({
+      address: data.solver as Address,
+      domain: NO_FILL_OR_REFUND_DOMAIN(Number(solverChain.hubChainId!)),
+      types: NO_FILL_OR_REFUND_TYPES,
+      primaryType: "NoFillOrRefund",
+      message,
+      signature: data.signature as Hex,
+    }).catch(() => false);
+    if (!isValidSignature) {
+      throw externalError("Invalid signature");
+    }
+
+    const solver = generateAddress({
+      family: solverChain.vmType,
+      chainId: solverChain.id,
+      address: data.solver,
+    });
+
+    return {
+      genericMapping: getNoFillOrRefundMessage(solver, data.orderId),
     };
   }
 
