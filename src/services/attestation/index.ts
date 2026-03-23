@@ -56,7 +56,7 @@ import {
   getHubInfo,
   getSdkChainsConfig,
 } from "../../common/chains";
-import { externalError } from "../../common/error";
+import { externalError, internalError } from "../../common/error";
 import { getAuroraHttpRpc, getBalanceOnHub } from "../../common/hub";
 
 type ExecutionMetadata = Omit<
@@ -925,6 +925,11 @@ export class AttestationService {
       }
     }
 
+    // Ensure we never return empty actions
+    if (!actions.length) {
+      throw internalError("Missing actions to execute");
+    }
+
     // Sort and generate a unique id for the relevant deposits
     const sortedDepositIds = data.depositoryDeposits
       .map((deposit) => deposit.result.onchainId)
@@ -1028,7 +1033,7 @@ export class AttestationService {
       payloadParams.depository,
     ]);
     if (payloadBuilderAddress === zeroAddress) {
-      throw new Error(
+      throw externalError(
         `No payload builder configured for chain ${payloadParams.chainId}`,
       );
     }
@@ -1196,7 +1201,7 @@ export class AttestationService {
         }
 
         if (signatures.length !== transactionData.inputs.length) {
-          throw new Error(
+          throw internalError(
             `Invalid bitcoin signature count: expected ${transactionData.inputs.length}, got ${signatures.length}`,
           );
         }
@@ -1226,7 +1231,7 @@ export class AttestationService {
       }
 
       default: {
-        throw new Error("Vm type not implemented");
+        throw externalError("Vm type not implemented");
       }
     }
   }
