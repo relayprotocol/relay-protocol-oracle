@@ -375,9 +375,11 @@ export class AttestationService {
   public async attestSolverFill(
     data: SolverFillMessage["data"] & { hints?: TxHints } & {
       force?: boolean;
+      forceOrderId?: string;
     },
   ): Promise<{ message: SolverFillMessage; execution?: ExecutionMessage }> {
-    const orderId = getOrderId(data.order, await getSdkChainsConfig());
+    const orderId =
+      data.forceOrderId ?? getOrderId(data.order, await getSdkChainsConfig());
     if (data.force) {
       const depositoryDeposits: EnhancedDepositoryDepositMessage[] = [];
       for (const input of data.inputs) {
@@ -493,9 +495,11 @@ export class AttestationService {
   public async attestSolverRefund(
     data: SolverRefundMessage["data"] & { hints?: TxHints } & {
       force?: boolean;
+      forceOrderId?: string;
     },
   ): Promise<{ message: SolverRefundMessage; execution?: ExecutionMessage }> {
-    const orderId = getOrderId(data.order, await getSdkChainsConfig());
+    const orderId =
+      data.forceOrderId ?? getOrderId(data.order, await getSdkChainsConfig());
     if (data.force) {
       const depositoryDeposits: EnhancedDepositoryDepositMessage[] = [];
       for (const input of data.inputs) {
