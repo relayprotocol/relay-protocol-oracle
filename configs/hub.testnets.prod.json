@@ -1,0 +1,6 @@
+{
+  "id": "arbitrum-sepolia",
+  "httpRpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+  "evmChainId": "421614",
+  "oracleAddress": "0xf73642494a7Ad3529630997Faf8f9f6057319345"
+}

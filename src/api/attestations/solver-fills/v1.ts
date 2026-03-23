@@ -199,7 +199,7 @@ export default {
         ? {
             ...execution,
             signatures: [
-              ...(await signExecutionMessage(execution)),
+              await signExecutionMessage(execution),
               ...peerSignatures,
             ],
           }

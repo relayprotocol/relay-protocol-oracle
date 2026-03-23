@@ -10,16 +10,13 @@ import {
   getPeerResponses,
 } from "../../utils";
 import { getChain } from "../../../common/chains";
-import { signExecutionMessageForChain } from "../../../common/signer";
+import { signExecutionMessage } from "../../../common/signer";
 import { verifyWithdrawalSignature } from "../../../common/signature-verification";
 import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
 const Schema = {
   body: Type.Object({
-    settlementChainId: Type.String({
-      description: "The chain to settle on",
-    }),
     chainId: Type.String({
       description: "The chain id to withdraw on",
     }),
@@ -102,25 +99,22 @@ export default {
 
     const attestationService = new AttestationService();
     const { withdrawalAddress, execution } =
-      await attestationService.attestWithdrawalInitiation(
-        req.body.settlementChainId,
-        {
-          chainId: req.body.chainId,
-          depository: chain.depository!,
-          currency: req.body.currency,
-          amount: req.body.amount,
-          spender: generateAddress({
-            family: await getChain(req.body.ownerChainId).then(
-              (chain) => chain.vmType,
-            ),
-            chainId: req.body.ownerChainId,
-            address: req.body.owner,
-          }),
-          recipient: req.body.recipient,
-          nonce: req.body.nonce,
-          additionalData: req.body.additionalData,
-        },
-      );
+      await attestationService.attestWithdrawalInitiation({
+        chainId: req.body.chainId,
+        depository: chain.depository!,
+        currency: req.body.currency,
+        amount: req.body.amount,
+        spender: generateAddress({
+          family: await getChain(req.body.ownerChainId).then(
+            (chain) => chain.vmType,
+          ),
+          chainId: req.body.ownerChainId,
+          address: req.body.owner,
+        }),
+        recipient: req.body.recipient,
+        nonce: req.body.nonce,
+        additionalData: req.body.additionalData,
+      });
 
     const peerSignatures =
       req.body.requestPeerSignatures && config.peers
@@ -142,13 +136,7 @@ export default {
       withdrawalAddress,
       execution: {
         ...execution,
-        signatures: [
-          await signExecutionMessageForChain(
-            execution,
-            req.body.settlementChainId.toString(),
-          ),
-          ...peerSignatures,
-        ],
+        signatures: [await signExecutionMessage(execution), ...peerSignatures],
       },
     });
   },

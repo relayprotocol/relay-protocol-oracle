@@ -5,35 +5,22 @@ import {
 } from "@relay-protocol/settlement-sdk";
 import { Address, Hex } from "viem";
 
-import { getHubChain, getHubChains } from "./chains";
+import { getHubInfo } from "./chains";
 import { config } from "../config";
 import { getSigningWallet, SigningModule } from "../signers";
 
 export const signGenericMappingMessage = async (m: GenericMappingMessage) => {
-  const signatures = await Promise.all(
-    Object.values(await getHubChains()).map(async (chain) => {
-      return signGenericMappingMessageForChain(m, chain.id);
-    }),
-  );
-  return signatures;
-};
-
-export const signGenericMappingMessageForChain = async (
-  m: GenericMappingMessage,
-  chainId: string,
-) => {
   const wallet = await getSigningWallet(
     (config.signingModule as SigningModule) ?? "raw-private-key",
   );
 
-  const { hubChainId: genericMappingChainId, additionalData } =
-    await getHubChain(chainId);
+  const hubInfo = await getHubInfo();
 
   const signature = await wallet.signTypedData({
     domain: {
-      chainId: BigInt(genericMappingChainId!),
+      chainId: BigInt(hubInfo.evmChainId),
       name: "RelayGenericMapping",
-      verifyingContract: additionalData!.genericMappingAddress! as Address,
+      verifyingContract: hubInfo.genericMappingAddress as Address,
       version: "1",
     },
     message: {
@@ -54,38 +41,25 @@ export const signGenericMappingMessageForChain = async (
   });
 
   return {
-    genericMappingChainId: BigInt(genericMappingChainId!),
-    genericMappingContract: additionalData!.genericMappingAddress! as Address,
+    genericMappingChainId: BigInt(hubInfo.evmChainId),
+    genericMappingContract: hubInfo.genericMappingAddress as Address,
     oracleSigner: wallet.address.toLowerCase(),
     signature,
   };
 };
 
-export const signPayloadParamsMessage = async (m: SubmitWithdrawRequest) => {
-  const signatures = await Promise.all(
-    Object.values(await getHubChains()).map(async (chain) => {
-      return signPayloadParamsForChain(m, chain.id);
-    }),
-  );
-  return signatures;
-};
-
-export const signPayloadParamsForChain = async (
-  m: SubmitWithdrawRequest,
-  chainId: string,
-) => {
+export const signPayloadParams = async (m: SubmitWithdrawRequest) => {
   const wallet = await getSigningWallet(
     (config.signingModule as SigningModule) ?? "raw-private-key",
   );
 
-  const { additionalData } = await getHubChain(chainId);
+  const hubInfo = await getHubInfo();
 
   const signature = await wallet.signTypedData({
     domain: {
-      chainId: additionalData!.auroraChainId!,
+      chainId: BigInt(hubInfo.auroraEvmChainId),
       name: "RelayAllocatorSpender",
-      verifyingContract: additionalData!
-        .auroraAllocatorSpenderAddress! as Address,
+      verifyingContract: hubInfo.auroraAllocatorSpenderAddress as Address,
       version: "1",
     },
     message: {
@@ -138,39 +112,25 @@ export const signPayloadParamsForChain = async (
   });
 
   return {
-    allocatorSpenderChainId: BigInt(additionalData!.auroraChainId!),
-    allocatorSpenderContract: additionalData!
-      .auroraAllocatorSpenderAddress! as Address,
+    allocatorSpenderChainId: BigInt(hubInfo.auroraEvmChainId),
+    allocatorSpenderContract: hubInfo.auroraAllocatorSpenderAddress as Address,
     oracleSigner: wallet.address.toLowerCase(),
     signature,
   };
 };
 
 export const signExecutionMessage = async (m: ExecutionMessage) => {
-  const signatures = await Promise.all(
-    Object.values(await getHubChains()).map(async (chain) => {
-      return signExecutionMessageForChain(m, chain.id);
-    }),
-  );
-  return signatures;
-};
-
-export const signExecutionMessageForChain = async (
-  m: ExecutionMessage,
-  chainId: string,
-) => {
   const wallet = await getSigningWallet(
     (config.signingModule as SigningModule) ?? "raw-private-key",
   );
 
-  const { hubChainId: oracleChainId, additionalData } =
-    await getHubChain(chainId);
+  const hubInfo = await getHubInfo();
 
   const signature = await wallet.signTypedData({
     domain: {
-      chainId: BigInt(oracleChainId!),
+      chainId: BigInt(hubInfo.evmChainId),
       name: "RelayOracle",
-      verifyingContract: additionalData!.oracleAddress as Address,
+      verifyingContract: hubInfo.oracleAddress as Address,
       version: "1",
     },
     message: {
@@ -193,8 +153,8 @@ export const signExecutionMessageForChain = async (
   });
 
   return {
-    oracleChainId: BigInt(oracleChainId!),
-    oracleContract: additionalData!.oracleAddress as Address,
+    oracleChainId: BigInt(hubInfo.evmChainId),
+    oracleContract: hubInfo.oracleAddress as Address,
     oracleSigner: wallet.address.toLowerCase(),
     signature,
   };

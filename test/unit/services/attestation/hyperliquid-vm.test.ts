@@ -8,7 +8,7 @@ import { zeroHash } from "viem";
 
 import { Chain } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/hyperliquid-vm/rpc";
-import { httpRpc as hubHttpRpc } from "../../../../src/common/vm/hub-vm/rpc";
+import { getHubHttpRpc as hubHttpRpc } from "../../../../src/common/hub";
 import { AttestationService } from "../../../../src/services/attestation";
 
 import { randomHex } from "../../../common/utils";
@@ -31,31 +31,23 @@ jest.mock("../../../../src/common/chains", () => {
     HUB_VM_TYPE: "hub-vm",
     HUB_CHAIN_ID: 0n,
     getChains: async () => chains,
-    getHubChains: async () => ({
-      "hub-chain": {
-        id: "hub-chain",
-        vmType: "hub-vm",
-        httpRpcUrl: "http://localhost:8545",
-        depository: "0x0000000000000000000000000000000000000000",
-        hubChainId: "0",
-        additionalData: {
-          genericMappingAddress: "0x0000000000000000000000000000000000000001",
-        },
-      },
+    getHubInfo: async () => ({
+      id: "hub",
+      evmChainId: "1",
+      httpRpcUrl: "http://localhost:8545",
+      hubAddress: "0x0000000000000000000000000000000000000001",
+      oracleAddress: "0x0000000000000000000000000000000000000002",
+      oracleMultisigAddress: "0x0000000000000000000000000000000000000003",
+      genericMappingAddress: "0x0000000000000000000000000000000000000004",
+      auroraHttpRpcUrl: "http://localhost:8545",
+      auroraEvmChainId: "1313161554",
+      auroraAllocatorAddress: "0x0000000000000000000000000000000000000005",
+      auroraAllocatorSpenderAddress: "0x0000000000000000000000000000000000000006",
+      auroraOracleMultisigAddress: "0x0000000000000000000000000000000000000007",
     }),
     getChain: async (chainId: string) => chains[chainId],
     getChainVmType: async (chainId: string) =>
       chainId === "base" ? "ethereum-vm" : chains[chainId].vmType,
-    getUniqueHubChain: async () => ({
-      id: "hub-chain",
-      vmType: "hub-vm",
-      httpRpcUrl: "http://localhost:8545",
-      depository: "0x0000000000000000000000000000000000000000",
-      hubChainId: "0",
-      additionalData: {
-        genericMappingAddress: "0x0000000000000000000000000000000000000001",
-      },
-    }),
     getChainHubChainId: async (chainId: string) =>
       chainId === "base" ? "8453" : chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
@@ -71,9 +63,9 @@ jest.mock("../../../../src/common/vm/hyperliquid-vm/rpc", () => {
   };
 });
 
-jest.mock("../../../../src/common/vm/hub-vm/rpc", () => {
+jest.mock("../../../../src/common/hub", () => {
   return {
-    httpRpc: jest.fn(),
+    getHubHttpRpc: jest.fn(),
   };
 });
 

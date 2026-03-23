@@ -82,20 +82,20 @@ jest.mock("../../../../src/common/chains", () => {
       if (chainId === "base") return 8543;
       throw new Error(`Unknown chain: ${chainId}`);
     }),
-    getHubChains: jest.fn().mockImplementation(async () => [
-      {
-        chainId: "ethereum",
-        vmType: "ethereum-vm",
-        hubChainId: "1",
-        additionalData: { oracleAddress: "0xoracleETH" },
-      },
-      {
-        chainId: "solana",
-        hubChainId: "101",
-        vmType: "solana-vm",
-        additionalData: { oracleAddress: "0xoracleSOL" },
-      },
-    ]),
+    getHubInfo: jest.fn().mockImplementation(async () => ({
+      id: "hub",
+      evmChainId: "1",
+      httpRpcUrl: "http://localhost:8545",
+      hubAddress: "0x0000000000000000000000000000000000000001",
+      oracleAddress: "0x0000000000000000000000000000000000000002",
+      oracleMultisigAddress: "0x0000000000000000000000000000000000000003",
+      genericMappingAddress: "0x0000000000000000000000000000000000000004",
+      auroraHttpRpcUrl: "http://localhost:8545",
+      auroraEvmChainId: "1313161554",
+      auroraAllocatorAddress: "0x0000000000000000000000000000000000000005",
+      auroraAllocatorSpenderAddress: "0x0000000000000000000000000000000000000006",
+      auroraOracleMultisigAddress: "0x0000000000000000000000000000000000000007",
+    })),
     getSdkChainsConfig: jest.fn(() => ({
       ethereum: "ethereum-vm",
       solana: "solana-vm",

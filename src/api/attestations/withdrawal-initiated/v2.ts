@@ -11,16 +11,13 @@ import {
   getPeerResponses,
 } from "../../utils";
 import { getChain } from "../../../common/chains";
-import { signPayloadParamsForChain } from "../../../common/signer";
+import { signPayloadParams } from "../../../common/signer";
 import { verifyWithdrawalSignature } from "../../../common/signature-verification";
 import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
 const Schema = {
   body: Type.Object({
-    settlementChainId: Type.String({
-      description: "The chain to settle on",
-    }),
     chainId: Type.String({
       description: "The chain id to withdraw on",
     }),
@@ -130,25 +127,22 @@ export default {
 
     const attestationService = new AttestationService();
     const { payloadParams } =
-      await attestationService.attestWithdrawalInitiated(
-        req.body.settlementChainId,
-        {
-          chainId: req.body.chainId,
-          depository: chain.depository!,
-          currency: req.body.currency,
-          amount: req.body.amount,
-          spender: generateAddress({
-            family: await getChain(req.body.ownerChainId).then(
-              (chain) => chain.vmType,
-            ),
-            chainId: req.body.ownerChainId,
-            address: req.body.owner,
-          }),
-          recipient: req.body.recipient,
-          nonce: req.body.nonce,
-          additionalData: req.body.additionalData,
-        },
-      );
+      await attestationService.attestWithdrawalInitiated({
+        chainId: req.body.chainId,
+        depository: chain.depository!,
+        currency: req.body.currency,
+        amount: req.body.amount,
+        spender: generateAddress({
+          family: await getChain(req.body.ownerChainId).then(
+            (chain) => chain.vmType,
+          ),
+          chainId: req.body.ownerChainId,
+          address: req.body.owner,
+        }),
+        recipient: req.body.recipient,
+        nonce: req.body.nonce,
+        additionalData: req.body.additionalData,
+      });
 
     const peerSignatures =
       req.body.requestPeerSignatures && config.peers
@@ -171,13 +165,7 @@ export default {
     return reply.send({
       payloadParams: {
         ...payloadParams,
-        signatures: [
-          await signPayloadParamsForChain(
-            payloadParams,
-            req.body.settlementChainId.toString(),
-          ),
-          ...peerSignatures,
-        ],
+        signatures: [await signPayloadParams(payloadParams), ...peerSignatures],
       },
     });
   },

@@ -31,16 +31,6 @@ export type Chain = {
     isZksyncStack?: boolean;
     // For "lighter-vm"
     rpcApiKey?: string;
-    // For "hub-vm"
-    hubAddress?: string;
-    oracleAddress?: string;
-    oracleMultisigAddress?: string;
-    genericMappingAddress?: string;
-    auroraHttpRpcUrl?: string;
-    auroraChainId?: number;
-    auroraAllocatorAddress?: string;
-    auroraAllocatorSpenderAddress?: string;
-    auroraOracleMultisigAddress?: string;
   };
 };
 
@@ -179,47 +169,50 @@ export const getSdkChainsConfig = async () => {
   );
 };
 
-// Helpers for hub chains
+// Hub info
 
-export const getHubChains = async () => {
+let __hubInfo:
+  | {
+      id: string;
+      evmChainId: string;
+      httpRpcUrl: string;
+      hubAddress: string;
+      oracleAddress: string;
+      oracleMultisigAddress: string;
+      genericMappingAddress: string;
+      auroraHttpRpcUrl: string;
+      auroraEvmChainId: string;
+      auroraAllocatorAddress: string;
+      auroraAllocatorSpenderAddress: string;
+      auroraOracleMultisigAddress: string;
+    }
+  | undefined;
+
+export const getHubInfo = async () => {
+  if (__hubInfo) {
+    return __hubInfo;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const chains = require(`../../configs/chains.hub.${config.environment}.json`);
-  const __chains: { [id: string]: Chain } = {};
-  for (const chain of chains) {
-    const additionalData = readAdditionalData(chain);
+  const chain = require(`../../configs/hub.${config.environment}.json`);
+  __hubInfo = {
+    id: readConfigValue(chain.id),
+    evmChainId: readConfigValue(chain.evmChainId),
+    httpRpcUrl: readConfigValue(chain.httpRpcUrl),
+    hubAddress: readConfigValue(chain.hubAddress),
+    oracleAddress: readConfigValue(chain.oracleAddress),
+    oracleMultisigAddress: readConfigValue(chain.oracleMultisigAddress),
+    genericMappingAddress: readConfigValue(chain.genericMappingAddress),
+    auroraHttpRpcUrl: readConfigValue(chain.auroraHttpRpcUrl),
+    auroraEvmChainId: readConfigValue(chain.auroraEvmChainId),
+    auroraAllocatorAddress: readConfigValue(chain.auroraAllocatorAddress),
+    auroraAllocatorSpenderAddress: readConfigValue(
+      chain.auroraAllocatorSpenderAddress,
+    ),
+    auroraOracleMultisigAddress: readConfigValue(
+      chain.auroraOracleMultisigAddress,
+    ),
+  };
 
-    __chains[chain.id] = {
-      id: readConfigValue(chain.id),
-      vmType: readConfigValue(chain.vmType),
-      httpRpcUrl: readConfigValue(chain.httpRpcUrl),
-      hubChainId: readConfigValue(chain.chainId),
-      additionalData,
-    };
-  }
-
-  return __chains;
-};
-
-export const getHubChain = async (chainId: string) => {
-  const chains = await getHubChains();
-  if (!chains[chainId]) {
-    throw externalError(`Hub chain ${chainId} is not available`);
-  }
-
-  return chains[chainId];
-};
-
-export const getChainHubChainId = async (chainId: string) => {
-  const hubChainId = await getChain(chainId).then((c) => c.hubChainId);
-  if (!hubChainId) {
-    throw externalError(`Chain ${chainId} has no hub chain id configured`);
-  }
-
-  return BigInt(hubChainId);
-};
-
-// We only ever have a single Hub chain
-export const getUniqueHubChain = async () => {
-  const hubChains = await getHubChains();
-  return hubChains[Object.keys(hubChains)[0]];
+  return __hubInfo;
 };

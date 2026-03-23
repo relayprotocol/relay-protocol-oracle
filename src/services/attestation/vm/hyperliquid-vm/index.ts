@@ -23,10 +23,10 @@ import {
 import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { TxHints } from "../../../attestation";
-import { getChain, getUniqueHubChain } from "../../../../common/chains";
+import { getChain, getHubInfo } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/hyperliquid-vm/rpc";
-import { httpRpc as hubHttpRpc } from "../../../../common/vm/hub-vm/rpc";
+import { getHubHttpRpc as hubHttpRpc } from "../../../../common/hub";
 import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import { logger } from "../../../../common/logger";
 
@@ -544,17 +544,14 @@ export class HyperliquidVmAttestor extends VmAttestor {
     depositor: string,
     nonce: number,
   ): Promise<{ id: string; createdAt: string } | undefined> {
-    const hub = await getUniqueHubChain();
-    if (!hub.additionalData?.genericMappingAddress) {
-      return undefined;
-    }
+    const hubInfo = await getHubInfo();
 
     const genericMappingContract = getContract({
-      address: hub.additionalData.genericMappingAddress as Address,
+      address: hubInfo.genericMappingAddress as Address,
       abi: parseAbi([
         "function getEntry(address user, bytes32 id) view returns (bytes data, uint256 createdAt)",
       ]),
-      client: await hubHttpRpc(hub.id),
+      client: await hubHttpRpc(),
     });
 
     const chain = await getChain(chainId);

@@ -1,0 +1,6 @@
+{
+  "id": "relay",
+  "httpRpcUrl": "http://proxy-relay.internal.relay.link/relay",
+  "evmChainId": "537713",
+  "oracleAddress": "0xA5978Df9a664C56d62313EE9EAaC7930977164E4"
+}

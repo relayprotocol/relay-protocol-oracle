@@ -31,11 +31,9 @@ import * as bitcoin from "bitcoinjs-lib";
 import TronWeb from "tronweb";
 import {
   Address,
-  createPublicClient,
   decodeAbiParameters,
   getContract,
   Hex,
-  http,
   parseAbi,
   verifyMessage,
   verifyTypedData,
@@ -43,7 +41,7 @@ import {
   zeroHash,
 } from "viem";
 
-import { getVmAttestor, getHubAttestor } from "./vm";
+import { getVmAttestor } from "./vm";
 import { EnhancedDepositoryDepositMessage } from "./vm/types";
 import {
   extractEcdsaSignature,
@@ -54,11 +52,11 @@ import {
 import {
   getChain,
   getChainVmType,
-  getHubChains,
+  getHubInfo,
   getSdkChainsConfig,
-  getUniqueHubChain,
 } from "../../common/chains";
 import { externalError } from "../../common/error";
+import { getAuroraHttpRpc, getBalanceOnHub } from "../../common/hub";
 
 type ExecutionMetadata = Omit<
   ExecutionMessageMetadata,
@@ -143,25 +141,15 @@ export class AttestationService {
         }),
       );
 
-      // Parse metadata for all oracle chains
-      const metadataForAllOracles: ExecutionMessageMetadata[] = [];
-      const hubChains = await getHubChains();
-      if (hubChains) {
-        Object.values(hubChains).map((chain) => {
-          const metadataWithOracleInfo = metadata.map((md) => ({
-            ...md,
-            oracleChainId: chain.hubChainId || "",
-            oracleContract: chain.additionalData!
-              .oracleAddress as `0x${string}`,
-          }));
-          metadataForAllOracles.push(...metadataWithOracleInfo);
-        });
-      }
-
+      const hubInfo = await getHubInfo();
       execution = {
         idempotencyKey: getDeterministicId(data.chainId, data.transactionId),
         actions,
-        metadata: metadataForAllOracles,
+        metadata: metadata.map((md) => ({
+          ...md,
+          oracleChainId: hubInfo.evmChainId,
+          oracleContract: hubInfo.oracleAddress as Address,
+        })),
       };
     }
 
@@ -172,7 +160,6 @@ export class AttestationService {
   }
 
   public async attestWithdrawalInitiation(
-    settlementChainId: string,
     data: DenormalizedSubmitWithdrawRequest,
   ): Promise<{
     withdrawalAddress: string;
@@ -191,9 +178,7 @@ export class AttestationService {
     });
 
     // Safety check to ensure the owner has sufficient balance
-    const balance = await getHubAttestor().then((attestor) =>
-      attestor.getBalanceOnHub(settlementChainId, data.spender, hubTokenId),
-    );
+    const balance = await getBalanceOnHub(data.spender, hubTokenId);
     if (!balance || BigInt(balance) < BigInt(data.amount)) {
       throw externalError("Insufficient balance for requested withdrawal");
     }
@@ -210,9 +195,10 @@ export class AttestationService {
       nonce: data.nonce,
     });
 
+    const hubInfo = await getHubInfo();
     const execution = {
       idempotencyKey: getDeterministicId(
-        settlementChainId,
+        hubInfo.id,
         hubTokenId.toString(),
         withdrawalAddress,
       ),
@@ -236,7 +222,6 @@ export class AttestationService {
   }
 
   public async attestWithdrawalInitiated(
-    settlementChainId: string,
     data: DenormalizedSubmitWithdrawRequest,
   ): Promise<{
     payloadParams: SubmitWithdrawRequest;
@@ -266,13 +251,7 @@ export class AttestationService {
     });
 
     // Safety check to ensure the withdrawn amount matches the withdrawal address balance
-    const balance = await getHubAttestor().then((attestor) =>
-      attestor.getBalanceOnHub(
-        settlementChainId,
-        withdrawalAddress,
-        hubTokenId,
-      ),
-    );
+    const balance = await getBalanceOnHub(withdrawalAddress, hubTokenId);
     if (BigInt(balance) !== BigInt(data.amount)) {
       throw externalError(
         "Withdrawn amount different from withdrawal address balance",
@@ -995,28 +974,17 @@ export class AttestationService {
     chainId: string,
     payloadParams: SubmitWithdrawRequest,
   ): Promise<string | undefined> {
-    const hubChain = await getUniqueHubChain();
-    const client = createPublicClient({
-      chain: {
-        id: hubChain.additionalData!.auroraChainId!,
-        name: "Aurora",
-        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-        rpcUrls: {
-          default: { http: [hubChain.additionalData!.auroraHttpRpcUrl!] },
-        },
-      },
-      transport: http(),
-    });
+    const hubInfo = await getHubInfo();
 
     const allocator = getContract({
-      address: hubChain.additionalData!.auroraAllocatorAddress! as Address,
+      address: hubInfo.auroraAllocatorAddress as Address,
       abi: parseAbi([
         "function payloads(bytes32 payloadId) view returns (bytes unsignedPayload)",
         "function payloadTimestamps(bytes32 payloadId) view returns (uint256 timestamp)",
         "function payloadBuilders(uint256 chainId, string depository) view returns (address)",
         "function signedPayloads(bytes32 payloadId, bytes32 hashToSign) view returns (bytes)",
       ]),
-      client,
+      client: await getAuroraHttpRpc(),
     });
 
     const payloadBuilderAddress = await allocator.read.payloadBuilders([
@@ -1035,7 +1003,7 @@ export class AttestationService {
         "function family() view returns (string)",
         "function hashToSign(uint256 chainId, string depository, bytes payload, uint32 index) view returns (bytes32)",
       ]),
-      client,
+      client: await getAuroraHttpRpc(),
     });
     const family = await payloadBuilder.read.family();
 

@@ -107,7 +107,7 @@ export default {
       genericMapping: {
         ...genericMapping,
         signatures: [
-          ...(await signGenericMappingMessage(genericMapping)),
+          await signGenericMappingMessage(genericMapping),
           ...peerSignatures,
         ],
       },

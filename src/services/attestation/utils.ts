@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { fromHex, Hex } from "viem";
 import { publicKeyToAddress } from "viem/accounts";
 
-import { getChains, getUniqueHubChain } from "../../common/chains";
+import { getChains, getHubInfo } from "../../common/chains";
 
 export const getDeterministicId = (...values: string[]) =>
   "0x" +
@@ -61,15 +61,15 @@ export const getSigner = async (chainId: string) => {
     }
   }
 
-  const hubChain = await getUniqueHubChain();
-  if (!hubChain.additionalData?.auroraAllocatorAddress) {
+  const hubInfo = await getHubInfo();
+  if (!hubInfo.auroraAllocatorAddress) {
     throw new Error("Missing Aurora allocator config");
   }
 
   const args = {
     domain_id: domainId,
-    path: hubChain.additionalData.auroraAllocatorAddress.toLowerCase(),
-    predecessor: `${hubChain.additionalData.auroraAllocatorAddress.slice(2).toLowerCase()}.aurora`,
+    path: hubInfo.auroraAllocatorAddress.toLowerCase(),
+    predecessor: `${hubInfo.auroraAllocatorAddress.slice(2).toLowerCase()}.aurora`,
   };
 
   const nearRpc = new JsonRpcProvider({
