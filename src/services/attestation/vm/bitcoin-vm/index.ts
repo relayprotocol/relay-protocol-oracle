@@ -5,6 +5,7 @@ import { zeroHash } from "viem";
 import {
   DecodedBitcoinVmWithdrawal,
   decodeWithdrawal,
+  DenormalizedSubmitWithdrawRequest,
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   getDecodedWithdrawalId,
@@ -345,6 +346,24 @@ export class BitcoinVmAttestor extends VmAttestor {
     _extraData: string,
   ): Promise<boolean> {
     throw internalError("Not implemented");
+  }
+
+  public async validateSubmitWithdrawRequest(
+    data: DenormalizedSubmitWithdrawRequest,
+  ): Promise<boolean> {
+    if (!data.additionalData?.["bitcoin-vm"]) {
+      return false;
+    }
+
+    const rpc = await httpRpc(data.chainId);
+    for (const utxo of data.additionalData?.["bitcoin-vm"].allocatorUtxos) {
+      const tx = await rpc.getTransaction(utxo.txid);
+      if (Number(utxo.value) !== tx.vout[utxo.vout].value) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private _FINALIZATION_BLOCKS = 2;

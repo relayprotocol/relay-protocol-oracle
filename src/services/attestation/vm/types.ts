@@ -1,4 +1,5 @@
 import {
+  DenormalizedSubmitWithdrawRequest,
   DepositoryDepositMessage,
   DepositoryWithdrawalMessage,
 } from "@relay-protocol/settlement-sdk";
@@ -14,13 +15,13 @@ export type EnhancedDepositoryDepositMessage = DepositoryDepositMessage & {
 export abstract class VmAttestor {
   public abstract getDepositoryDepositMessages(
     chainId: string,
-    transactionId: string
+    transactionId: string,
   ): Promise<EnhancedDepositoryDepositMessage[]>;
 
   public abstract getDepositoryWithdrawalMessage(
     chainId: string,
     withdrawal: string,
-    transactionId?: string
+    transactionId?: string,
   ): Promise<DepositoryWithdrawalMessage>;
 
   public abstract getSolverPaidAmount(
@@ -33,13 +34,19 @@ export abstract class VmAttestor {
       extraData: string;
       deadline: number;
     },
-    hints?: TxHints
+    hints?: TxHints,
   ): Promise<bigint>;
 
   public abstract verifySolverCalls(
     chainId: string,
     transactionId: string,
     calls: string[],
-    extraData: string
+    extraData: string,
   ): Promise<boolean>;
+
+  public validateSubmitWithdrawRequest(
+    _data: DenormalizedSubmitWithdrawRequest,
+  ): Promise<boolean> {
+    return new Promise((resolve) => resolve(true));
+  }
 }

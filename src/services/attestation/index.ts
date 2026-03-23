@@ -932,34 +932,8 @@ export class AttestationService {
   private async _getPayloadParams(data: DenormalizedSubmitWithdrawRequest) {
     const chain = await getChain(data.chainId);
 
-    // Ensure any additional data is present if needed
-    switch (chain.vmType) {
-      case "bitcoin-vm": {
-        const additionalData = data.additionalData?.["bitcoin-vm"];
-        if (!additionalData) {
-          throw externalError(
-            "Additional data is required for generating the withdrawal request",
-          );
-        }
-
-        break;
-      }
-
-      case "hyperliquid-vm": {
-        const isNativeCurrency =
-          data.currency === getVmTypeNativeCurrency(chain.vmType);
-        if (!isNativeCurrency) {
-          const additionalData = data.additionalData?.["hyperliquid-vm"];
-          if (!additionalData) {
-            throw externalError(
-              "Additional data is required for generating the withdrawal request",
-            );
-          }
-        }
-
-        break;
-      }
-    }
+    const attestor = await getVmAttestor(data.chainId);
+    await attestor.validateSubmitWithdrawRequest(data);
 
     const payloadParams = normalizePayloadParams({
       ...data,

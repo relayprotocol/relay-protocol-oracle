@@ -2,6 +2,7 @@ import * as hl from "@nktkas/hyperliquid";
 import {
   DecodedHyperliquidVmWithdrawal,
   decodeWithdrawal,
+  DenormalizedSubmitWithdrawRequest,
   DepositoryWithdrawalMessage,
   DepositoryWithdrawalStatus,
   generateAddress,
@@ -23,7 +24,11 @@ import {
 import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { TxHints } from "../../../attestation";
-import { getChain, getHubInfo } from "../../../../common/chains";
+import {
+  getChain,
+  getChainVmType,
+  getHubInfo,
+} from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { httpRpc } from "../../../../common/vm/hyperliquid-vm/rpc";
 import { getHubHttpRpc as hubHttpRpc } from "../../../../common/hub";
@@ -509,6 +514,22 @@ export class HyperliquidVmAttestor extends VmAttestor {
     _calls: string[],
   ): Promise<boolean> {
     throw internalError("Not implemented (verifySolverCalls)");
+  }
+
+  public async validateSubmitWithdrawRequest(
+    data: DenormalizedSubmitWithdrawRequest,
+  ): Promise<boolean> {
+    const vmType = await getChainVmType(data.chainId);
+
+    const isNativeCurrency = data.currency === getVmTypeNativeCurrency(vmType);
+    if (!isNativeCurrency) {
+      const additionalData = data.additionalData?.["hyperliquid-vm"];
+      if (!additionalData) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private async _lookupId(
