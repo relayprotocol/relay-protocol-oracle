@@ -445,11 +445,7 @@ export class AttestationService {
         data.hints,
       );
 
-      // Ensure the paid amount matches the minimum amount requested by the user (adjusted for any under/over-payment)
-      const minimumAmount =
-        BigInt(payment.minimumAmount) +
-        (BigInt(payment.minimumAmount) * totalWeightedInputPaymentBpsDiff) /
-          10n ** 18n;
+      const minimumAmount = BigInt(payment.minimumAmount);
       if (paidAmount < minimumAmount) {
         throw externalError(
           `Insufficient fill amount for order output payment ${outputPaymentIndex} (paidAmount=${paidAmount}, minimumAmount=${minimumAmount})`,
@@ -905,12 +901,7 @@ export class AttestationService {
           family: await getChainVmType(fee.recipientChainId),
         });
 
-        const amount = String(
-          BigInt(fee.amount) +
-            (BigInt(fee.amount) *
-              BigInt(data.totalWeightedInputPaymentBpsDiff)) /
-              10n ** 18n,
-        );
+        const amount = fee.amount;
         actions.push(
           encodeAction({
             type: ActionType.TRANSFER,

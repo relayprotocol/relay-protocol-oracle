@@ -1,5 +1,12 @@
 import { describe, expect, it, jest, beforeEach } from "@jest/globals";
-import { zeroHash, keccak256, encodePacked, Hex, verifyTypedData } from "viem";
+import {
+  zeroHash,
+  keccak256,
+  encodePacked,
+  Hex,
+  verifyTypedData,
+  encodeAbiParameters,
+} from "viem";
 
 import { AttestationService } from "../../../../src/services/attestation";
 import { getVmAttestor } from "../../../../src/services/attestation/vm";
@@ -19,6 +26,8 @@ import {
   encodeAddress,
   getNoFillOrRefundMessage,
   getNonceMappingMessage,
+  SolverFillStatus,
+  SolverRefundStatus,
 } from "@relay-protocol/settlement-sdk";
 
 import {
@@ -935,6 +944,437 @@ describe("AttestationService", () => {
           order.output.payments[0].expectedAmount,
         );
       }
+    });
+
+    it(`does not scale minimum output amount on input overpayment`, async () => {
+      const solverAddress = "0x1234567890123456789012345678901234567890";
+      const depositor = "0x0987654321098765432109876543210987654321";
+      const currency = "0x1111111111111111111111111111111111111111";
+      const orderAmount = "1000";
+      const depositAmount = "1200"; // 20% overpayment
+      const minimumOutputAmount = "900";
+      const timestamp = "1234567890";
+      const transactionId =
+        "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e";
+      const fillTransactionId =
+        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+      const onchainId =
+        "0x0000000000000000000000000000000000000000000000000000000000000999";
+
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: {
+              chainId: "ethereum",
+              currency,
+              amount: orderAmount,
+              weight: "1",
+            },
+            refunds: [],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: "0x3333333333333333333333333333333333333333",
+              currency,
+              minimumAmount: minimumOutputAmount,
+              expectedAmount: orderAmount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [],
+      };
+
+      const orderId = getOrderId(order, await getSdkChainsConfig());
+
+      const mockDepositMessage = {
+        data: { chainId: "ethereum", transactionId },
+        result: {
+          depositor,
+          depository: "0x4444444444444444444444444444444444444444",
+          currency,
+          amount: depositAmount, // Overpayment
+          onchainId,
+          depositId: orderId,
+        },
+        extraData: { timestamp },
+      };
+
+      const mockAttestor: any = {
+        getDepositoryDepositMessages: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve([mockDepositMessage])),
+        // Solver pays exactly the unscaled minimum - should be accepted
+        getSolverPaidAmount: jest
+          .fn()
+          .mockImplementation(() =>
+            Promise.resolve(BigInt(minimumOutputAmount)),
+          ),
+        verifySolverCalls: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(true)),
+      };
+
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      const result = await service.attestSolverFill({
+        order,
+        orderSignature: "0x" + "00".repeat(65),
+        inputs: [{ transactionId, onchainId, inputIndex: 0 }],
+        fill: { transactionId: fillTransactionId },
+      });
+
+      // Should succeed with the unscaled minimum amount
+      expect(result.message.result.status).toBe(SolverFillStatus.SUCCESSFUL);
+      // The bps diff should reflect the overpayment
+      expect(
+        BigInt(result.message.result.totalWeightedInputPaymentBpsDiff),
+      ).toBeGreaterThan(0n);
+    });
+
+    it(`does not scale fees in execution on input overpayment`, async () => {
+      const solverAddress = "0x1234567890123456789012345678901234567890";
+      const depositor = "0x0987654321098765432109876543210987654321";
+      const currency = "0x1111111111111111111111111111111111111111";
+      const orderAmount = "1000";
+      const depositAmount = "1200"; // 20% overpayment
+      const feeAmount = "100";
+      const feeRecipient = "0x5555555555555555555555555555555555555555";
+      const timestamp = "1234567890";
+      const transactionId =
+        "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e";
+      const fillTransactionId =
+        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+      const onchainId =
+        "0x0000000000000000000000000000000000000000000000000000000000000999";
+
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: {
+              chainId: "ethereum",
+              currency,
+              amount: orderAmount,
+              weight: "1",
+            },
+            refunds: [],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: "0x3333333333333333333333333333333333333333",
+              currency,
+              minimumAmount: orderAmount,
+              expectedAmount: orderAmount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [
+          {
+            recipientChainId: "ethereum",
+            recipient: feeRecipient,
+            currencyChainId: "ethereum",
+            currency,
+            amount: feeAmount,
+          },
+        ],
+      };
+
+      const orderId = getOrderId(order, await getSdkChainsConfig());
+
+      const mockDepositMessage = {
+        data: { chainId: "ethereum", transactionId },
+        result: {
+          depositor,
+          depository: "0x4444444444444444444444444444444444444444",
+          currency,
+          amount: depositAmount, // Overpayment
+          onchainId,
+          depositId: orderId,
+        },
+        extraData: { timestamp },
+      };
+
+      const mockAttestor: any = {
+        getDepositoryDepositMessages: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve([mockDepositMessage])),
+        getSolverPaidAmount: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(BigInt(orderAmount))),
+        verifySolverCalls: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(true)),
+      };
+
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      const result = await service.attestSolverFill({
+        order,
+        orderSignature: "0x" + "00".repeat(65),
+        inputs: [{ transactionId, onchainId, inputIndex: 0 }],
+        fill: { transactionId: fillTransactionId },
+      });
+
+      // Fee action should use the unscaled fee amount
+      const feeAction = result.execution!.actions[1];
+      const decodedFeeAction = decodeAction(feeAction);
+      expect(decodedFeeAction.type).toBe(ActionType.TRANSFER);
+      if (decodedFeeAction.type === ActionType.TRANSFER) {
+        expect(decodedFeeAction.data.amount).toBe(feeAmount);
+      }
+    });
+  });
+
+  describe("attestSolverRefund", () => {
+    it(`scales refund minimum amount on input overpayment`, async () => {
+      const solverAddress = "0x1234567890123456789012345678901234567890";
+      const depositor = "0x0987654321098765432109876543210987654321";
+      const currency = "0x1111111111111111111111111111111111111111";
+      const orderAmount = "1000";
+      const depositAmount = "1200"; // 20% overpayment
+      const refundMinimumAmount = "900";
+      const refundRecipient = "0x6666666666666666666666666666666666666666";
+      const solverContractAddress =
+        "0x7777777777777777777777777777777777777777";
+      const timestamp = "1234567890";
+      const transactionId =
+        "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e";
+      const refundTransactionId =
+        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+      const onchainId =
+        "0x0000000000000000000000000000000000000000000000000000000000000999";
+
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: {
+              chainId: "ethereum",
+              currency,
+              amount: orderAmount,
+              weight: "1",
+            },
+            refunds: [
+              {
+                chainId: "ethereum",
+                recipient: refundRecipient,
+                currency,
+                minimumAmount: refundMinimumAmount,
+                deadline: Math.floor(Date.now() / 1000) + 36000,
+                extraData: encodeAbiParameters(
+                  [{ type: "address" }],
+                  [solverContractAddress as Hex],
+                ),
+              },
+            ],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: "0x3333333333333333333333333333333333333333",
+              currency,
+              minimumAmount: orderAmount,
+              expectedAmount: orderAmount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [],
+      };
+
+      const orderId = getOrderId(order, await getSdkChainsConfig());
+
+      // 20% overpayment means bpsDiff = 0.2 * 10^18 = 200000000000000000
+      // Scaled refund minimum = 900 + (900 * 200000000000000000) / 10^18 = 900 + 180 = 1080
+      const scaledRefundMinimum =
+        BigInt(refundMinimumAmount) +
+        (BigInt(refundMinimumAmount) *
+          ((BigInt(depositAmount) - BigInt(orderAmount)) * 10n ** 18n) /
+            BigInt(orderAmount)) /
+          10n ** 18n;
+
+      const mockDepositMessage = {
+        data: { chainId: "ethereum", transactionId },
+        result: {
+          depositor,
+          depository: "0x4444444444444444444444444444444444444444",
+          currency,
+          amount: depositAmount, // Overpayment
+          onchainId,
+          depositId: orderId,
+        },
+        extraData: { timestamp },
+      };
+
+      const mockAttestor: any = {
+        getDepositoryDepositMessages: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve([mockDepositMessage])),
+        // Pays exactly the scaled minimum - should succeed
+        getSolverPaidAmount: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(scaledRefundMinimum)),
+        verifySolverCalls: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(true)),
+      };
+
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      const result = await service.attestSolverRefund({
+        order,
+        orderSignature: "0x" + "00".repeat(65),
+        inputs: [{ transactionId, onchainId, inputIndex: 0 }],
+        refunds: [
+          {
+            transactionId: refundTransactionId,
+            inputIndex: 0,
+            refundIndex: 0,
+          },
+        ],
+      });
+
+      expect(result.message.result.status).toBe(SolverRefundStatus.SUCCESSFUL);
+      expect(
+        BigInt(result.message.result.totalWeightedInputPaymentBpsDiff),
+      ).toBeGreaterThan(0n);
+    });
+
+    it(`fails refund when paying unscaled minimum on input overpayment`, async () => {
+      const solverAddress = "0x1234567890123456789012345678901234567890";
+      const depositor = "0x0987654321098765432109876543210987654321";
+      const currency = "0x1111111111111111111111111111111111111111";
+      const orderAmount = "1000";
+      const depositAmount = "1200"; // 20% overpayment
+      const refundMinimumAmount = "900";
+      const refundRecipient = "0x6666666666666666666666666666666666666666";
+      const solverContractAddress =
+        "0x7777777777777777777777777777777777777777";
+      const timestamp = "1234567890";
+      const transactionId =
+        "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e";
+      const refundTransactionId =
+        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+      const onchainId =
+        "0x0000000000000000000000000000000000000000000000000000000000000999";
+
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: {
+              chainId: "ethereum",
+              currency,
+              amount: orderAmount,
+              weight: "1",
+            },
+            refunds: [
+              {
+                chainId: "ethereum",
+                recipient: refundRecipient,
+                currency,
+                minimumAmount: refundMinimumAmount,
+                deadline: Math.floor(Date.now() / 1000) + 36000,
+                extraData: encodeAbiParameters(
+                  [{ type: "address" }],
+                  [solverContractAddress as Hex],
+                ),
+              },
+            ],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: "0x3333333333333333333333333333333333333333",
+              currency,
+              minimumAmount: orderAmount,
+              expectedAmount: orderAmount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [],
+      };
+
+      const orderId = getOrderId(order, await getSdkChainsConfig());
+
+      const mockDepositMessage = {
+        data: { chainId: "ethereum", transactionId },
+        result: {
+          depositor,
+          depository: "0x4444444444444444444444444444444444444444",
+          currency,
+          amount: depositAmount, // Overpayment
+          onchainId,
+          depositId: orderId,
+        },
+        extraData: { timestamp },
+      };
+
+      const mockAttestor: any = {
+        getDepositoryDepositMessages: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve([mockDepositMessage])),
+        // Pays only the unscaled minimum - should fail because refund minimum IS scaled
+        getSolverPaidAmount: jest
+          .fn()
+          .mockImplementation(() =>
+            Promise.resolve(BigInt(refundMinimumAmount)),
+          ),
+        verifySolverCalls: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(true)),
+      };
+
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      await expect(
+        service.attestSolverRefund({
+          order,
+          orderSignature: "0x" + "00".repeat(65),
+          inputs: [{ transactionId, onchainId, inputIndex: 0 }],
+          refunds: [
+            {
+              transactionId: refundTransactionId,
+              inputIndex: 0,
+              refundIndex: 0,
+            },
+          ],
+        }),
+      ).rejects.toThrow("Insufficient refund amount");
     });
   });
 });
