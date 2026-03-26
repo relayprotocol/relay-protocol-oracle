@@ -315,13 +315,10 @@ export class EthereumVmAttestor extends VmAttestor {
       abi: ABI,
       client: rpc,
     });
-
-    // Read at safe block to prevent reorg-based attacks
     await logRpcUsage(chainId, "eth_call", trackingId);
-    const isExecuted = await depositoryContract.read.callRequests(
-      [withdrawalId as Hex],
-      { blockTag: "safe" },
-    );
+    const isExecuted = await depositoryContract.read.callRequests([
+      withdrawalId as Hex,
+    ]);
 
     let status: DepositoryWithdrawalStatus;
     if (isExecuted) {
@@ -329,10 +326,11 @@ export class EthereumVmAttestor extends VmAttestor {
     } else {
       await logRpcUsage(chainId, "eth_getBlock", trackingId);
       const chainTimestamp = await rpc
-        .getBlock({ blockTag: "safe" })
+        .getBlock()
         .then((block) => block.timestamp);
       if (
-        chainTimestamp > BigInt(decodedWithdrawal.withdrawal.expiration)
+        chainTimestamp - this._FINALIZATION_TIME >
+        BigInt(decodedWithdrawal.withdrawal.expiration)
       ) {
         status = DepositoryWithdrawalStatus.EXPIRED;
       } else {
