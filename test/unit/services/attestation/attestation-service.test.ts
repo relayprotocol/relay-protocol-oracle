@@ -5,6 +5,7 @@ import {
   encodePacked,
   Hex,
   verifyTypedData,
+  verifyMessage,
   encodeAbiParameters,
 } from "viem";
 
@@ -36,6 +37,7 @@ import {
   getSdkChainsConfig,
 } from "../../../../src/common/chains";
 import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
+import { getBalanceOnHub } from "../../../../src/common/hub";
 import { getAddress } from "viem";
 
 // default vars
@@ -46,6 +48,14 @@ const solanaDepositoryAddress = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
 
 jest.mock("../../../../src/services/attestation/vm");
 jest.mock("../../../../src/common/chains");
+jest.mock("../../../../src/common/hub", () => ({
+  getBalanceOnHub: jest.fn().mockImplementation(() => Promise.resolve(10000n)),
+  getHubHttpRpc: jest.fn().mockImplementation(() =>
+    Promise.resolve({
+      readContract: jest.fn(),
+    }),
+  ),
+}));
 
 // Mock signature verification
 jest.mock("viem", () => {
@@ -1375,6 +1385,404 @@ describe("AttestationService", () => {
           ],
         }),
       ).rejects.toThrow("Insufficient refund amount");
+    });
+  });
+
+  describe("attestRecover", () => {
+    const depositor = "0x1234567890123456789012345678901234567890";
+    const currency = "0x1111111111111111111111111111111111111111";
+    const amount = "1000";
+    const chainId = "ethereum";
+    const transactionId =
+      "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e";
+    const onchainId =
+      "0x0000000000000000000000000000000000000000000000000000000000000999";
+    const depositId = keccak256("0x1234" as Hex);
+    const solverAddress = "0x0987654321098765432109876543210987654321";
+
+    // Timestamp older than 7 days
+    const oldTimestamp = String(
+      Math.floor(Date.now() / 1000) - 8 * 24 * 60 * 60,
+    );
+    // Timestamp within 7 days
+    const recentTimestamp = String(
+      Math.floor(Date.now() / 1000) - 3 * 24 * 60 * 60,
+    );
+
+    const mockDepositMessage = (
+      overrides: Record<string, any> = {},
+      extraOverrides: Record<string, any> = {},
+    ) => ({
+      data: { chainId, transactionId },
+      result: {
+        depositor,
+        depository: depositoryAddress,
+        currency,
+        amount,
+        onchainId,
+        depositId,
+        ...overrides,
+      },
+      extraData: { timestamp: oldTimestamp, ...extraOverrides },
+    });
+
+    const setupMockAttestor = (messages: any[]) => {
+      const mockAttestor: any = {
+        getDepositoryDepositMessages: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(messages)),
+      };
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+    };
+
+    it("returns correct TRANSFER execution for deposit older than 7 days", async () => {
+      const deposit = mockDepositMessage();
+      setupMockAttestor([deposit]);
+      jest.mocked(getBalanceOnHub).mockResolvedValue(BigInt(amount));
+
+      const result = await service.attestRecover({
+        chainId,
+        transactionId,
+        onchainId,
+      });
+
+      const hubTokenId = generateTokenId({
+        address: currency,
+        chainId,
+        family: "ethereum-vm",
+      });
+
+      // Mirror _getOrderAddress
+      const orderHash = keccak256(
+        encodePacked(
+          ["string", "bytes", "uint256", "bytes32"],
+          [
+            chainId,
+            `0x${Buffer.from(encodeAddress(depositor, "ethereum-vm")).toString("hex")}`,
+            BigInt(oldTimestamp),
+            depositId as Hex,
+          ],
+        ),
+      );
+      const expectedOrderAddress = `0x${orderHash.slice(2).slice(-40)}`;
+
+      const depositorAlias = generateAddress({
+        address: depositor,
+        chainId,
+        family: "ethereum-vm",
+      });
+
+      expect(result.execution).toBeDefined();
+      expect(result.execution.idempotencyKey).toBe(
+        getDeterministicId(onchainId, "recover"),
+      );
+      expect(result.execution.actions.length).toBe(1);
+
+      const decoded = decodeAction(result.execution.actions[0]);
+      expect(decoded.type).toBe(ActionType.TRANSFER);
+      if (decoded.type === ActionType.TRANSFER) {
+        expect(decoded.data.hubTokenId).toBe(hubTokenId);
+        expect(decoded.data.hubFromAddress.toLowerCase()).toBe(
+          expectedOrderAddress.toLowerCase(),
+        );
+        expect(decoded.data.hubToAddress).toBe(depositorAlias);
+        expect(decoded.data.amount).toBe(amount);
+      }
+    });
+
+    it("throws when deposit not found in transaction", async () => {
+      setupMockAttestor([]);
+
+      await expect(
+        service.attestRecover({
+          chainId,
+          transactionId,
+          onchainId,
+        }),
+      ).rejects.toThrow(
+        `Deposit with onchainId ${onchainId} not found in transaction`,
+      );
+    });
+
+    it("throws when deposit has no depositId (zeroHash)", async () => {
+      const deposit = mockDepositMessage({ depositId: zeroHash });
+      setupMockAttestor([deposit]);
+
+      await expect(
+        service.attestRecover({
+          chainId,
+          transactionId,
+          onchainId,
+        }),
+      ).rejects.toThrow("Deposit does not have a depositId");
+    });
+
+    it("throws when balance is insufficient", async () => {
+      const deposit = mockDepositMessage();
+      setupMockAttestor([deposit]);
+      jest.mocked(getBalanceOnHub).mockResolvedValue(0n);
+
+      await expect(
+        service.attestRecover({
+          chainId,
+          transactionId,
+          onchainId,
+        }),
+      ).rejects.toThrow(
+        "Insufficient balance at order address for recovery",
+      );
+    });
+
+    it("throws when deposit is recent and no order data provided", async () => {
+      const deposit = mockDepositMessage({}, { timestamp: recentTimestamp });
+      setupMockAttestor([deposit]);
+      jest.mocked(getBalanceOnHub).mockResolvedValue(BigInt(amount));
+
+      await expect(
+        service.attestRecover({
+          chainId,
+          transactionId,
+          onchainId,
+        }),
+      ).rejects.toThrow(
+        "Order data and signature are required for deposits less than 7 days old",
+      );
+    });
+
+    it("throws when deposit is recent and orderId does not match depositId", async () => {
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: { chainId, currency, amount, weight: "1" },
+            refunds: [],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: "0x3333333333333333333333333333333333333333",
+              currency,
+              minimumAmount: amount,
+              expectedAmount: amount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [],
+      };
+
+      // Use a depositId that won't match the computed orderId
+      const mismatchedDepositId = keccak256("0xdead" as Hex);
+      const deposit = mockDepositMessage(
+        { depositId: mismatchedDepositId },
+        { timestamp: recentTimestamp },
+      );
+      setupMockAttestor([deposit]);
+      jest.mocked(getBalanceOnHub).mockResolvedValue(BigInt(amount));
+
+      await expect(
+        service.attestRecover({
+          chainId,
+          transactionId,
+          onchainId,
+          order,
+          orderSignature: "0x" + "00".repeat(65),
+        }),
+      ).rejects.toThrow(
+        "Deposit depositId does not match the computed orderId",
+      );
+    });
+
+    it("throws when deposit is recent and order signature is invalid", async () => {
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: { chainId, currency, amount, weight: "1" },
+            refunds: [],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: "0x3333333333333333333333333333333333333333",
+              currency,
+              minimumAmount: amount,
+              expectedAmount: amount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [],
+      };
+
+      const orderId = getOrderId(order, await getSdkChainsConfig());
+      const deposit = mockDepositMessage(
+        { depositId: orderId },
+        { timestamp: recentTimestamp },
+      );
+      setupMockAttestor([deposit]);
+      jest.mocked(getBalanceOnHub).mockResolvedValue(BigInt(amount));
+      jest.mocked(verifyMessage).mockResolvedValueOnce(false);
+
+      await expect(
+        service.attestRecover({
+          chainId,
+          transactionId,
+          onchainId,
+          order,
+          orderSignature: "0x" + "00".repeat(65),
+        }),
+      ).rejects.toThrow("Invalid order signature");
+    });
+
+    it("throws when deposit is recent and no fill or refund entry not found", async () => {
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: { chainId, currency, amount, weight: "1" },
+            refunds: [],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: "0x3333333333333333333333333333333333333333",
+              currency,
+              minimumAmount: amount,
+              expectedAmount: amount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [],
+      };
+
+      const orderId = getOrderId(order, await getSdkChainsConfig());
+      const deposit = mockDepositMessage(
+        { depositId: orderId },
+        { timestamp: recentTimestamp },
+      );
+      setupMockAttestor([deposit]);
+      jest.mocked(getBalanceOnHub).mockResolvedValue(BigInt(amount));
+
+      // Mock getHubHttpRpc to return a client that getContract can use
+      const { getHubHttpRpc } = jest.requireMock(
+        "../../../../src/common/hub",
+      ) as any;
+      getHubHttpRpc.mockResolvedValue({
+        readContract: jest.fn<any>().mockResolvedValue(["0x", 0n]),
+      });
+
+      await expect(
+        service.attestRecover({
+          chainId,
+          transactionId,
+          onchainId,
+          order,
+          orderSignature: "0x" + "00".repeat(65),
+        }),
+      ).rejects.toThrow("No fill or refund entry not found for this order");
+    });
+
+    it("returns correct execution for recent deposit with valid order and no-fill-or-refund", async () => {
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: { chainId, currency, amount, weight: "1" },
+            refunds: [],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: "0x3333333333333333333333333333333333333333",
+              currency,
+              minimumAmount: amount,
+              expectedAmount: amount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [],
+      };
+
+      const orderId = getOrderId(order, await getSdkChainsConfig());
+      const deposit = mockDepositMessage(
+        { depositId: orderId },
+        { timestamp: recentTimestamp },
+      );
+      setupMockAttestor([deposit]);
+      jest.mocked(getBalanceOnHub).mockResolvedValue(BigInt(amount));
+
+      // Mock getHubHttpRpc to return a client where getEntry returns a valid entry
+      const { getHubHttpRpc } = jest.requireMock(
+        "../../../../src/common/hub",
+      ) as any;
+      getHubHttpRpc.mockResolvedValue({
+        readContract: jest.fn<any>().mockResolvedValue(["0x01", 1000n]),
+      });
+
+      const result = await service.attestRecover({
+        chainId,
+        transactionId,
+        onchainId,
+        order,
+        orderSignature: "0x" + "00".repeat(65),
+      });
+
+      const hubTokenId = generateTokenId({
+        address: currency,
+        chainId,
+        family: "ethereum-vm",
+      });
+
+      const depositorAlias = generateAddress({
+        address: depositor,
+        chainId,
+        family: "ethereum-vm",
+      });
+
+      expect(result.execution).toBeDefined();
+      expect(result.execution.idempotencyKey).toBe(
+        getDeterministicId(onchainId, "recover"),
+      );
+      expect(result.execution.actions.length).toBe(1);
+
+      const decoded = decodeAction(result.execution.actions[0]);
+      expect(decoded.type).toBe(ActionType.TRANSFER);
+      if (decoded.type === ActionType.TRANSFER) {
+        expect(decoded.data.hubTokenId).toBe(hubTokenId);
+        expect(decoded.data.hubToAddress).toBe(depositorAlias);
+        expect(decoded.data.amount).toBe(amount);
+      }
     });
   });
 });

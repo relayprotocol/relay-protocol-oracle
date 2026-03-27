@@ -57,7 +57,11 @@ import {
   getSdkChainsConfig,
 } from "../../common/chains";
 import { externalError, internalError } from "../../common/error";
-import { getAuroraHttpRpc, getBalanceOnHub } from "../../common/hub";
+import {
+  getAuroraHttpRpc,
+  getBalanceOnHub,
+  getHubHttpRpc,
+} from "../../common/hub";
 
 type ExecutionMetadata = Omit<
   ExecutionMessageMetadata,
@@ -736,6 +740,147 @@ export class AttestationService {
     return {
       genericMapping: getNoFillOrRefundMessage(solver, data.orderId),
     };
+  }
+
+  public async attestRecover(data: {
+    chainId: string;
+    transactionId: string;
+    onchainId: string;
+    order?: Order;
+    orderSignature?: string;
+  }): Promise<{ execution: ExecutionMessage }> {
+    // Fetch all deposits from the transaction
+    const attestor = await getVmAttestor(data.chainId);
+    const deposits = await attestor.getDepositoryDepositMessages(
+      data.chainId,
+      data.transactionId,
+    );
+
+    // Find the specific deposit
+    const deposit = deposits.find((d) => d.result.onchainId === data.onchainId);
+    if (!deposit) {
+      throw externalError(
+        `Deposit with onchainId ${data.onchainId} not found in transaction`,
+      );
+    }
+
+    // Must have a depositId (linked to an order)
+    if (deposit.result.depositId === zeroHash) {
+      throw externalError("Deposit does not have a depositId");
+    }
+
+    // Compute the order address on the hub
+    const orderAddress = await this._getOrderAddress({
+      chainId: data.chainId,
+      timestamp: deposit.extraData.timestamp,
+      depositor: deposit.result.depositor,
+      depositId: deposit.result.depositId,
+    });
+
+    // Compute hubTokenId
+    const hubTokenId = generateTokenId({
+      address: deposit.result.currency,
+      chainId: data.chainId,
+      family: await getChainVmType(data.chainId),
+    });
+
+    // Balance check
+    const balance = await getBalanceOnHub(orderAddress, hubTokenId);
+    if (balance < BigInt(deposit.result.amount)) {
+      throw externalError(
+        "Insufficient balance at order address for recovery",
+      );
+    }
+
+    // Compute depositor hub alias
+    const depositorAlias = generateAddress({
+      address: deposit.result.depositor,
+      chainId: data.chainId,
+      family: await getChainVmType(data.chainId),
+    });
+
+    // Check deposit age
+    const SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
+    const depositTimestamp = Number(deposit.extraData.timestamp);
+    const now = Math.floor(Date.now() / 1000);
+    const isOlderThan7Days = now - depositTimestamp > SEVEN_DAYS_SECONDS;
+
+    if (!isOlderThan7Days) {
+      // Require order data for deposits <= 7 days old
+      if (!data.order || !data.orderSignature) {
+        throw externalError(
+          "Order data and signature are required for deposits less than 7 days old",
+        );
+      }
+
+      // Compute orderId and verify it matches the deposit
+      const orderId = getOrderId(data.order, await getSdkChainsConfig());
+      if (deposit.result.depositId !== orderId) {
+        throw externalError(
+          "Deposit depositId does not match the computed orderId",
+        );
+      }
+
+      // Verify order signature
+      const isSignatureValid = await verifyMessage({
+        address: data.order.solver as Address,
+        message: { raw: orderId },
+        signature: data.orderSignature as Hex,
+      }).catch(() => false);
+      if (!isSignatureValid) {
+        throw externalError("Invalid order signature");
+      }
+
+      // Derive solver hub alias
+      const solverAlias = generateAddress({
+        address: data.order.solver,
+        chainId: data.order.solverChainId,
+        family: await getChainVmType(data.order.solverChainId),
+      });
+
+      // Check no_fill_or_refund on hub generic mapping contract
+      const noFillOrRefundMessage = getNoFillOrRefundMessage(
+        solverAlias,
+        orderId,
+      );
+
+      const hubInfo = await getHubInfo();
+      const genericMappingContract = getContract({
+        address: hubInfo.genericMappingAddress as Address,
+        abi: parseAbi([
+          "function getEntry(address user, bytes32 id) view returns (bytes data, uint256 createdAt)",
+        ]),
+        client: await getHubHttpRpc(),
+      });
+
+      const [, createdAt] = await genericMappingContract.read.getEntry([
+        noFillOrRefundMessage.user as Address,
+        noFillOrRefundMessage.id as Hex,
+      ]);
+      if (createdAt === 0n) {
+        throw externalError(
+          "No fill or refund entry not found for this order",
+        );
+      }
+    }
+
+    // Sign TRANSFER from order address to depositor alias
+    const execution: ExecutionMessage = {
+      idempotencyKey: getDeterministicId(deposit.result.onchainId, "recover"),
+      actions: [
+        encodeAction({
+          type: ActionType.TRANSFER,
+          data: {
+            hubTokenId,
+            hubFromAddress: orderAddress,
+            hubToAddress: depositorAlias,
+            amount: deposit.result.amount,
+          },
+        }),
+      ],
+    };
+
+    return { execution };
   }
 
   private async _getDepositsDetails(data: {
