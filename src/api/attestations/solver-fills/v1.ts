@@ -95,7 +95,6 @@ const MessageData = Type.Object({
         "Force attestation even if the order solver fill is not valid",
     }),
   ),
-  forceOrderId: Type.Optional(Type.String()),
   hints: Type.Optional(
     Type.Object(
       {

@@ -379,11 +379,9 @@ export class AttestationService {
   public async attestSolverFill(
     data: SolverFillMessage["data"] & { hints?: TxHints } & {
       force?: boolean;
-      forceOrderId?: string;
     },
   ): Promise<{ message: SolverFillMessage; execution?: ExecutionMessage }> {
-    const orderId =
-      data.forceOrderId ?? getOrderId(data.order, await getSdkChainsConfig());
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
     if (data.force) {
       const depositoryDeposits: EnhancedDepositoryDepositMessage[] = [];
       for (const input of data.inputs) {
@@ -495,11 +493,9 @@ export class AttestationService {
   public async attestSolverRefund(
     data: SolverRefundMessage["data"] & { hints?: TxHints } & {
       force?: boolean;
-      forceOrderId?: string;
     },
   ): Promise<{ message: SolverRefundMessage; execution?: ExecutionMessage }> {
-    const orderId =
-      data.forceOrderId ?? getOrderId(data.order, await getSdkChainsConfig());
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
     if (data.force) {
       const depositoryDeposits: EnhancedDepositoryDepositMessage[] = [];
       for (const input of data.inputs) {
@@ -787,9 +783,7 @@ export class AttestationService {
     // Balance check
     const balance = await getBalanceOnHub(orderAddress, hubTokenId);
     if (balance < BigInt(deposit.result.amount)) {
-      throw externalError(
-        "Insufficient balance at order address for recovery",
-      );
+      throw externalError("Insufficient balance at order address for recovery");
     }
 
     // Compute depositor hub alias
@@ -858,9 +852,7 @@ export class AttestationService {
         noFillOrRefundMessage.id as Hex,
       ]);
       if (createdAt === 0n) {
-        throw externalError(
-          "No fill or refund entry not found for this order",
-        );
+        throw externalError("No fill or refund entry not found for this order");
       }
     }
 
