@@ -32,7 +32,7 @@ type TransferTxInfo = {
 export class LighterVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     _chainId: string,
-    _transactionId: string
+    _transactionId: string,
   ): Promise<EnhancedDepositoryDepositMessage[]> {
     throw internalError("Not implemented (getDepositoryDepositMessages)");
   }
@@ -40,7 +40,7 @@ export class LighterVmAttestor extends VmAttestor {
   public async getDepositoryWithdrawalMessage(
     _chainId: string,
     _withdrawal: string,
-    _transactionId?: string
+    _transactionId?: string,
   ): Promise<DepositoryWithdrawalMessage> {
     throw internalError("Not implemented (getDepositoryWithdrawalMessage)");
   }
@@ -54,7 +54,7 @@ export class LighterVmAttestor extends VmAttestor {
       orderId: string;
       extraData: string;
       deadline: number;
-    }
+    },
   ): Promise<bigint> {
     const trackingId = getTrackingId();
 
@@ -68,7 +68,7 @@ export class LighterVmAttestor extends VmAttestor {
     });
     if (!txDetail) {
       throw externalError(
-        `Missing transaction ${transactionId} on chain ${chainId}`
+        `Missing transaction ${transactionId} on chain ${chainId}`,
       );
     }
 
@@ -87,7 +87,7 @@ export class LighterVmAttestor extends VmAttestor {
     const transactionTimestamp = Math.floor(txDetail.queued_at / 1000);
     if (transactionTimestamp > payment.deadline) {
       throw externalError(
-        `Transaction ${transactionId} executed after deadline`
+        `Transaction ${transactionId} executed after deadline`,
       );
     }
 
@@ -102,6 +102,15 @@ export class LighterVmAttestor extends VmAttestor {
       throw externalError("Could not detect payment");
     }
     transferInfo = JSON.parse(txDetail.info);
+
+    if (
+      Buffer.from(transferInfo.Memo).toString("hex") !==
+      payment.orderId.slice(2)
+    ) {
+      throw externalError(
+        `Transaction ${transactionId} does not reference order id`,
+      );
+    }
 
     let transferCurrency: string;
     if (transferInfo.AssetIndex === 1) {
@@ -149,7 +158,7 @@ export class LighterVmAttestor extends VmAttestor {
     _chainId: string,
     _transactionId: string,
     _calls: string[],
-    _extraData: string
+    _extraData: string,
   ): Promise<boolean> {
     throw internalError("Not implemented (verifySolverCalls)");
   }

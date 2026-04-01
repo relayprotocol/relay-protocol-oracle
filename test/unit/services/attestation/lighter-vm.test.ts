@@ -105,7 +105,7 @@ describe("LighterVmAttestor", () => {
       const payment = {
         currency: "0", // LVM native currency (USDC)
         recipient: testRecipientAddress,
-        orderId: "test-order-id",
+        orderId: "0x7472616e736665722d6964",
         extraData: "",
         deadline: Math.floor(mockTransaction.queued_at / 1000) + 3600, // 1 hour after transaction
       };
@@ -252,6 +252,7 @@ describe("LighterVmAttestor", () => {
           ToRouteType: 0,
           Amount: 1000000,
           USDCFee: 3000000,
+          Memo: [116, 101, 115, 116],
         }),
       };
 
@@ -265,7 +266,7 @@ describe("LighterVmAttestor", () => {
         await attestor.getSolverPaidAmount("lighter", transactionId, {
           currency: "0",
           recipient: "999999", // Wrong recipient
-          orderId: "test-order-id",
+          orderId: "0x74657374",
           extraData: "",
           deadline: Math.floor(Date.now() / 1000) + 3600,
         });
