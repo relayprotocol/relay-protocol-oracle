@@ -222,7 +222,7 @@ export class EthereumVmAttestor extends VmAttestor {
 
           await logRpcUsage(chainId, "eth_getTransaction", trackingId);
           const transactionCalldata = (
-            await rpc.getTransaction({ hash: transactionId as Hex })
+            await this._getTransaction(chainId, transactionId)
           ).input;
 
           // Find all standard transfers matching the transfer event
@@ -401,9 +401,7 @@ export class EthereumVmAttestor extends VmAttestor {
     }
 
     await logRpcUsage(chainId, "eth_getTransaction", trackingId);
-    const transaction = await rpc.getTransaction({
-      hash: transactionId as Hex,
-    });
+    const transaction = await this._getTransaction(chainId, transactionId);
     if (!transaction) {
       throw externalError(`Missing transaction ${transactionId}`);
     }
@@ -552,5 +550,17 @@ export class EthereumVmAttestor extends VmAttestor {
     }
 
     return txTimestamp;
+  }
+
+  private async _getTransaction(chainId: string, transactionId: string) {
+    const rpc = await httpRpc(chainId);
+
+    const tx = await rpc.getTransaction({ hash: transactionId as Hex });
+    if (chainId === "tempo" && !tx.input) {
+      tx.input = (tx as any as { calls: { input: string }[] }).calls[0]
+        .input as Hex;
+    }
+
+    return tx;
   }
 }
