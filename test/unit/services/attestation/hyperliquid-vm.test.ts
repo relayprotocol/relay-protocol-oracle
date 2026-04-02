@@ -10,12 +10,15 @@ import { Chain } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/hyperliquid-vm/rpc";
 import { getHubHttpRpc as hubHttpRpc } from "../../../../src/common/hub";
 import { AttestationService } from "../../../../src/services/attestation";
+import { HyperliquidVmAttestor } from "../../../../src/services/attestation/vm/hyperliquid-vm";
 
 import { randomHex } from "../../../common/utils";
 import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
 
 const testDepositoryAddress = "0x1234567890abcdef1234567890abcdef12345678";
 const testUserAddress = "0xabcdef1234567890abcdef1234567890abcdef12";
+const testSolverAddress = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+const testRecipientAddress = "0xfeedfacefeedfacefeedfacefeedfacefeedface";
 
 jest.mock("../../../../src/common/chains", () => {
   const chains: Record<string, Chain> = {
@@ -952,6 +955,520 @@ describe("HyperliquidVmAttestor", () => {
         });
 
       expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
+    });
+  });
+
+  describe("getSolverPaidAmount", () => {
+    const setupHubRpcMock = (
+      data?: { id: string; createdAt?: number },
+    ) => {
+      const mockHubClient = {
+        readContract: jest.fn<any>().mockResolvedValue(
+          data
+            ? [data.id, BigInt(data.createdAt ?? Math.floor(Date.now() / 1000))]
+            : ["0x", 0n],
+        ),
+      };
+      (hubHttpRpc as jest.Mock<any>).mockResolvedValue(mockHubClient);
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    const makePayment = (overrides?: Record<string, any>) => ({
+      currency: "0x00000000000000000000000000000000",
+      recipient: testRecipientAddress,
+      orderId: randomHex(32),
+      extraData: "",
+      deadline: Math.floor(Date.now() / 1000) + 3600,
+      ...overrides,
+    });
+
+    it("should return correct amount for sendAsset native currency (USDC perps) fill", async () => {
+      const transactionId = randomHex(32);
+      const payment = makePayment();
+
+      const fillTx = {
+        time: Date.now(),
+        user: testSolverAddress,
+        action: {
+          type: "sendAsset",
+          signatureChainId: "0x1",
+          hyperliquidChain: "Mainnet",
+          destination: testRecipientAddress,
+          sourceDex: "",
+          destinationDex: "",
+          token: "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
+          amount: "50.0",
+          fromSubAccount: "",
+          nonce: 1761563890239,
+        },
+        block: 776752679,
+        hash: transactionId,
+        error: null,
+      };
+
+      setupHubRpcMock({ id: payment.orderId });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: fillTx,
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      const paidAmount = await attestor.getSolverPaidAmount(
+        "hyperliquid",
+        transactionId,
+        payment,
+      );
+
+      expect(paidAmount).toBe(5000000000n);
+    });
+
+    it("should return correct amount for usdSend native currency fill", async () => {
+      const transactionId = randomHex(32);
+      const payment = makePayment();
+
+      const fillTx = {
+        time: Date.now(),
+        user: testSolverAddress,
+        action: {
+          type: "usdSend",
+          signatureChainId: "0x1",
+          hyperliquidChain: "Mainnet",
+          destination: testRecipientAddress,
+          amount: "100.0",
+          time: 1761563890702,
+        },
+        block: 776752679,
+        hash: transactionId,
+        error: null,
+      };
+
+      setupHubRpcMock({ id: payment.orderId });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: fillTx,
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      const paidAmount = await attestor.getSolverPaidAmount(
+        "hyperliquid",
+        transactionId,
+        payment,
+      );
+
+      expect(paidAmount).toBe(10000000000n);
+    });
+
+    it("should return correct amount for sendAsset spot token fill", async () => {
+      const transactionId = randomHex(32);
+      const tokenAddress = "0x6d1e7cde53ba9467b783cb7c530ce054";
+      const payment = makePayment({
+        currency: tokenAddress,
+      });
+
+      const fillTx = {
+        time: Date.now(),
+        user: testSolverAddress,
+        action: {
+          type: "sendAsset",
+          signatureChainId: "0x1",
+          hyperliquidChain: "Mainnet",
+          destination: testRecipientAddress,
+          sourceDex: "",
+          destinationDex: "spot",
+          token: `USDC:${tokenAddress}`,
+          amount: "25.5",
+          fromSubAccount: "",
+          nonce: 1761563890239,
+        },
+        block: 776752679,
+        hash: transactionId,
+        error: null,
+      };
+
+      setupHubRpcMock({ id: payment.orderId });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: fillTx,
+        }),
+        spotMeta: async () => ({
+          tokens: [
+            {
+              tokenId: tokenAddress,
+              szDecimals: 6,
+            },
+          ],
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      const paidAmount = await attestor.getSolverPaidAmount(
+        "hyperliquid",
+        transactionId,
+        payment,
+      );
+
+      expect(paidAmount).toBe(25500000n);
+    });
+
+    it("should return correct amount for sendAsset custom dex token fill", async () => {
+      const transactionId = randomHex(32);
+      const tokenAddress = "0x1234567890abcdef1234567890abcdef";
+      const dexName = "customDex";
+      const payment = makePayment({
+        currency:
+          tokenAddress + Buffer.from(dexName, "ascii").toString("hex"),
+      });
+
+      const fillTx = {
+        time: Date.now(),
+        user: testSolverAddress,
+        action: {
+          type: "sendAsset",
+          signatureChainId: "0x1",
+          hyperliquidChain: "Mainnet",
+          destination: testRecipientAddress,
+          sourceDex: "",
+          destinationDex: dexName,
+          token: `TOKEN:${tokenAddress}`,
+          amount: "10.0",
+          fromSubAccount: "",
+          nonce: 1761563890239,
+        },
+        block: 776752679,
+        hash: transactionId,
+        error: null,
+      };
+
+      setupHubRpcMock({ id: payment.orderId });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: fillTx,
+        }),
+        spotMeta: async () => ({
+          tokens: [
+            {
+              tokenId: tokenAddress,
+              szDecimals: 18,
+            },
+          ],
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      const paidAmount = await attestor.getSolverPaidAmount(
+        "hyperliquid",
+        transactionId,
+        payment,
+      );
+
+      expect(paidAmount).toBe(10000000000000000000n);
+    });
+
+    it("should throw error when transaction is missing or reverted", async () => {
+      const transactionId = randomHex(32);
+      const payment = makePayment();
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: {
+            time: Date.now(),
+            user: testSolverAddress,
+            action: { type: "sendAsset" },
+            hash: transactionId,
+            error: "Reverted",
+          },
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      await expect(
+        attestor.getSolverPaidAmount("hyperliquid", transactionId, payment),
+      ).rejects.toThrow("Missing or reverted transaction");
+    });
+
+    it("should throw error when transaction exceeds deadline", async () => {
+      const transactionId = randomHex(32);
+      const payment = makePayment({
+        deadline: Math.floor(Date.now() / 1000) - 3600,
+      });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: {
+            time: Date.now(),
+            user: testSolverAddress,
+            action: {
+              type: "sendAsset",
+              destination: testRecipientAddress,
+              destinationDex: "",
+              token: "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
+              amount: "50.0",
+              nonce: 1761563890239,
+            },
+            hash: transactionId,
+            error: null,
+          },
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      await expect(
+        attestor.getSolverPaidAmount("hyperliquid", transactionId, payment),
+      ).rejects.toThrow("executed after deadline");
+    });
+
+    it("should throw error when no nonce mapping is found", async () => {
+      const transactionId = randomHex(32);
+      const payment = makePayment();
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: {
+            time: Date.now(),
+            user: testSolverAddress,
+            action: {
+              type: "sendAsset",
+              destination: testRecipientAddress,
+              destinationDex: "",
+              token: "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
+              amount: "50.0",
+              nonce: 1761563890239,
+            },
+            hash: transactionId,
+            error: null,
+          },
+        }),
+      });
+
+      // No hub mapping
+      setupHubRpcMock();
+
+      const attestor = new HyperliquidVmAttestor();
+      await expect(
+        attestor.getSolverPaidAmount("hyperliquid", transactionId, payment),
+      ).rejects.toThrow("Nonce mapping mismatch");
+    });
+
+    it("should throw error when nonce mapping ID does not match orderId", async () => {
+      const transactionId = randomHex(32);
+      const payment = makePayment();
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: {
+            time: Date.now(),
+            user: testSolverAddress,
+            action: {
+              type: "sendAsset",
+              destination: testRecipientAddress,
+              destinationDex: "",
+              token: "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
+              amount: "50.0",
+              nonce: 1761563890239,
+            },
+            hash: transactionId,
+            error: null,
+          },
+        }),
+      });
+
+      // Hub returns a different ID than the orderId
+      setupHubRpcMock({ id: randomHex(32) });
+
+      const attestor = new HyperliquidVmAttestor();
+      await expect(
+        attestor.getSolverPaidAmount("hyperliquid", transactionId, payment),
+      ).rejects.toThrow("Nonce mapping mismatch");
+    });
+
+    it("should throw error for unsupported action type", async () => {
+      const transactionId = randomHex(32);
+      const payment = makePayment();
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: {
+            time: Date.now(),
+            user: testSolverAddress,
+            action: {
+              type: "someOtherAction",
+            },
+            hash: transactionId,
+            error: null,
+          },
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      await expect(
+        attestor.getSolverPaidAmount("hyperliquid", transactionId, payment),
+      ).rejects.toThrow("Could not detect payment");
+    });
+
+    it("should throw error when recipient does not match for native currency", async () => {
+      const transactionId = randomHex(32);
+      const payment = makePayment();
+
+      const fillTx = {
+        time: Date.now(),
+        user: testSolverAddress,
+        action: {
+          type: "sendAsset",
+          destination: "0xwrongrecipientaddress12345678901234567890",
+          sourceDex: "",
+          destinationDex: "",
+          token: "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
+          amount: "50.0",
+          fromSubAccount: "",
+          nonce: 1761563890239,
+        },
+        hash: transactionId,
+        error: null,
+      };
+
+      setupHubRpcMock({ id: payment.orderId });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: fillTx,
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      await expect(
+        attestor.getSolverPaidAmount("hyperliquid", transactionId, payment),
+      ).rejects.toThrow("Could not detect payment");
+    });
+
+    it("should throw error when recipient does not match for spot token", async () => {
+      const transactionId = randomHex(32);
+      const tokenAddress = "0x6d1e7cde53ba9467b783cb7c530ce054";
+      const payment = makePayment({
+        currency: tokenAddress,
+      });
+
+      const fillTx = {
+        time: Date.now(),
+        user: testSolverAddress,
+        action: {
+          type: "sendAsset",
+          destination: "0xwrongrecipientaddress12345678901234567890",
+          sourceDex: "",
+          destinationDex: "spot",
+          token: `USDC:${tokenAddress}`,
+          amount: "25.5",
+          fromSubAccount: "",
+          nonce: 1761563890239,
+        },
+        hash: transactionId,
+        error: null,
+      };
+
+      setupHubRpcMock({ id: payment.orderId });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: fillTx,
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      await expect(
+        attestor.getSolverPaidAmount("hyperliquid", transactionId, payment),
+      ).rejects.toThrow("Could not detect payment");
+    });
+
+    it("should extract nonce from usdSend time field for nonce mapping lookup", async () => {
+      const transactionId = randomHex(32);
+      const payment = makePayment();
+      const usdSendTime = 1761563890702;
+
+      const fillTx = {
+        time: Date.now(),
+        user: testSolverAddress,
+        action: {
+          type: "usdSend",
+          hyperliquidChain: "Mainnet",
+          destination: testRecipientAddress,
+          amount: "100.0",
+          time: usdSendTime,
+        },
+        hash: transactionId,
+        error: null,
+      };
+
+      const mockReadContract = jest.fn<any>().mockResolvedValue(
+        [payment.orderId, BigInt(Math.floor(Date.now() / 1000))],
+      );
+      (hubHttpRpc as jest.Mock<any>).mockResolvedValue({
+        readContract: mockReadContract,
+      });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: fillTx,
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      await attestor.getSolverPaidAmount(
+        "hyperliquid",
+        transactionId,
+        payment,
+      );
+
+      // Verify readContract was called (nonce mapping was looked up)
+      expect(mockReadContract).toHaveBeenCalled();
+    });
+
+    it("should throw error when currency decimals cannot be retrieved for spot token", async () => {
+      const transactionId = randomHex(32);
+      const tokenAddress = "0xunknowntoken1234567890abcdef12";
+      const payment = makePayment({
+        currency: tokenAddress,
+      });
+
+      const fillTx = {
+        time: Date.now(),
+        user: testSolverAddress,
+        action: {
+          type: "sendAsset",
+          destination: testRecipientAddress,
+          sourceDex: "",
+          destinationDex: "spot",
+          token: `TOKEN:${tokenAddress}`,
+          amount: "10.0",
+          fromSubAccount: "",
+          nonce: 1761563890239,
+        },
+        hash: transactionId,
+        error: null,
+      };
+
+      setupHubRpcMock({ id: payment.orderId });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: fillTx,
+        }),
+        spotMeta: async () => ({
+          tokens: [],
+        }),
+      });
+
+      const attestor = new HyperliquidVmAttestor();
+      await expect(
+        attestor.getSolverPaidAmount("hyperliquid", transactionId, payment),
+      ).rejects.toThrow("Could not retrieve payment currency decimals");
     });
   });
 });

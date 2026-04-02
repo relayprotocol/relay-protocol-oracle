@@ -188,7 +188,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
         // Check if this is a deposit to the depository
         if (action.destination.toLowerCase() === depository.toLowerCase()) {
           const depositor = txDetails.user.toLowerCase();
-          const depositId = await this._lookupId(
+          const depositId = await this._lookupDepositId(
             chainId,
             depositor,
             Number(action.time),
@@ -259,7 +259,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
             throw externalError("Could not retrieve payment currency decimals");
           }
 
-          const depositId = await this._lookupId(
+          const depositId = await this._lookupDepositId(
             chainId,
             depositor,
             Number(action.nonce),
@@ -433,6 +433,28 @@ export class HyperliquidVmAttestor extends VmAttestor {
       );
     }
 
+    // Extract the nonce from the transaction and verify the nonce mapping
+    let nonce: number;
+    if (txDetails.action.type === "sendAsset") {
+      nonce = Number(
+        (txDetails.action as unknown as hl.SendAssetParameters & { nonce: number }).nonce,
+      );
+    } else if (txDetails.action.type === "usdSend") {
+      nonce = Number(
+        (txDetails.action as unknown as hl.UsdSendParameters & { time: number }).time,
+      );
+    } else {
+      throw externalError("Could not detect payment");
+    }
+
+    const sender = txDetails.user.toLowerCase();
+    const data = await this._lookupIdOnHub(chainId, sender, nonce);
+    if (!data || data.id !== payment.orderId) {
+      throw externalError(
+        `Nonce mapping mismatch for nonce ${nonce} and sender ${sender}`,
+      );
+    }
+
     if (payment.currency === getVmTypeNativeCurrency(VM_TYPE)) {
       if (txDetails.action.type === "sendAsset") {
         const txParameters =
@@ -532,7 +554,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
     return true;
   }
 
-  private async _lookupId(
+  private async _lookupDepositId(
     chainId: string,
     depositor: string,
     nonce: number,
@@ -562,7 +584,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
   private async _lookupIdOnHub(
     chainId: string,
-    depositor: string,
+    wallet: string,
     nonce: number,
   ): Promise<{ id: string; createdAt: string } | undefined> {
     const hubInfo = await getHubInfo();
@@ -579,7 +601,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const user = generateAddress({
       family: chain.vmType,
       chainId: chain.id,
-      address: depositor,
+      address: wallet,
     });
 
     const { id } = getNonceMappingMessage(
