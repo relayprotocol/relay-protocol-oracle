@@ -266,7 +266,8 @@ export class TronVmAttestor extends VmAttestor {
 
     const isExecuted = await depositoryContract.read.callRequests(
       [withdrawalId as Hex],
-      { blockNumber: safeBlockNumber },
+      // Tron does not support making calls at past blocks
+      // { blockNumber: safeBlockNumber },
     );
 
     let status: DepositoryWithdrawalStatus;
@@ -417,8 +418,7 @@ export class TronVmAttestor extends VmAttestor {
   private async _getFinalizationTime(chainId: string): Promise<number> {
     const chain = await getChain(chainId);
     return (
-      chain.additionalData?.finalizationTime ??
-      this._DEFAULT_FINALIZATION_TIME
+      chain.additionalData?.finalizationTime ?? this._DEFAULT_FINALIZATION_TIME
     );
   }
 
