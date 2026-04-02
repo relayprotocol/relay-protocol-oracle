@@ -2,21 +2,14 @@ import crypto from "crypto";
 import stringify from "json-stable-stringify";
 import bs58 from "bs58";
 import { ed25519 } from "@noble/curves/ed25519";
-import { schnorr } from "@noble/curves/secp256k1";
-import * as bitcoin from "bitcoinjs-lib";
-import * as bitcoinMessage from "bitcoinjs-message";
+import { Verifier as Bip322Verifier } from "bip322-js";
 import { verifyPersonalMessageSignature } from "@mysten/sui/verify";
 import { SuiClient } from "@mysten/sui/client";
-import {
-  Address,
-  Hex,
-  keccak256,
-  recoverAddress,
-  verifyMessage,
-} from "viem";
+import { Address, Hex, keccak256, recoverAddress, verifyMessage } from "viem";
 
 import { getChain } from "./chains";
 import { externalError } from "./error";
+import { logger } from "./logger";
 import { toHexAddress } from "../services/attestation/vm/tron-vm";
 
 export type WithdrawalSignatureData = {
@@ -174,161 +167,28 @@ const verifySolanaEd25519 = async (
   }
 };
 
-const getBitcoinAddressType = (
-  address: string,
-): "p2pkh" | "p2sh" | "p2wpkh" | "p2tr" => {
-  if (address.startsWith("1") || address.startsWith("m") || address.startsWith("n")) {
-    return "p2pkh";
-  }
-  if (address.startsWith("3") || address.startsWith("2")) {
-    return "p2sh";
-  }
-  if (address.startsWith("bc1q") || address.startsWith("tb1q")) {
-    return "p2wpkh";
-  }
-  if (address.startsWith("bc1p") || address.startsWith("tb1p")) {
-    return "p2tr";
-  }
-  throw externalError("Unsupported Bitcoin address type");
-};
-
-// Bitcoin: signMessage over SHA256 hex string
-const verifyBitcoinMessage = async (
+// Bitcoin: signMessage over SHA256 hex string.
+// Uses bip322-js which handles both BIP-137 (legacy) and BIP-322 (witness-based)
+// signatures for all address types: P2PKH, P2SH-P2WPKH, P2WPKH, P2TR.
+// This covers wallets returning BIP-137 (Unisat, Xverse) and BIP-322 (OKX, Leather).
+const verifyBitcoinMessage = (
   data: WithdrawalSignatureData,
   signature: string,
 ) => {
   const digest = computeDigest(data);
-  const addressType = getBitcoinAddressType(data.owner);
-
-  if (addressType === "p2tr") {
-    return verifyBip322Taproot(digest, data.owner, signature);
-  }
-
   const sigHex = signature.startsWith("0x") ? signature.slice(2) : signature;
-  const sigBuffer = Buffer.from(sigHex, "hex");
+  const sigBase64 = Buffer.from(sigHex, "hex").toString("base64");
 
+  let isValid = false;
   try {
-    const checkSegwitAlways = addressType === "p2sh" || addressType === "p2wpkh";
-
-    const isValid = bitcoinMessage.verify(
-      digest,
-      data.owner,
-      sigBuffer,
-      undefined,
-      checkSegwitAlways,
+    isValid = Bip322Verifier.verifySignature(data.owner, digest, sigBase64);
+  } catch (error) {
+    logger.warn(
+      "signature-verification",
+      `Bitcoin signature verification error for ${data.owner}: ${error}`,
     );
-
-    if (!isValid) {
-      throw externalError("Invalid signature");
-    }
-  } catch (error: any) {
-    if (error?.message === "Invalid signature") {
-      throw error;
-    }
-    throw externalError("Invalid signature");
   }
-};
-
-// Precomputed constants for BIP-322
-const BIP322_TAG = crypto.createHash("sha256").update("BIP0322-signed-message").digest();
-const NULL_TXID = Buffer.alloc(32, 0);
-const OP_RETURN_SCRIPT = Buffer.from("6a", "hex");
-
-// Bitcoin P2TR: BIP-322 generic message signing with Schnorr (BIP-340).
-// Constructs virtual to_spend/to_sign transactions per BIP-322, computes
-// BIP-341 sighash, and verifies the Schnorr signature against the x-only
-// pubkey embedded in the bech32m address.
-const verifyBip322Taproot = (
-  message: string,
-  address: string,
-  signature: string,
-) => {
-  // 1. Parse BIP-322 simple witness: varint(1) + varint(len) + sig_bytes
-  const sigHex = signature.startsWith("0x") ? signature.slice(2) : signature;
-  const witBuf = Buffer.from(sigHex, "hex");
-
-  if (witBuf.length < 3 || witBuf[0] !== 0x01) {
-    throw externalError("Invalid BIP-322 witness format");
-  }
-  const itemLen = witBuf[1];
-  if (witBuf.length < 2 + itemLen) {
-    throw externalError("Invalid BIP-322 witness format");
-  }
-  const sigItem = witBuf.slice(2, 2 + itemLen);
-
-  // Handle optional sighash type byte (64 = default, 65 = explicit type)
-  let hashType = 0x00; // SIGHASH_DEFAULT
-  let sig64: Buffer;
-  if (sigItem.length === 64) {
-    sig64 = sigItem;
-  } else if (sigItem.length === 65) {
-    sig64 = sigItem.slice(0, 64);
-    hashType = sigItem[64];
-  } else {
-    throw externalError("Invalid Schnorr signature length");
-  }
-
-  // 2. Decode P2TR address → scriptPubKey and x-only pubkey
-  const network = address.startsWith("tb1")
-    ? bitcoin.networks.testnet
-    : bitcoin.networks.bitcoin;
-  let scriptPubKey: Buffer;
-  try {
-    scriptPubKey = bitcoin.address.toOutputScript(address, network);
-  } catch {
-    throw externalError("Invalid Bitcoin address");
-  }
-  // P2TR scriptPubKey = OP_1 (0x51) + PUSH32 (0x20) + 32-byte x-only pubkey
-  const xOnlyPubkey = scriptPubKey.slice(2);
-  if (xOnlyPubkey.length !== 32) {
-    throw externalError("Invalid P2TR address");
-  }
-
-  // 3. BIP-322 tagged message hash: SHA256(tag || tag || message)
-  const msgHash = crypto
-    .createHash("sha256")
-    .update(BIP322_TAG)
-    .update(BIP322_TAG)
-    .update(Buffer.from(message, "utf-8"))
-    .digest();
-
-  // 4. Construct to_spend virtual transaction
-  const toSpend = new bitcoin.Transaction();
-  toSpend.version = 0;
-  toSpend.locktime = 0;
-  toSpend.addInput(
-    NULL_TXID,
-    0xffffffff, // index
-    0, // sequence
-    bitcoin.script.compile([bitcoin.opcodes.OP_0, msgHash]),
-  );
-  toSpend.addOutput(scriptPubKey, 0);
-
-  // 5. Construct to_sign virtual transaction
-  const toSign = new bitcoin.Transaction();
-  toSign.version = 0;
-  toSign.locktime = 0;
-  toSign.addInput(toSpend.getHash(), 0, 0);
-  toSign.addOutput(OP_RETURN_SCRIPT, 0);
-
-  // 6. Compute BIP-341 sighash
-  const sighash = toSign.hashForWitnessV1(
-    0,
-    [scriptPubKey],
-    [0],
-    hashType,
-  );
-
-  // 7. Verify Schnorr signature
-  try {
-    const isValid = schnorr.verify(sig64, sighash, xOnlyPubkey);
-    if (!isValid) {
-      throw externalError("Invalid signature");
-    }
-  } catch (error: any) {
-    if (error?.message === "Invalid signature") {
-      throw error;
-    }
+  if (!isValid) {
     throw externalError("Invalid signature");
   }
 };
@@ -346,9 +206,7 @@ const verifySuiPersonalMessage = async (
   const sigHex = signature.startsWith("0x") ? signature.slice(2) : signature;
   const sigBase64 = Buffer.from(sigHex, "hex").toString("base64");
 
-  const client = httpRpcUrl
-    ? new SuiClient({ url: httpRpcUrl })
-    : undefined;
+  const client = httpRpcUrl ? new SuiClient({ url: httpRpcUrl }) : undefined;
 
   try {
     const publicKey = await verifyPersonalMessageSignature(
