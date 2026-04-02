@@ -19,6 +19,10 @@ export type Chain = {
   // and for all other chains it is the `keccak256` value of the above user-friendly id
   hubChainId?: string;
   additionalData?: {
+    // For "bitcoin-vm" / "ethereum-vm" / "tron-vm"
+    finalizationBlocks?: number;
+    // For "ethereum-vm" / "tron-vm" - minimum wall-clock time (in seconds) for finalization
+    finalizationTime?: number;
     // For "bitcoin-vm"
     esploraCompatibleApiUrl?: string;
     blockstreamClientSecret?: string;
@@ -29,10 +33,6 @@ export type Chain = {
     proxyApiKey?: string;
     // For "ethereum-vm"
     isZksyncStack?: boolean;
-    // Override for finalization time in seconds (for "ethereum-vm" / "tron-vm", default: 60)
-    finalizationTime?: number;
-    // Override for finalization blocks (for "bitcoin-vm", default: 2)
-    finalizationBlocks?: number;
     // For "lighter-vm"
     rpcApiKey?: string;
   };

@@ -6,7 +6,7 @@
     "httpRpcUrl": "$ETHEREUM_RPC_URL",
     "hubChainId": "1",
     "additionalData": {
-      "finalizationTime": 120
+      "finalizationBlocks": 10
     }
   },
   {

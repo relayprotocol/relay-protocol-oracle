@@ -258,21 +258,28 @@ export class TronVmAttestor extends VmAttestor {
       client: rpc,
     });
 
-    const isExecuted = await depositoryContract.read.callRequests([
-      withdrawalId as Hex,
-    ]);
+    const latestBlock = await rpc.getBlock();
+    const finalizationBlocks = await this._getFinalizationBlocks(chainId);
+    const finalizationTime = await this._getFinalizationTime(chainId);
+    const safeBlockNumber =
+      BigInt(latestBlock.number) - BigInt(finalizationBlocks);
+
+    const isExecuted = await depositoryContract.read.callRequests(
+      [withdrawalId as Hex],
+      { blockNumber: safeBlockNumber },
+    );
 
     let status: DepositoryWithdrawalStatus;
     if (isExecuted) {
       status = DepositoryWithdrawalStatus.EXECUTED;
     } else {
-      const chainTimestamp = await rpc
-        .getBlock()
-        .then((block) => block.timestamp);
-      const finalizationTime = await this._getFinalizationTime(chainId);
+      const safeTimestamp = await rpc
+        .getBlock({ blockNumber: safeBlockNumber })
+        .then((b) => b.timestamp);
+      const expiration = BigInt(decodedWithdrawal.withdrawal.expiration);
       if (
-        chainTimestamp - finalizationTime >
-        BigInt(decodedWithdrawal.withdrawal.expiration)
+        BigInt(safeTimestamp) > expiration &&
+        BigInt(latestBlock.timestamp) - BigInt(finalizationTime) > expiration
       ) {
         status = DepositoryWithdrawalStatus.EXPIRED;
       } else {
@@ -396,25 +403,45 @@ export class TronVmAttestor extends VmAttestor {
     throw internalError("Not implemented");
   }
 
-  private _DEFAULT_FINALIZATION_TIME = 60n;
+  private _DEFAULT_FINALIZATION_BLOCKS = 10;
+  private _DEFAULT_FINALIZATION_TIME = 60;
 
-  private async _getFinalizationTime(chainId: string): Promise<bigint> {
+  private async _getFinalizationBlocks(chainId: string): Promise<number> {
     const chain = await getChain(chainId);
-    return BigInt(
+    return (
+      chain.additionalData?.finalizationBlocks ??
+      this._DEFAULT_FINALIZATION_BLOCKS
+    );
+  }
+
+  private async _getFinalizationTime(chainId: string): Promise<number> {
+    const chain = await getChain(chainId);
+    return (
       chain.additionalData?.finalizationTime ??
-        this._DEFAULT_FINALIZATION_TIME,
+      this._DEFAULT_FINALIZATION_TIME
     );
   }
 
   private async _ensureTxFinalization(chainId: string, tx: TransactionReceipt) {
     const rpc = await httpRpc(chainId);
+    const finalizationBlocks = await this._getFinalizationBlocks(chainId);
     const finalizationTime = await this._getFinalizationTime(chainId);
 
-    const latestBlockTimestamp = await rpc.getBlock().then((b) => b.timestamp);
+    const latestBlock = await rpc.getBlock();
+    if (
+      BigInt(latestBlock.number) - BigInt(tx.blockNumber) <
+      BigInt(finalizationBlocks)
+    ) {
+      throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
+    }
+
     const txTimestamp = await rpc
       .getBlock({ blockNumber: tx.blockNumber })
       .then((b) => b.timestamp);
-    if (latestBlockTimestamp - txTimestamp < finalizationTime) {
+    if (
+      BigInt(latestBlock.timestamp) - BigInt(txTimestamp) <
+      BigInt(finalizationTime)
+    ) {
       throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
     }
   }

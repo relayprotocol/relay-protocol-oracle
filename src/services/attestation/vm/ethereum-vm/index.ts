@@ -315,23 +315,33 @@ export class EthereumVmAttestor extends VmAttestor {
       abi: ABI,
       client: rpc,
     });
+    const finalizationBlocks = await this._getFinalizationBlocks(chainId);
+    const finalizationTime = await this._getFinalizationTime(chainId);
+
+    await logRpcUsage(chainId, "eth_getBlock", trackingId);
+    const latestBlock = await rpc.getBlock();
+    const finalizedBlockNumber =
+      BigInt(latestBlock.number!) - BigInt(finalizationBlocks);
+
     await logRpcUsage(chainId, "eth_call", trackingId);
-    const isExecuted = await depositoryContract.read.callRequests([
-      withdrawalId as Hex,
-    ]);
+    const isExecuted = await depositoryContract.read.callRequests(
+      [withdrawalId as Hex],
+      { blockNumber: finalizedBlockNumber },
+    );
 
     let status: DepositoryWithdrawalStatus;
     if (isExecuted) {
       status = DepositoryWithdrawalStatus.EXECUTED;
     } else {
       await logRpcUsage(chainId, "eth_getBlock", trackingId);
-      const chainTimestamp = await rpc
-        .getBlock()
-        .then((block) => block.timestamp);
-      const finalizationTime = await this._getFinalizationTime(chainId);
+      const finalizedTimestamp = await rpc
+        .getBlock({ blockNumber: finalizedBlockNumber })
+        .then((b) => b.timestamp);
+
+      const expiration = BigInt(decodedWithdrawal.withdrawal.expiration);
       if (
-        chainTimestamp - finalizationTime >
-        BigInt(decodedWithdrawal.withdrawal.expiration)
+        BigInt(finalizedTimestamp) > expiration &&
+        BigInt(latestBlock.timestamp) - BigInt(finalizationTime) > expiration
       ) {
         status = DepositoryWithdrawalStatus.EXPIRED;
       } else {
@@ -530,13 +540,21 @@ export class EthereumVmAttestor extends VmAttestor {
     return true;
   }
 
-  private _DEFAULT_FINALIZATION_TIME = 60n;
+  private _DEFAULT_FINALIZATION_BLOCKS = 10;
+  private _DEFAULT_FINALIZATION_TIME = 60;
 
-  private async _getFinalizationTime(chainId: string): Promise<bigint> {
+  private async _getFinalizationBlocks(chainId: string): Promise<number> {
     const chain = await getChain(chainId);
-    return BigInt(
-      chain.additionalData?.finalizationTime ??
-        this._DEFAULT_FINALIZATION_TIME,
+    return (
+      chain.additionalData?.finalizationBlocks ??
+      this._DEFAULT_FINALIZATION_BLOCKS
+    );
+  }
+
+  private async _getFinalizationTime(chainId: string): Promise<number> {
+    const chain = await getChain(chainId);
+    return (
+      chain.additionalData?.finalizationTime ?? this._DEFAULT_FINALIZATION_TIME
     );
   }
 
@@ -546,16 +564,27 @@ export class EthereumVmAttestor extends VmAttestor {
     trackingId: string,
   ) {
     const rpc = await httpRpc(chainId);
+
+    const finalizationBlocks = await this._getFinalizationBlocks(chainId);
     const finalizationTime = await this._getFinalizationTime(chainId);
 
     await logRpcUsage(chainId, "eth_getBlock", trackingId);
-    const latestBlockTimestamp = await rpc.getBlock().then((b) => b.timestamp);
+    const latestBlock = await rpc.getBlock();
+    if (
+      BigInt(latestBlock.number!) - BigInt(tx.blockNumber) <
+      BigInt(finalizationBlocks)
+    ) {
+      throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
+    }
 
     await logRpcUsage(chainId, "eth_getBlock", trackingId);
     const txTimestamp = await rpc
       .getBlock({ blockNumber: tx.blockNumber })
       .then((b) => b.timestamp);
-    if (latestBlockTimestamp - txTimestamp < finalizationTime) {
+    if (
+      BigInt(latestBlock.timestamp) - BigInt(txTimestamp) <
+      BigInt(finalizationTime)
+    ) {
       throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
     }
 
