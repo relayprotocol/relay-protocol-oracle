@@ -29,6 +29,10 @@ export type Chain = {
     proxyApiKey?: string;
     // For "ethereum-vm"
     isZksyncStack?: boolean;
+    // Override for finalization time in seconds (for "ethereum-vm" / "tron-vm", default: 60)
+    finalizationTime?: number;
+    // Override for finalization blocks (for "bitcoin-vm", default: 2)
+    finalizationBlocks?: number;
     // For "lighter-vm"
     rpcApiKey?: string;
   };

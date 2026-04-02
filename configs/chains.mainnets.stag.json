@@ -4,7 +4,10 @@
     "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$ETHEREUM_RPC_URL",
-    "hubChainId": "1"
+    "hubChainId": "1",
+    "additionalData": {
+      "finalizationTime": 120
+    }
   },
   {
     "id": "optimism",
@@ -582,7 +585,8 @@
       "esploraCompatibleApiUrl": "$BITCOIN_ESPLORA_COMPATIBLE_API_URL",
       "blockstreamClientId": "$BITCOIN_BLOCKSTREAM_CLIENT_ID",
       "blockstreamClientSecret": "$BITCOIN_BLOCKSTREAM_CLIENT_SECRET",
-      "maestroApiKey": "$BITCOIN_MAESTRO_API_KEY"
+      "maestroApiKey": "$BITCOIN_MAESTRO_API_KEY",
+      "finalizationBlocks": 4
     }
   },
   {

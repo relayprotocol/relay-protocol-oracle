@@ -38,7 +38,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     }
 
     // Ensure the transaction is finalized
-    this._ensureTxFinalization(transactionId, transaction);
+    await this._ensureTxFinalization(chainId, transactionId, transaction);
 
     // Get chain configuration
     const chain = await getChain(chainId);
@@ -308,7 +308,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     }
 
     // Ensure the transaction is finalized
-    this._ensureTxFinalization(transactionId, transaction);
+    await this._ensureTxFinalization(chainId, transactionId, transaction);
 
     await logRpcUsage(chainId, "getBlock", trackingId);
     const transactionTimestamp = await rpc
@@ -366,13 +366,23 @@ export class BitcoinVmAttestor extends VmAttestor {
     return true;
   }
 
-  private _FINALIZATION_BLOCKS = 2;
+  private _DEFAULT_FINALIZATION_BLOCKS = 2;
 
-  private _ensureTxFinalization(
+  private async _getFinalizationBlocks(chainId: string): Promise<number> {
+    const chain = await getChain(chainId);
+    return (
+      chain.additionalData?.finalizationBlocks ??
+      this._DEFAULT_FINALIZATION_BLOCKS
+    );
+  }
+
+  private async _ensureTxFinalization(
+    chainId: string,
     transactionId: string,
     tx: { confirmations?: number },
   ) {
-    if (!tx.confirmations || tx.confirmations < this._FINALIZATION_BLOCKS) {
+    const finalizationBlocks = await this._getFinalizationBlocks(chainId);
+    if (!tx.confirmations || tx.confirmations < finalizationBlocks) {
       throw externalError(`Transaction ${transactionId} is not finalized`);
     }
   }

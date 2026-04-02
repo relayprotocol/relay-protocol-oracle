@@ -269,8 +269,9 @@ export class TronVmAttestor extends VmAttestor {
       const chainTimestamp = await rpc
         .getBlock()
         .then((block) => block.timestamp);
+      const finalizationTime = await this._getFinalizationTime(chainId);
       if (
-        chainTimestamp - this._FINALIZATION_TIME >
+        chainTimestamp - finalizationTime >
         BigInt(decodedWithdrawal.withdrawal.expiration)
       ) {
         status = DepositoryWithdrawalStatus.EXPIRED;
@@ -395,16 +396,25 @@ export class TronVmAttestor extends VmAttestor {
     throw internalError("Not implemented");
   }
 
-  private _FINALIZATION_TIME = 60n;
+  private _DEFAULT_FINALIZATION_TIME = 60n;
+
+  private async _getFinalizationTime(chainId: string): Promise<bigint> {
+    const chain = await getChain(chainId);
+    return BigInt(
+      chain.additionalData?.finalizationTime ??
+        this._DEFAULT_FINALIZATION_TIME,
+    );
+  }
 
   private async _ensureTxFinalization(chainId: string, tx: TransactionReceipt) {
     const rpc = await httpRpc(chainId);
+    const finalizationTime = await this._getFinalizationTime(chainId);
 
     const latestBlockTimestamp = await rpc.getBlock().then((b) => b.timestamp);
     const txTimestamp = await rpc
       .getBlock({ blockNumber: tx.blockNumber })
       .then((b) => b.timestamp);
-    if (latestBlockTimestamp - txTimestamp < this._FINALIZATION_TIME) {
+    if (latestBlockTimestamp - txTimestamp < finalizationTime) {
       throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
     }
   }
