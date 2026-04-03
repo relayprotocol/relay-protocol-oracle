@@ -210,6 +210,7 @@ export const getPeerResponses = async ({
 
   const peerResponses = await Promise.all(
     Object.entries(config.peers).map(async ([url, apiKey]) => {
+      const start = Date.now();
       try {
         const response = await axios.post(
           `${url}${endpointPath}`,
@@ -225,14 +226,29 @@ export const getPeerResponses = async ({
           },
         );
 
+        const durationMs = Date.now() - start;
+        const logLevel = durationMs > 5000 ? "warn" : "info";
+        logger[logLevel](
+          "oracle-peer",
+          JSON.stringify({
+            msg: "Peer request completed",
+            endpointPath,
+            url,
+            durationMs,
+            status: response.status,
+          }),
+        );
+
         return validateAndExtractResponse(response.data);
       } catch (error: any) {
+        const durationMs = Date.now() - start;
         logger.warn(
           "oracle-peer",
           JSON.stringify({
             msg: "Skipping peer signature",
             endpointPath,
             url,
+            durationMs,
             timeoutMs: config.peerRequestTimeoutMs,
             error: String(error),
             errorResponse: error?.response?.data ?? error?.response?.body,
