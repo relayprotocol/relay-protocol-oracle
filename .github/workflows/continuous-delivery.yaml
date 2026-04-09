@@ -2,7 +2,7 @@ name: Continuous Delivery
 
 on:
   push:
-    branches: [main, staging]
+    branches: [main, dev]
 
 env:
   NODE_VERSION: "24.x"
@@ -51,13 +51,13 @@ jobs:
             ghcr.io/relayprotocol/relay-protocol-oracle:latest
             ghcr.io/relayprotocol/relay-protocol-oracle:${{ github.sha }}
 
-  deploy-staging:
+  deploy-dev:
     name: Deploy to Development
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [build]
     environment: dev
-    if: github.ref == 'refs/heads/staging'
+    if: github.ref == 'refs/heads/dev'
     steps:
       - name: Checkout repository k8s-configs
         uses: actions/checkout@v3
