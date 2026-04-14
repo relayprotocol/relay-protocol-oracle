@@ -448,13 +448,12 @@ describe("verifyWithdrawalSignature", () => {
       ).rejects.toThrow("Signature verification not supported for owner chain");
     });
 
-    it("should throw unsupported for lighter-vm", async () => {
+    it("should pass with valid lighter-vm signature (EVM personal_sign)", async () => {
+      const data = { ...baseData, ownerChainId: "lighter-mainnet" };
+      const signature = await signEvmMessage(data);
       await expect(
-        verifyWithdrawalSignature({
-          data: { ...baseData, ownerChainId: "lighter-mainnet" },
-          signature: "0x" + "00".repeat(65),
-        }),
-      ).rejects.toThrow("Signature verification not supported for owner chain");
+        verifyWithdrawalSignature({ data, signature }),
+      ).resolves.toBeUndefined();
     });
   });
 

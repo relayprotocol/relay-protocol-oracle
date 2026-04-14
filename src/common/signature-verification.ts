@@ -49,8 +49,10 @@ export const verifyWithdrawalSignature = async ({
     case "sui-vm":
       return verifySuiPersonalMessage(data, signature, ownerChain.httpRpcUrl);
 
-    case "ton-vm":
     case "lighter-vm":
+      return verifyEvmPersonalSign(data, signature);
+
+    case "ton-vm":
     default:
       throw externalError(
         "Signature verification not supported for owner chain",

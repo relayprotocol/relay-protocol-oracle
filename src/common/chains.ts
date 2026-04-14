@@ -35,6 +35,7 @@ export type Chain = {
     isZksyncStack?: boolean;
     // For "lighter-vm"
     rpcApiKey?: string;
+    explorerApiUrl?: string;
   };
 };
 

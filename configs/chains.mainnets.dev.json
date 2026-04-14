@@ -75,5 +75,16 @@
       "maestroApiKey": "$BITCOIN_MAESTRO_API_KEY",
       "finalizationBlocks": 4
     }
+  },
+  {
+    "id": "lighter",
+    "vmType": "lighter-vm",
+    "httpRpcUrl": "$LIGHTER_RPC_URL",
+    "depository": "722011",
+    "hubChainId": "24751429388881399765243452447207376042614090386756997212181931796575290791450",
+    "additionalData": {
+      "rpcApiKey": "$LIGHTER_RPC_API_KEY",
+      "explorerApiUrl": "https://explorer.elliot.ai/api"
+    }
   }
 ]
