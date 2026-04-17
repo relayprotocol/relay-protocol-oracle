@@ -33,6 +33,25 @@ jest.mock("../../../src/common/chains", () => ({
   },
 }));
 
+// Mock Lighter RPC — maps L2 account index → l1_address.
+// Mirrors the real API shape: `GET /api/v1/account` returns
+// `{ code, total, accounts: [{ l1_address, ... }] }`.
+const mockLighterAccounts: Record<string, { l1_address: string }> = {};
+
+jest.mock("../../../src/common/vm/lighter-vm/rpc", () => ({
+  httpRpc: async () => ({
+    accountApi: {
+      getAccount: async ({ value }: { by: string; value: string }) => {
+        const account = mockLighterAccounts[value];
+        if (!account) {
+          throw new Error(`Lighter account ${value} not found`);
+        }
+        return { code: 200, total: 1, accounts: [account] };
+      },
+    },
+  }),
+}));
+
 import { verifyWithdrawalSignature } from "../../../src/common/signature-verification";
 
 // Test accounts (EVM)
@@ -449,7 +468,15 @@ describe("verifyWithdrawalSignature", () => {
     });
 
     it("should pass with valid lighter-vm signature (EVM personal_sign)", async () => {
-      const data = { ...baseData, ownerChainId: "lighter-mainnet" };
+      // Lighter owner is the L2 account index; signature is from the L1 EVM
+      // owner of that account, resolved via AccountApi.getAccount.
+      const lighterOwner = "476952";
+      mockLighterAccounts[lighterOwner] = { l1_address: wallet.address };
+      const data = {
+        ...baseData,
+        ownerChainId: "lighter-mainnet",
+        owner: lighterOwner,
+      };
       const signature = await signEvmMessage(data);
       await expect(
         verifyWithdrawalSignature({ data, signature }),

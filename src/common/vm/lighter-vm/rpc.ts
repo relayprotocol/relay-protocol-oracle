@@ -1,4 +1,8 @@
-import { ApiClient, TransactionApi } from "@reservoir0x/lighter-ts-sdk";
+import {
+  AccountApi,
+  ApiClient,
+  TransactionApi,
+} from "@reservoir0x/lighter-ts-sdk";
 
 import { getChain } from "../../chains";
 
@@ -13,10 +17,12 @@ export const httpRpc = async (chainId: string) => {
     host: chain.httpRpcUrl,
     additionalHeaders,
   });
+  const accountApi = new AccountApi(apiClient);
   const transactionApi = new TransactionApi(apiClient);
 
   return {
     apiClient,
+    accountApi,
     transactionApi,
   };
 };

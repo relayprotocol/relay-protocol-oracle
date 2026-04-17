@@ -61,6 +61,16 @@ const MessageData = Type.Object({
           currentTime: Type.Number(),
         }),
       ),
+      "lighter-vm": Type.Optional(
+        Type.Object({
+          nonce: Type.Integer({ minimum: 0 }),
+          fromRouteType: Type.Integer({ minimum: 0 }),
+          toRouteType: Type.Integer({ minimum: 0 }),
+          apiKeyIndex: Type.Integer({ minimum: 0 }),
+          usdcFee: Type.Integer({ minimum: 0 }),
+          memo: Type.String(),
+        }),
+      ),
     }),
   ),
   requestPeerSignatures: Type.Optional(

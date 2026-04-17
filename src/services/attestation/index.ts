@@ -1189,6 +1189,7 @@ export class AttestationService {
     switch (family) {
       case "ethereum-vm":
       case "hyperliquid-vm":
+      case "lighter-vm":
       case "tron-vm": {
         const hashToSign = await payloadBuilder.read.hashToSign([
           BigInt(payloadParams.chainId),

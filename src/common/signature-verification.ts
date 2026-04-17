@@ -11,6 +11,7 @@ import { getChain } from "./chains";
 import { externalError } from "./error";
 import { logger } from "./logger";
 import { toHexAddress } from "../services/attestation/vm/tron-vm";
+import { httpRpc as lighterHttpRpc } from "./vm/lighter-vm/rpc";
 
 export type WithdrawalSignatureData = {
   chainId: string;
@@ -50,7 +51,7 @@ export const verifyWithdrawalSignature = async ({
       return verifySuiPersonalMessage(data, signature, ownerChain.httpRpcUrl);
 
     case "lighter-vm":
-      return verifyEvmPersonalSign(data, signature);
+      return verifyLighterPersonalSign(data, signature);
 
     case "ton-vm":
     default:
@@ -80,15 +81,18 @@ const computeDigest = (data: WithdrawalSignatureData): string =>
     .digest()
     .toString("hex");
 
-// EVM/Hyperliquid: personal_sign over raw SHA256 bytes
+// EVM/Hyperliquid: personal_sign over raw SHA256 bytes.
+// `address` defaults to `data.owner`; pass an override when owner is not the
+// signing EVM address (e.g. lighter-vm, where owner is the L2 account index).
 const verifyEvmPersonalSign = async (
   data: WithdrawalSignatureData,
   signature: string,
+  address: string = data.owner,
 ) => {
   const digest = computeDigest(data);
 
   const isSignatureValid = await verifyMessage({
-    address: data.owner as Address,
+    address: address as Address,
     message: {
       raw: `0x${digest}`,
     },
@@ -97,6 +101,39 @@ const verifyEvmPersonalSign = async (
   if (!isSignatureValid) {
     throw externalError("Invalid signature");
   }
+};
+
+// Lighter: owner is the L2 account index (e.g. "476952"), but the signature
+// is produced by the L1 EVM owner of that account. Resolve index → l1_address
+// via Lighter API, then delegate to the EVM personal_sign verifier.
+const verifyLighterPersonalSign = async (
+  data: WithdrawalSignatureData,
+  signature: string,
+) => {
+  // Lighter's `GET /api/v1/account` returns `{ code, total, accounts: [...] }`
+  // even when looked up by index. The SDK's return type `Promise<Account>` is
+  // misleading — the real body is the wrapper, so cast and read `accounts[0]`.
+  let l1Address: string | undefined;
+  try {
+    const { accountApi } = await lighterHttpRpc(data.ownerChainId);
+    const response = (await accountApi.getAccount({
+      by: "index",
+      value: data.owner,
+    })) as unknown as { accounts?: Array<{ l1_address?: string }> };
+    l1Address = response.accounts?.[0]?.l1_address;
+  } catch (error) {
+    logger.warn(
+      "signature-verification",
+      `Lighter account lookup failed for ${data.owner}: ${error}`,
+    );
+    throw externalError(`Lighter account ${data.owner} not found`);
+  }
+
+  if (!l1Address) {
+    throw externalError(`Lighter account ${data.owner} has no l1_address`);
+  }
+
+  return verifyEvmPersonalSign(data, signature, l1Address);
 };
 
 // Tron: signMessageV2 over SHA256 hex string.
