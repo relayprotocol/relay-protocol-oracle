@@ -69,6 +69,7 @@ const MessageData = Type.Object({
           apiKeyIndex: Type.Integer({ minimum: 0 }),
           usdcFee: Type.Integer({ minimum: 0 }),
           memo: Type.String(),
+          assetIndex: Type.Integer({ minimum: 0 }),
         }),
       ),
     }),
