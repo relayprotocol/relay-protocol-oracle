@@ -1,0 +1,28 @@
+name: Docs Drift Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  docs-drift-check:
+    uses: relayprotocol/agents-config/.github/workflows/reusable-docs-drift-check.yml@main
+    with:
+      runner: blacksmith-4vcpu-ubuntu-2404
+      is_public_repo: false
+      docs_scope: "references/protocol/**"
+      source_surface: |
+        - HTTP API routes under `src/api/` — `attestations/`, `chains/`, `lives/`. Any change to route paths, request bodies, response shapes, status codes, headers, or auth requirements is doc-relevant.
+        - Attestation semantics: what the oracle witnesses, what it signs, message formats, and the conditions under which an attestation is granted or refused. These define the public protocol contract.
+        - Supported-chain configuration in `src/services/` and `src/config.ts` — addition or removal of a chain, change to a chain's witness/indexing rules, change to which contract addresses the oracle observes.
+        - Indexing behavior under `src/services/` for ethereum-vm and solana-vm — event signatures observed, finality rules, reorg handling, anything that affects what an integrator can rely on.
+        - Signer/signing-key behavior under `src/signers/` where it changes the public verification path (e.g. signature scheme, key rotation, multisig threshold).
+        - Root `README.md` and integrator-facing notes under `docs/` (e.g. `docs/overview.md`, `docs/indexing/ethereum-vm.md`, `docs/indexing/solana-vm.md`).
+        - Changes that are NOT doc-relevant: log message tweaks, internal retry logic, RPC-provider plumbing, metrics, performance optimizations, test fixtures — unless they alter an integrator-observable behavior.
+    secrets: inherit
