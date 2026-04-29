@@ -54,6 +54,14 @@ const Schema = {
             }),
             amount: Type.String({ description: "The deposited amount" }),
           }),
+          extraData: Type.Optional(
+            Type.Object({
+              timestamp: Type.String({
+                description:
+                  "The block timestamp of the deposit (epoch seconds)",
+              }),
+            }),
+          ),
         }),
         {
           description:
