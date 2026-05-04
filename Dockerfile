@@ -13,6 +13,9 @@ ADD . /service
 RUN yarn install
 RUN yarn build
 COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && chown -R node:node /service
+
+USER node
 
 ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 
