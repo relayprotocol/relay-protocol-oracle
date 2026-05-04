@@ -65,9 +65,11 @@ Optional:
 
 ```sh
 API_KEYS=your-api-key:your-name
+UNAUTHENTICATED_RATE_LIMIT_MAX=2
+UNAUTHENTICATED_RATE_LIMIT_WINDOW_MS=1000
 ```
 
-If `API_KEYS` is set, protected routes require a valid `x-api-key`. If it is not set, those routes remain publicly reachable.
+Requests without a valid `x-api-key` are publicly reachable but rate limited globally per client IP. Requests with a valid `x-api-key` bypass the unauthenticated rate limit.
 
 If you use AWS KMS instead of a raw private key:
 
@@ -145,20 +147,29 @@ Use provider secrets the same way you would for any other production credential.
 
 #### Authentication
 
-When `API_KEYS` is set, the service requires a valid `x-api-key` header on protected routes.
+Requests without a valid `x-api-key` are allowed on protected routes, but they use the unauthenticated rate limit.
 
 These routes remain accessible without an API key:
 
 - `/documentation`
 - `/lives/v1`
 
-If `API_KEYS` is configured, `/chains/v1` and the attestation routes require a valid `x-api-key`. If `API_KEYS` is not configured, those routes remain publicly reachable.
+`/chains/v1` and the attestation routes are publicly reachable. Requests with a valid `x-api-key` bypass unauthenticated rate limiting. Requests without a valid `x-api-key` are rate limited globally per client IP.
 
 `API_KEYS` format:
 
 ```sh
 API_KEYS=key-one:partner-a;key-two:partner-b
 ```
+
+Unauthenticated rate limit configuration:
+
+```sh
+UNAUTHENTICATED_RATE_LIMIT_MAX=2
+UNAUTHENTICATED_RATE_LIMIT_WINDOW_MS=1000
+```
+
+The `force` option on solver fill and refund attestations still requires a valid `x-api-key`.
 
 #### Peering
 
@@ -219,10 +230,10 @@ After deployment, verify:
 
 - `GET /lives/v1` returns `{"status":"ok"}`.
 - `GET /documentation` loads.
-- `GET /chains/v1` returns the expected chain list when called with a valid `x-api-key` if `API_KEYS` is configured.
+- `GET /chains/v1` returns the expected chain list without an API key.
 - Startup logs show the signer address you expect.
 
-Then test one real attestation request, using a valid `x-api-key` if required.
+Then test one real attestation request.
 
 #### Example test attestation request
 
@@ -231,7 +242,6 @@ The simplest post-deploy attestation test is a depository-deposit attestation. U
 ```sh
 curl -X POST http://localhost:3000/attestations/depository-deposits/v1 \
   -H 'content-type: application/json' \
-  -H 'x-api-key: your-api-key' \
   -d '{
     "chainId": "ethereum",
     "transactionId": "0xREPLACE_WITH_A_REAL_DEPOSIT_TRANSACTION_HASH",
@@ -242,7 +252,7 @@ curl -X POST http://localhost:3000/attestations/depository-deposits/v1 \
 Notes:
 
 - Replace `http://localhost:3000` with your deployed base URL.
-- Omit the `x-api-key` header only if you did not configure `API_KEYS`.
+- Add `-H 'x-api-key: your-api-key'` when you want to bypass unauthenticated rate limiting.
 - Replace `chainId` with a chain that is enabled in your selected `ENVIRONMENT`.
 - Replace `transactionId` with a real transaction that contains a Relay depository deposit on that chain.
 

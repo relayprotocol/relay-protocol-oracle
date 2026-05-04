@@ -1,7 +1,23 @@
+const positiveNumberFromEnv = (
+  value: string | undefined,
+  fallback: number,
+): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
 export const config = {
   httpPort: Number(process.env.HTTP_PORT ?? process.env.PORT ?? 3000),
   environment: process.env.ENVIRONMENT!,
   peerRequestTimeoutMs: Number(process.env.PEER_REQUEST_TIMEOUT_MS ?? 10000),
+  unauthenticatedRateLimitMax: positiveNumberFromEnv(
+    process.env.UNAUTHENTICATED_RATE_LIMIT_MAX,
+    2,
+  ),
+  unauthenticatedRateLimitWindowMs: positiveNumberFromEnv(
+    process.env.UNAUTHENTICATED_RATE_LIMIT_WINDOW_MS,
+    1000,
+  ),
 
   apiKeys: process.env.API_KEYS
     ? Object.fromEntries(

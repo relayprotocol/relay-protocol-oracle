@@ -1,9 +1,7 @@
-// Initialize http server
-import "./http-server";
-
 import v8 from "v8";
 
 import { logger } from "./common/logger";
+import { startHttpServer } from "./http-server";
 
 const COMPONENT = "process";
 
@@ -58,3 +56,5 @@ setInterval(() => {
     }),
   );
 }, 60_000).unref();
+
+void startHttpServer();

@@ -1,19 +1,18 @@
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import Fastify from "fastify";
+import Fastify, { FastifyInstance } from "fastify";
 
 import { setupEndpoints } from "./api";
 import { logger } from "./common/logger";
+import { createFixedWindowRateLimiter } from "./common/rate-limit";
 import { config } from "./config";
 import { getSigningWallet, SigningModule } from "./signers";
 
 const COMPONENT = "http-server";
 
-const httpServer = Fastify().withTypeProvider<TypeBoxTypeProvider>();
-
 // Setup swagger
-const setupSwagger = async () => {
+const setupSwagger = async (httpServer: FastifyInstance) => {
   await httpServer.register(fastifySwagger, {
     mode: "dynamic",
     openapi: {
@@ -46,8 +45,16 @@ const setupSwagger = async () => {
   });
 };
 
-setupSwagger().then(() => {
-  // Setup authentication
+export const buildHttpServer = async () => {
+  const httpServer = Fastify().withTypeProvider<TypeBoxTypeProvider>();
+  const unauthenticatedRateLimiter = createFixedWindowRateLimiter({
+    max: config.unauthenticatedRateLimitMax,
+    windowMs: config.unauthenticatedRateLimitWindowMs,
+  });
+
+  await setupSwagger(httpServer);
+
+  // Setup unauthenticated rate limiting
   httpServer.addHook("preHandler", (req, reply, done) => {
     // Skip these routes
     if (
@@ -58,10 +65,23 @@ setupSwagger().then(() => {
       return done();
     }
 
-    if (config.apiKeys) {
-      const apiKey = req.headers["x-api-key"] as string | undefined;
-      if (!apiKey || !config.apiKeys[apiKey]) {
-        return reply.code(401).send({ error: "Unauthorized" });
+    const apiKey = req.headers["x-api-key"] as string | undefined;
+    const hasValidApiKey = Boolean(apiKey && config.apiKeys?.[apiKey]);
+
+    if (!hasValidApiKey) {
+      const rateLimit = unauthenticatedRateLimiter.check(req.ip);
+      const retryAfterSeconds = Math.ceil(rateLimit.resetMs / 1000);
+
+      reply
+        .header("x-ratelimit-limit", rateLimit.limit)
+        .header("x-ratelimit-remaining", rateLimit.remaining)
+        .header("x-ratelimit-reset", retryAfterSeconds);
+
+      if (!rateLimit.allowed) {
+        return reply
+          .code(429)
+          .header("retry-after", retryAfterSeconds)
+          .send({ error: "Rate limit exceeded" });
       }
     }
 
@@ -70,6 +90,12 @@ setupSwagger().then(() => {
 
   // Setup endpoints
   setupEndpoints(httpServer);
+
+  return httpServer;
+};
+
+export const startHttpServer = async () => {
+  const httpServer = await buildHttpServer();
 
   // Start listening
   httpServer.listen(
@@ -102,4 +128,4 @@ setupSwagger().then(() => {
       );
     },
   );
-});
+};
