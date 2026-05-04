@@ -37,7 +37,7 @@ import {
   getSdkChainsConfig,
 } from "../../../../src/common/chains";
 import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
-import { getBalanceOnHub } from "../../../../src/common/hub";
+import { getBalanceOnHub, getHubHttpRpc } from "../../../../src/common/hub";
 import { getAddress } from "viem";
 
 // default vars
@@ -53,6 +53,7 @@ jest.mock("../../../../src/common/hub", () => ({
   getHubHttpRpc: jest.fn().mockImplementation(() =>
     Promise.resolve({
       readContract: jest.fn(),
+      getBlock: jest.fn(),
     }),
   ),
 }));
@@ -803,6 +804,50 @@ describe("AttestationService", () => {
           signature: mockSignature,
         }),
       ).rejects.toThrow("Unsupported signature chain");
+    });
+  });
+
+  describe("attestCanonicalHubBlock", () => {
+    it("returns the canonical hub block attestation for a known hub block hash", async () => {
+      const blockHash =
+        "0x1111111111111111111111111111111111111111111111111111111111111111";
+      const stateRoot =
+        "0x2222222222222222222222222222222222222222222222222222222222222222";
+      const mockedHubRpc = {
+        readContract: jest.fn(),
+        getBlock: jest.fn<any>().mockResolvedValue({
+          hash: blockHash,
+          number: 123n,
+          stateRoot,
+        }),
+      };
+
+      jest.mocked(getHubHttpRpc).mockResolvedValueOnce(mockedHubRpc as any);
+
+      const result = await service.attestCanonicalHubBlock({ blockHash });
+
+      expect(mockedHubRpc.getBlock).toHaveBeenCalledWith({ blockHash });
+      expect(result).toEqual({
+        chainId: 1,
+        blockNumber: 123n,
+        blockHash,
+        stateRoot,
+      });
+    });
+
+    it("throws when the hub block hash is not canonical", async () => {
+      const blockHash =
+        "0x3333333333333333333333333333333333333333333333333333333333333333";
+      const mockedHubRpc = {
+        readContract: jest.fn(),
+        getBlock: jest.fn<any>().mockRejectedValue(new Error("not found")),
+      };
+
+      jest.mocked(getHubHttpRpc).mockResolvedValueOnce(mockedHubRpc as any);
+
+      await expect(
+        service.attestCanonicalHubBlock({ blockHash }),
+      ).rejects.toThrow("Hub block not found on the canonical chain");
     });
   });
 

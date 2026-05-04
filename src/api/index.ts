@@ -3,6 +3,7 @@ import { FastifyInstance } from "fastify";
 import { Endpoint, errorWrapper } from "./utils";
 
 // Import all endpoints
+import attestationsCanonicalHubBlocksV1 from "./attestations/canonical-hub-blocks/v1";
 import attestationsDepositoryDepositsV1 from "./attestations/depository-deposits/v1";
 import attestationsDepositoryWithdrawalsV1 from "./attestations/depository-withdrawals/v1";
 import attestationsDepositoryWithdrawalsV2 from "./attestations/depository-withdrawals/v2";
@@ -18,6 +19,7 @@ import livesV1 from "./lives/v1";
 
 // Initialize all endpoints
 const endpoints = [
+  attestationsCanonicalHubBlocksV1,
   attestationsDepositoryDepositsV1,
   attestationsDepositoryWithdrawalsV1,
   attestationsDepositoryWithdrawalsV2,

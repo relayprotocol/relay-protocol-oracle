@@ -738,6 +738,37 @@ export class AttestationService {
     };
   }
 
+  public async attestCanonicalHubBlock(data: { blockHash: string }): Promise<{
+    chainId: number;
+    blockNumber: bigint;
+    blockHash: string;
+    stateRoot: string;
+  }> {
+    const hubInfo = await getHubInfo();
+    const hubRpc = await getHubHttpRpc();
+
+    const block = await hubRpc
+      .getBlock({
+        blockHash: data.blockHash as Hex,
+      })
+      .catch(() => undefined);
+    if (
+      !block?.hash ||
+      block.number === null ||
+      !block.stateRoot ||
+      block.hash !== data.blockHash
+    ) {
+      throw externalError("Hub block not found on the canonical chain");
+    }
+
+    return {
+      chainId: Number(hubInfo.evmChainId),
+      blockNumber: block.number,
+      blockHash: block.hash,
+      stateRoot: block.stateRoot,
+    };
+  }
+
   public async attestRecover(data: {
     chainId: string;
     transactionId: string;

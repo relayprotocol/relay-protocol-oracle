@@ -3,7 +3,7 @@ import {
   GenericMappingMessage,
   SubmitWithdrawRequest,
 } from "@relay-protocol/settlement-sdk";
-import { Address, Hex } from "viem";
+import { Address, Hex, zeroAddress } from "viem";
 
 import { getHubInfo } from "./chains";
 import { config } from "../config";
@@ -114,6 +114,58 @@ export const signPayloadParams = async (m: SubmitWithdrawRequest) => {
   return {
     allocatorSpenderChainId: BigInt(hubInfo.auroraEvmChainId),
     allocatorSpenderContract: hubInfo.auroraAllocatorSpenderAddress as Address,
+    oracleSigner: wallet.address.toLowerCase(),
+    signature,
+  };
+};
+
+export const signCanonicalHubBlockMessage = async (m: {
+  chainId: number;
+  blockNumber: bigint;
+  blockHash: string;
+  stateRoot: string;
+}) => {
+  const wallet = await getSigningWallet(
+    (config.signingModule as SigningModule) ?? "raw-private-key",
+  );
+
+  const signature = await wallet.signTypedData({
+    domain: {
+      chainId: BigInt(m.chainId),
+      name: "CanonicalHubBlock",
+      verifyingContract: zeroAddress,
+      version: "1",
+    },
+    message: {
+      chainId: BigInt(m.chainId),
+      blockNumber: m.blockNumber,
+      blockHash: m.blockHash as Hex,
+      stateRoot: m.stateRoot as Hex,
+    },
+    primaryType: "CanonicalHubBlock",
+    types: {
+      CanonicalHubBlock: [
+        {
+          name: "chainId",
+          type: "uint256",
+        },
+        {
+          name: "blockNumber",
+          type: "uint256",
+        },
+        {
+          name: "blockHash",
+          type: "bytes32",
+        },
+        {
+          name: "stateRoot",
+          type: "bytes32",
+        },
+      ],
+    },
+  });
+
+  return {
     oracleSigner: wallet.address.toLowerCase(),
     signature,
   };

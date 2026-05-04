@@ -235,6 +235,7 @@ export const getPeerResponses = async ({
             endpointPath,
             url,
             durationMs,
+            data: response.data,
             status: response.status,
           }),
         );
