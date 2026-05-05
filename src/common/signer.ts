@@ -6,13 +6,10 @@ import {
 import { Address, Hex, zeroAddress } from "viem";
 
 import { getHubInfo } from "./chains";
-import { config } from "../config";
-import { getSigningWallet, SigningModule } from "../signers";
+import { getSigningWallet } from "../signers";
 
 export const signGenericMappingMessage = async (m: GenericMappingMessage) => {
-  const wallet = await getSigningWallet(
-    (config.signingModule as SigningModule) ?? "raw-private-key",
-  );
+  const wallet = await getSigningWallet();
 
   const hubInfo = await getHubInfo();
 
@@ -49,9 +46,7 @@ export const signGenericMappingMessage = async (m: GenericMappingMessage) => {
 };
 
 export const signPayloadParams = async (m: SubmitWithdrawRequest) => {
-  const wallet = await getSigningWallet(
-    (config.signingModule as SigningModule) ?? "raw-private-key",
-  );
+  const wallet = await getSigningWallet();
 
   const hubInfo = await getHubInfo();
 
@@ -172,9 +167,7 @@ export const signCanonicalHubBlockMessage = async (m: {
 };
 
 export const signExecutionMessage = async (m: ExecutionMessage) => {
-  const wallet = await getSigningWallet(
-    (config.signingModule as SigningModule) ?? "raw-private-key",
-  );
+  const wallet = await getSigningWallet();
 
   const hubInfo = await getHubInfo();
 

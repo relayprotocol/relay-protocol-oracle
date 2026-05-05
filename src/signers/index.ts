@@ -2,12 +2,35 @@ import { Account, Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { KmsSigner } from "./aws-kms";
+import { logger } from "../common/logger";
 import { config } from "../config";
 
 export type SigningModule = "raw-private-key" | "aws-kms";
 
+const DEFAULT_SIGNING_MODULE: SigningModule = "raw-private-key";
+
+let defaultWarningEmitted = false;
+
+export const getSigningModule = (): SigningModule => {
+  if (config.signingModule) {
+    return config.signingModule as SigningModule;
+  }
+
+  if (!defaultWarningEmitted) {
+    defaultWarningEmitted = true;
+    logger.warn(
+      "signers",
+      JSON.stringify({
+        msg: `SIGNING_MODULE env var is not set; defaulting to "${DEFAULT_SIGNING_MODULE}". A raw ECDSA private key will be held in process memory. Set SIGNING_MODULE explicitly (e.g. "aws-kms") for production deployments.`,
+      }),
+    );
+  }
+
+  return DEFAULT_SIGNING_MODULE;
+};
+
 export const getSigningWallet = async (
-  module: SigningModule
+  module: SigningModule = getSigningModule(),
 ): Promise<Account & Required<Pick<Account, "signMessage">>> => {
   switch (module) {
     case "raw-private-key": {

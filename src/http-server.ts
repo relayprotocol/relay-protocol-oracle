@@ -7,7 +7,7 @@ import { setupEndpoints } from "./api";
 import { logger } from "./common/logger";
 import { createFixedWindowRateLimiter } from "./common/rate-limit";
 import { config } from "./config";
-import { getSigningWallet, SigningModule } from "./signers";
+import { getSigningWallet } from "./signers";
 
 const COMPONENT = "http-server";
 
@@ -115,9 +115,7 @@ export const startHttpServer = async () => {
         process.exit(1);
       }
 
-      const signer = await getSigningWallet(
-        (config.signingModule as SigningModule) ?? "raw-private-key",
-      );
+      const signer = await getSigningWallet();
 
       logger.info(
         COMPONENT,
