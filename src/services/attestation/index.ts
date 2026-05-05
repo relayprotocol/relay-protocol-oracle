@@ -27,6 +27,10 @@ import {
   getNonceMappingMessage,
   getSubmitWithdrawRequestHash,
   encodeWithdrawal,
+  getWithdrawRequestHash,
+  DenormalizedWithdrawRequest,
+  normalizeWithdrawRequest,
+  WithdrawRequest,
 } from "@relay-protocol/settlement-sdk";
 import * as bitcoin from "bitcoinjs-lib";
 import TronWeb from "tronweb";
@@ -354,7 +358,7 @@ export class AttestationService {
     execution?: ExecutionMessage;
   }> {
     const payloadParams = await this._getPayloadParams(data);
-    const withdrawal = await this._getEncodedWithdrawal(
+    const withdrawal = await this._getEncodedWithdrawalV2(
       data.chainId,
       payloadParams,
     );
@@ -373,6 +377,70 @@ export class AttestationService {
     return {
       status: result.message.result.status,
       execution: result.execution,
+    };
+  }
+
+  public async attestDepositoryWithdrawalV3(
+    data: DenormalizedWithdrawRequest & {
+      transactionId?: string;
+    },
+  ): Promise<{
+    status: DepositoryWithdrawalStatus;
+    execution?: ExecutionMessage;
+  }> {
+    const withdrawRequest = normalizeWithdrawRequest({
+      ...data,
+      vmType: await getChainVmType(data.chainId),
+      spenderVmType: await getChainVmType(data.spenderChainId),
+    });
+
+    const message = await getVmAttestor(withdrawRequest.chainId).then(
+      async (attestor) =>
+        attestor.getDepositoryWithdrawalMessage(
+          withdrawRequest.chainId,
+          await this._getEncodedWithdrawalV3(withdrawRequest),
+          data.transactionId,
+        ),
+    );
+
+    let execution: ExecutionMessage | undefined;
+    if (message.result.status === DepositoryWithdrawalStatus.EXPIRED) {
+      const withdrawRequestHash = getWithdrawRequestHash(withdrawRequest);
+
+      const hubTokenId = generateTokenId({
+        address: withdrawRequest.currency,
+        chainId: withdrawRequest.chainId,
+        family: await getChainVmType(withdrawRequest.chainId),
+      });
+
+      const hubToAddress = generateAddress({
+        address: withdrawRequest.spender,
+        chainId: withdrawRequest.spenderChainId,
+        family: await getChainVmType(withdrawRequest.spenderChainId),
+      });
+
+      // Mint back the funds to the spender
+      execution = {
+        idempotencyKey: getDeterministicId(
+          withdrawRequestHash,
+          DepositoryWithdrawalStatus.EXPIRED.toString(),
+        ),
+        actions: [
+          encodeAction({
+            type: ActionType.MINT,
+            data: {
+              hubTokenId,
+              hubToAddress,
+              amount: withdrawRequest.amount,
+            },
+          }),
+        ],
+      };
+    }
+
+    return {
+      status: message.result.status,
+      execution,
     };
   }
 
@@ -1170,7 +1238,7 @@ export class AttestationService {
     return payloadParams;
   }
 
-  private async _getEncodedWithdrawal(
+  private async _getEncodedWithdrawalV2(
     chainId: string,
     payloadParams: SubmitWithdrawRequest,
   ): Promise<string | undefined> {
@@ -1388,6 +1456,57 @@ export class AttestationService {
           vmType: "bitcoin-vm",
           withdrawal: { psbt: psbt.toHex() },
         });
+      }
+
+      default: {
+        throw externalError("Vm type not implemented");
+      }
+    }
+  }
+
+  private async _getEncodedWithdrawalV3(
+    withdrawRequest: WithdrawRequest,
+  ): Promise<string> {
+    const hubInfo = await getHubInfo();
+
+    const allocator = getContract({
+      address: hubInfo.allocatorAddress as Address,
+      abi: parseAbi([
+        "function payloads(bytes32 payloadId) view returns (bytes unsignedPayload)",
+        "function payloadTimestamps(bytes32 payloadId) view returns (uint256 timestamp)",
+        "function payloadBuilders(string chainId, bytes depository) view returns (address)",
+        "function signedPayloads(bytes32 payloadId, bytes32 hashToSign) view returns (bytes)",
+      ]),
+      client: await getHubHttpRpc(),
+    });
+
+    const payloadBuilderAddress = await allocator.read.payloadBuilders([
+      withdrawRequest.chainId,
+      withdrawRequest.depository as Hex,
+    ]);
+    if (payloadBuilderAddress === zeroAddress) {
+      throw externalError(
+        `No payload builder configured for chain ${withdrawRequest.chainId}`,
+      );
+    }
+
+    const payloadBuilder = getContract({
+      address: payloadBuilderAddress,
+      abi: parseAbi([
+        "function family() view returns (string)",
+        "function hashesToSign(string chainId, bytes depository, bytes payload) view returns (bytes32[])",
+      ]),
+      client: await getHubHttpRpc(),
+    });
+    const family = await payloadBuilder.read.family();
+
+    const withdrawRequestHash = getWithdrawRequestHash(withdrawRequest);
+    const payload = await allocator.read.payloads([withdrawRequestHash as Hex]);
+
+    switch (family) {
+      case "ethereum-vm":
+      case "solana-vm": {
+        return payload;
       }
 
       default: {

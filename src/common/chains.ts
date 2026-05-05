@@ -185,6 +185,7 @@ let __hubInfo:
       oracleAddress: string;
       oracleMultisigAddress: string;
       genericMappingAddress: string;
+      allocatorAddress: string;
       auroraHttpRpcUrl: string;
       auroraEvmChainId: string;
       auroraAllocatorAddress: string;
@@ -208,6 +209,7 @@ export const getHubInfo = async () => {
     oracleAddress: readConfigValue(chain.oracleAddress),
     oracleMultisigAddress: readConfigValue(chain.oracleMultisigAddress),
     genericMappingAddress: readConfigValue(chain.genericMappingAddress),
+    allocatorAddress: readConfigValue(chain.allocatorAddress),
     auroraHttpRpcUrl: readConfigValue(chain.auroraHttpRpcUrl),
     auroraEvmChainId: readConfigValue(chain.auroraEvmChainId),
     auroraAllocatorAddress: readConfigValue(chain.auroraAllocatorAddress),
