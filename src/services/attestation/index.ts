@@ -1472,10 +1472,8 @@ export class AttestationService {
     const allocator = getContract({
       address: hubInfo.allocatorAddress as Address,
       abi: parseAbi([
-        "function payloads(bytes32 payloadId) view returns (bytes unsignedPayload)",
-        "function payloadTimestamps(bytes32 payloadId) view returns (uint256 timestamp)",
+        "function payloads(bytes32 withdrawRequestHash) view returns (bytes unsignedPayload)",
         "function payloadBuilders(string chainId, bytes depository) view returns (address)",
-        "function signedPayloads(bytes32 payloadId, bytes32 hashToSign) view returns (bytes)",
       ]),
       client: await getHubHttpRpc(),
     });
@@ -1492,10 +1490,7 @@ export class AttestationService {
 
     const payloadBuilder = getContract({
       address: payloadBuilderAddress,
-      abi: parseAbi([
-        "function family() view returns (string)",
-        "function hashesToSign(string chainId, bytes depository, bytes payload) view returns (bytes32[])",
-      ]),
+      abi: parseAbi(["function family() view returns (string)"]),
       client: await getHubHttpRpc(),
     });
     const family = await payloadBuilder.read.family();
