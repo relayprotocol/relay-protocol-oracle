@@ -1,0 +1,11 @@
+# Build output
+dist/
+
+# Dependencies (semgrep ignores node_modules by default, but be explicit)
+node_modules/
+
+# TypeScript declaration files
+**/*.d.ts
+
+# Test fixtures / mocks that intentionally contain dummy secrets
+test/fixtures/

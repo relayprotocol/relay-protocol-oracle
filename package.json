@@ -8,6 +8,7 @@
     "test": "jest",
     "lint": "eslint --max-warnings 0 .",
     "lint:fix": "eslint --max-warnings 0 --fix .",
+    "semgrep": "semgrep scan --config auto --config .semgrep/",
     "prepare": "husky"
   },
   "resolutions": {
