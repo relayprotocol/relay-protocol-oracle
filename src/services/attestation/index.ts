@@ -1497,6 +1497,9 @@ export class AttestationService {
 
     const withdrawRequestHash = getWithdrawRequestHash(withdrawRequest);
     const payload = await allocator.read.payloads([withdrawRequestHash as Hex]);
+    if (payload === "0x") {
+      throw externalError("Withdraw request not yet available");
+    }
 
     switch (family) {
       case "ethereum-vm":
