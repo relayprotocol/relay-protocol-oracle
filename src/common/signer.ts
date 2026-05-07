@@ -120,9 +120,7 @@ export const signCanonicalHubBlockMessage = async (m: {
   blockHash: string;
   stateRoot: string;
 }) => {
-  const wallet = await getSigningWallet(
-    (config.signingModule as SigningModule) ?? "raw-private-key",
-  );
+  const wallet = await getSigningWallet();
 
   const signature = await wallet.signTypedData({
     domain: {
