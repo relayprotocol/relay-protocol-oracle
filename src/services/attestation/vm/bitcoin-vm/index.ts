@@ -190,11 +190,12 @@ export class BitcoinVmAttestor extends VmAttestor {
       } = await axios
         .get(
           `${esploraCompatibleApiUrl}/tx/${input.txid}/outspend/${input.vout}`,
-          authorizationHeader
-            ? {
-                headers: authorizationHeader,
-              }
-            : undefined,
+          {
+            timeout: 10000,
+            ...(authorizationHeader
+              ? { headers: authorizationHeader }
+              : {}),
+          },
         )
         .then((response) => response.data);
       if (outspend.spent && outspend.txid && outspend.status?.confirmed) {

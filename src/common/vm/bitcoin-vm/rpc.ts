@@ -21,6 +21,7 @@ class RpcConnection {
       },
       {
         validateStatus: () => true,
+        timeout: 10000,
       },
     );
     if (data.error || data.result?.errors) {

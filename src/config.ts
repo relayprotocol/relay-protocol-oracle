@@ -39,7 +39,9 @@ export const config = {
 
   signingModule: process.env.SIGNING_MODULE,
 
-  // For "raw-private-key" signing module
+  // For "raw-private-key" signing module — production deployments should use
+  // SIGNING_MODULE=aws-kms instead of providing a raw key here.
+  // nosemgrep: raw-private-key-from-env
   ecdsaPrivateKey: process.env.ECDSA_PRIVATE_KEY,
 
   // For "aws-kms" signing module

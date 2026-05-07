@@ -137,6 +137,7 @@ const getTxDetailsWithFallback = async (
                 "X-Nft-Api-Key": chain.additionalData?.proxyApiKey,
                 url: "https://rpc.hyperliquid.xyz/explorer",
               },
+              timeout: 10000,
             },
           )
           .then((response) => response.data.tx);
