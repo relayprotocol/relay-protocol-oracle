@@ -806,34 +806,36 @@ export class AttestationService {
     };
   }
 
-  public async attestCanonicalHubBlock(data: { blockHash: string }): Promise<{
+  public async attestWithdrawRequest(
+    data: DenormalizedWithdrawRequest,
+  ): Promise<{
     chainId: number;
-    blockNumber: bigint;
-    blockHash: string;
-    stateRoot: string;
+    allocator: string;
+    withdrawRequestHash: string;
+    included: boolean;
   }> {
     const hubInfo = await getHubInfo();
-    const hubRpc = await getHubHttpRpc();
+    const withdrawRequest = normalizeWithdrawRequest({
+      ...data,
+      vmType: await getChainVmType(data.chainId),
+      spenderVmType: await getChainVmType(data.spenderChainId),
+    });
+    const withdrawRequestHash = getWithdrawRequestHash(withdrawRequest);
 
-    const block = await hubRpc
-      .getBlock({
-        blockHash: data.blockHash as Hex,
-      })
-      .catch(() => undefined);
-    if (
-      !block?.hash ||
-      block.number === null ||
-      !block.stateRoot ||
-      block.hash !== data.blockHash
-    ) {
-      throw externalError("Hub block not found on the canonical chain");
-    }
+    const allocator = getContract({
+      address: hubInfo.allocatorAddress as Address,
+      abi: parseAbi([
+        "function payloads(bytes32 withdrawRequestHash) view returns (bytes unsignedPayload)",
+      ]),
+      client: await getHubHttpRpc(),
+    });
+    const payload = await allocator.read.payloads([withdrawRequestHash as Hex]);
 
     return {
       chainId: Number(hubInfo.evmChainId),
-      blockNumber: block.number,
-      blockHash: block.hash,
-      stateRoot: block.stateRoot,
+      allocator: hubInfo.allocatorAddress,
+      withdrawRequestHash,
+      included: payload !== "0x",
     };
   }
 

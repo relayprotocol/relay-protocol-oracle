@@ -27,6 +27,8 @@ import {
   encodeAddress,
   getNoFillOrRefundMessage,
   getNonceMappingMessage,
+  getWithdrawRequestHash,
+  normalizeWithdrawRequest,
   SolverFillStatus,
   SolverRefundStatus,
 } from "@relay-protocol/settlement-sdk";
@@ -111,6 +113,7 @@ jest.mock("../../../../src/common/chains", () => {
       oracleAddress: "0x0000000000000000000000000000000000000002",
       oracleMultisigAddress: "0x0000000000000000000000000000000000000003",
       genericMappingAddress: "0x0000000000000000000000000000000000000004",
+      allocatorAddress: "0x0000000000000000000000000000000000000005",
       auroraHttpRpcUrl: "http://localhost:8545",
       auroraEvmChainId: "1313161554",
       auroraAllocatorAddress: "0x0000000000000000000000000000000000000005",
@@ -807,47 +810,54 @@ describe("AttestationService", () => {
     });
   });
 
-  describe("attestCanonicalHubBlock", () => {
-    it("returns the canonical hub block attestation for a known hub block hash", async () => {
-      const blockHash =
-        "0x1111111111111111111111111111111111111111111111111111111111111111";
-      const stateRoot =
-        "0x2222222222222222222222222222222222222222222222222222222222222222";
-      const mockedHubRpc = {
-        readContract: jest.fn(),
-        getBlock: jest.fn<any>().mockResolvedValue({
-          hash: blockHash,
-          number: 123n,
-          stateRoot,
-        }),
-      };
+  describe("attestWithdrawRequest", () => {
+    const withdrawRequestInput = {
+      chainId: "ethereum",
+      depository: depositoryAddress,
+      currency: "0x1111111111111111111111111111111111111111",
+      amount: "1000",
+      spenderChainId: "ethereum",
+      spender: owner,
+      receiver: "0xf70da97812cb96acdf810712aa562db8dfa3dbef",
+      nonce: "0x0000000000000000000000000000000000000000000000000000000000000001",
+    };
 
+    it("returns included=true when the allocator has a payload for the withdrawal request", async () => {
+      const mockedHubRpc = {
+        readContract: jest.fn<any>().mockResolvedValue("0x1234"),
+      };
       jest.mocked(getHubHttpRpc).mockResolvedValueOnce(mockedHubRpc as any);
 
-      const result = await service.attestCanonicalHubBlock({ blockHash });
+      const result = await service.attestWithdrawRequest(
+        withdrawRequestInput,
+      );
 
-      expect(mockedHubRpc.getBlock).toHaveBeenCalledWith({ blockHash });
+      const withdrawRequest = normalizeWithdrawRequest({
+        ...withdrawRequestInput,
+        vmType: "ethereum-vm",
+        spenderVmType: "ethereum-vm",
+      });
+      const withdrawRequestHash = getWithdrawRequestHash(withdrawRequest);
+
       expect(result).toEqual({
         chainId: 1,
-        blockNumber: 123n,
-        blockHash,
-        stateRoot,
+        allocator: "0x0000000000000000000000000000000000000005",
+        withdrawRequestHash,
+        included: true,
       });
     });
 
-    it("throws when the hub block hash is not canonical", async () => {
-      const blockHash =
-        "0x3333333333333333333333333333333333333333333333333333333333333333";
+    it("returns included=false when the allocator payload is empty", async () => {
       const mockedHubRpc = {
-        readContract: jest.fn(),
-        getBlock: jest.fn<any>().mockRejectedValue(new Error("not found")),
+        readContract: jest.fn<any>().mockResolvedValue("0x"),
       };
-
       jest.mocked(getHubHttpRpc).mockResolvedValueOnce(mockedHubRpc as any);
 
-      await expect(
-        service.attestCanonicalHubBlock({ blockHash }),
-      ).rejects.toThrow("Hub block not found on the canonical chain");
+      const result = await service.attestWithdrawRequest(
+        withdrawRequestInput,
+      );
+
+      expect(result.included).toBe(false);
     });
   });
 

@@ -114,45 +114,45 @@ export const signPayloadParams = async (m: SubmitWithdrawRequest) => {
   };
 };
 
-export const signCanonicalHubBlockMessage = async (m: {
+export const signWithdrawRequestMessage = async (m: {
   chainId: number;
-  blockNumber: bigint;
-  blockHash: string;
-  stateRoot: string;
+  allocator: string;
+  withdrawRequestHash: string;
+  included: boolean;
 }) => {
   const wallet = await getSigningWallet();
 
   const signature = await wallet.signTypedData({
     domain: {
       chainId: BigInt(m.chainId),
-      name: "CanonicalHubBlock",
+      name: "WithdrawRequest",
       verifyingContract: zeroAddress,
       version: "1",
     },
     message: {
       chainId: BigInt(m.chainId),
-      blockNumber: m.blockNumber,
-      blockHash: m.blockHash as Hex,
-      stateRoot: m.stateRoot as Hex,
+      allocator: m.allocator as Address,
+      withdrawRequestHash: m.withdrawRequestHash as Hex,
+      included: m.included,
     },
-    primaryType: "CanonicalHubBlock",
+    primaryType: "WithdrawRequest",
     types: {
-      CanonicalHubBlock: [
+      WithdrawRequest: [
         {
           name: "chainId",
           type: "uint256",
         },
         {
-          name: "blockNumber",
-          type: "uint256",
+          name: "allocator",
+          type: "address",
         },
         {
-          name: "blockHash",
+          name: "withdrawRequestHash",
           type: "bytes32",
         },
         {
-          name: "stateRoot",
-          type: "bytes32",
+          name: "included",
+          type: "bool",
         },
       ],
     },
