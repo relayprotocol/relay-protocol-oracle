@@ -1,8 +1,16 @@
-import { createPublicClient, http } from "viem";
+import { createPublicClient, http, PublicClient } from "viem";
 
 import { getChain } from "../../chains";
 
-export const httpRpc = async (chainId: string) => {
+// Cache is keyed by chainId. Chain config is loaded once at startup
+// (chains.ts `_chains` is never invalidated), so cached clients never go
+// stale within a pod's lifetime; pod restart is the invalidation path.
+const __cache = new Map<string, PublicClient>();
+
+export const httpRpc = async (chainId: string): Promise<PublicClient> => {
+  let client = __cache.get(chainId);
+  if (client) return client;
+
   const chain = await getChain(chainId);
 
   let url = chain.httpRpcUrl;
@@ -25,7 +33,7 @@ export const httpRpc = async (chainId: string) => {
     }
   }
 
-  return createPublicClient({
+  client = createPublicClient({
     chain: {
       // We only need to `rpcUrls`, but viem makes all the other ones mandatory
       id: 0,
@@ -60,4 +68,10 @@ export const httpRpc = async (chainId: string) => {
         : undefined,
     ),
   });
+  __cache.set(chainId, client);
+  return client;
 };
+
+// Test-only hooks
+export const __resetCache = () => __cache.clear();
+export const __getCacheSize = () => __cache.size;
