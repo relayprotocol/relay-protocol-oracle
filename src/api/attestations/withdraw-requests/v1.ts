@@ -35,6 +35,11 @@ const Schema = {
     nonce: Type.String({
       description: "Nonce for replay protection",
     }),
+    hashIndexes: Type.Array(Type.Integer({ minimum: 0 }), {
+      minItems: 1,
+      description:
+        "The hashesToSign indexes to load from the allocator for this withdrawal request",
+    }),
     requestPeerSignatures: Type.Optional(
       Type.Boolean({
         description:
@@ -56,9 +61,10 @@ const Schema = {
           withdrawRequestHash: Type.String({
             description: "The withdrawal request hash checked in the allocator",
           }),
-          included: Type.Boolean({
+          hashesToSign: Type.Array(Type.String(), {
+            minItems: 1,
             description:
-              "Whether the withdrawal request has a non-empty allocator payload",
+              "The non-zero hashesToSign values loaded from the allocator for the requested indexes",
           }),
           signatures: Type.Array(
             Type.Object({
@@ -84,7 +90,7 @@ type WithdrawRequestMessage = {
   chainId: number;
   allocator: string;
   withdrawRequestHash: string;
-  included: boolean;
+  hashesToSign: string[];
 };
 
 const areWithdrawRequestsEqual = (
@@ -99,7 +105,8 @@ const areWithdrawRequestsEqual = (
     msg1.chainId === msg2.chainId &&
     msg1.allocator === msg2.allocator &&
     msg1.withdrawRequestHash === msg2.withdrawRequestHash &&
-    msg1.included === msg2.included
+    msg1.hashesToSign.length === msg2.hashesToSign.length &&
+    msg1.hashesToSign.every((hash, i) => hash === msg2.hashesToSign[i])
   );
 };
 
@@ -122,6 +129,7 @@ export default {
         spender: req.body.spender,
         receiver: req.body.receiver,
         nonce: req.body.nonce,
+        hashIndexes: req.body.hashIndexes,
       },
     );
 

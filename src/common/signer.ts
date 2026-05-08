@@ -118,7 +118,7 @@ export const signWithdrawRequestMessage = async (m: {
   chainId: number;
   allocator: string;
   withdrawRequestHash: string;
-  included: boolean;
+  hashesToSign: string[];
 }) => {
   const wallet = await getSigningWallet();
 
@@ -133,7 +133,7 @@ export const signWithdrawRequestMessage = async (m: {
       chainId: BigInt(m.chainId),
       allocator: m.allocator as Address,
       withdrawRequestHash: m.withdrawRequestHash as Hex,
-      included: m.included,
+      hashesToSign: m.hashesToSign as Hex[],
     },
     primaryType: "WithdrawRequest",
     types: {
@@ -151,8 +151,8 @@ export const signWithdrawRequestMessage = async (m: {
           type: "bytes32",
         },
         {
-          name: "included",
-          type: "bool",
+          name: "hashesToSign",
+          type: "bytes32[]",
         },
       ],
     },

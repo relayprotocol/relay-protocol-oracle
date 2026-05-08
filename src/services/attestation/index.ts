@@ -807,12 +807,12 @@ export class AttestationService {
   }
 
   public async attestWithdrawRequest(
-    data: DenormalizedWithdrawRequest,
+    data: DenormalizedWithdrawRequest & { hashIndexes: number[] },
   ): Promise<{
     chainId: number;
     allocator: string;
     withdrawRequestHash: string;
-    included: boolean;
+    hashesToSign: string[];
   }> {
     const hubInfo = await getHubInfo();
     const withdrawRequest = normalizeWithdrawRequest({
@@ -825,17 +825,30 @@ export class AttestationService {
     const allocator = getContract({
       address: hubInfo.allocatorAddress as Address,
       abi: parseAbi([
-        "function payloads(bytes32 withdrawRequestHash) view returns (bytes unsignedPayload)",
+        "function hashesToSign(bytes32 withdrawRequestHash, uint256 index) view returns (bytes32)",
       ]),
       client: await getHubHttpRpc(),
     });
-    const payload = await allocator.read.payloads([withdrawRequestHash as Hex]);
+    const hashesToSign = await Promise.all(
+      data.hashIndexes.map(async (hashIndex) => {
+        const hashToSign = await allocator.read.hashesToSign([
+          withdrawRequestHash as Hex,
+          BigInt(hashIndex),
+        ]);
+        if (hashToSign === zeroHash) {
+          throw externalError(
+            `Hash to sign not set for withdraw request at index ${hashIndex}`,
+          );
+        }
+        return hashToSign;
+      }),
+    );
 
     return {
       chainId: Number(hubInfo.evmChainId),
       allocator: hubInfo.allocatorAddress,
       withdrawRequestHash,
-      included: payload !== "0x",
+      hashesToSign,
     };
   }
 

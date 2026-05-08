@@ -820,11 +820,19 @@ describe("AttestationService", () => {
       spender: owner,
       receiver: "0xf70da97812cb96acdf810712aa562db8dfa3dbef",
       nonce: "0x0000000000000000000000000000000000000000000000000000000000000001",
+      hashIndexes: [0, 1],
     };
 
-    it("returns included=true when the allocator has a payload for the withdrawal request", async () => {
+    it("returns requested hashesToSign when all requested hashes are set", async () => {
+      const hashesToSign = [
+        "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "0x2222222222222222222222222222222222222222222222222222222222222222",
+      ];
       const mockedHubRpc = {
-        readContract: jest.fn<any>().mockResolvedValue("0x1234"),
+        readContract: jest
+          .fn<any>()
+          .mockResolvedValueOnce(hashesToSign[0])
+          .mockResolvedValueOnce(hashesToSign[1]),
       };
       jest.mocked(getHubHttpRpc).mockResolvedValueOnce(mockedHubRpc as any);
 
@@ -843,21 +851,19 @@ describe("AttestationService", () => {
         chainId: 1,
         allocator: "0x0000000000000000000000000000000000000005",
         withdrawRequestHash,
-        included: true,
+        hashesToSign,
       });
     });
 
-    it("returns included=false when the allocator payload is empty", async () => {
+    it("throws when any requested hashToSign is unset", async () => {
       const mockedHubRpc = {
-        readContract: jest.fn<any>().mockResolvedValue("0x"),
+        readContract: jest.fn<any>().mockResolvedValueOnce(zeroHash),
       };
       jest.mocked(getHubHttpRpc).mockResolvedValueOnce(mockedHubRpc as any);
 
-      const result = await service.attestWithdrawRequest(
-        withdrawRequestInput,
-      );
-
-      expect(result.included).toBe(false);
+      await expect(
+        service.attestWithdrawRequest(withdrawRequestInput),
+      ).rejects.toThrow("Hash to sign not set for withdraw request at index 0");
     });
   });
 
