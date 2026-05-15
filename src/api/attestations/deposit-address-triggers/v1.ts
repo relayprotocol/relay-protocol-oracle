@@ -66,8 +66,8 @@ const Schema = {
           description:
             "Opaque, VM-specific encoding of the refund recipient on the source chain",
         }),
-        slippageBps: Type.String({
-          description: "Maximum allowed output slippage, in basis points",
+        priceImpactBps: Type.String({
+          description: "Maximum allowed price impact, in basis points",
         }),
       },
       {
