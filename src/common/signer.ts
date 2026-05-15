@@ -114,6 +114,56 @@ export const signPayloadParams = async (m: SubmitWithdrawRequest) => {
   };
 };
 
+export const signDepositAddressTriggerMessage = async (m: {
+  chainId: string;
+  depositAddressManager: string;
+  inputDepository: string;
+  triggerHash: string;
+}) => {
+  const wallet = await getSigningWallet();
+
+  const signature = await wallet.signTypedData({
+    domain: {
+      chainId: BigInt(m.chainId),
+      name: "Trigger",
+      verifyingContract: zeroAddress,
+      version: "1",
+    },
+    message: {
+      chainId: BigInt(m.chainId),
+      depositAddressManager: m.depositAddressManager as Address,
+      inputDepository: m.inputDepository as Hex,
+      triggerHash: m.triggerHash as Hex,
+    },
+    primaryType: "Trigger",
+    types: {
+      Trigger: [
+        {
+          name: "chainId",
+          type: "uint256",
+        },
+        {
+          name: "depositAddressManager",
+          type: "address",
+        },
+        {
+          name: "inputDepository",
+          type: "bytes",
+        },
+        {
+          name: "triggerHash",
+          type: "bytes32",
+        },
+      ],
+    },
+  });
+
+  return {
+    oracleSigner: wallet.address.toLowerCase(),
+    signature,
+  };
+};
+
 export const signWithdrawRequestMessage = async (m: {
   chainId: number;
   allocator: string;

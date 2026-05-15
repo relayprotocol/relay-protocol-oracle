@@ -119,8 +119,8 @@ export default {
     reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
     const chain = await getChain(req.body.chainId);
-    const withdrawRequest = await new AttestationService().attestWithdrawRequest(
-      {
+    const withdrawRequest =
+      await new AttestationService().attestWithdrawRequest({
         chainId: req.body.chainId,
         depository: chain.depository!,
         currency: req.body.currency,
@@ -130,8 +130,7 @@ export default {
         receiver: req.body.receiver,
         nonce: req.body.nonce,
         hashIndexes: req.body.hashIndexes,
-      },
-    );
+      });
 
     const peerSignatures =
       req.body.requestPeerSignatures && config.peers

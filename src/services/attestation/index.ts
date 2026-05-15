@@ -31,6 +31,9 @@ import {
   DenormalizedWithdrawRequest,
   normalizeWithdrawRequest,
   WithdrawRequest,
+  DepositAddressTrigger,
+  getDepositAddressTriggerHash,
+  encodeAddress,
 } from "@relay-protocol/settlement-sdk";
 import * as bitcoin from "bitcoinjs-lib";
 import TronWeb from "tronweb";
@@ -684,6 +687,53 @@ export class AttestationService {
         depositoryDeposits,
         type: "refund",
       }),
+    };
+  }
+
+  public async attestDepositAddressTrigger(
+    data: DepositAddressTrigger,
+  ): Promise<{
+    chainId: string;
+    depositAddressManager: string;
+    inputDepository: string;
+    triggerHash: string;
+  }> {
+    const hubInfo = await getHubInfo();
+    if (!hubInfo.depositAddressManagerAddress) {
+      throw externalError("Missing deposit address manager config");
+    }
+
+    const inputChain = await getChain(data.input.chainId);
+    if (!inputChain?.depository) {
+      throw externalError(
+        `Missing depository for input chain ${data.input.chainId}`,
+      );
+    }
+    const inputDepository = `0x${Buffer.from(
+      encodeAddress(inputChain.depository, inputChain.vmType),
+    ).toString("hex")}`;
+
+    const triggerHash = getDepositAddressTriggerHash(data);
+
+    const depositAddressManager = getContract({
+      address: hubInfo.depositAddressManagerAddress as Address,
+      abi: parseAbi([
+        "function triggers(bytes32 triggerHash) view returns (bytes32)",
+      ]),
+      client: await getHubHttpRpc(),
+    });
+    const triggeredOrderId = await depositAddressManager.read.triggers([
+      triggerHash as Hex,
+    ]);
+    if (triggeredOrderId !== data.orderId) {
+      throw externalError("Trigger hash does not map to the provided order id");
+    }
+
+    return {
+      chainId: hubInfo.evmChainId,
+      depositAddressManager: hubInfo.depositAddressManagerAddress,
+      inputDepository,
+      triggerHash,
     };
   }
 

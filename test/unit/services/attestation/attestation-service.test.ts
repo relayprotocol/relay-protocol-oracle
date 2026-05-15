@@ -31,6 +31,7 @@ import {
   normalizeWithdrawRequest,
   SolverFillStatus,
   SolverRefundStatus,
+  getDepositAddressTriggerHash,
 } from "@relay-protocol/settlement-sdk";
 
 import {
@@ -114,6 +115,8 @@ jest.mock("../../../../src/common/chains", () => {
       oracleMultisigAddress: "0x0000000000000000000000000000000000000003",
       genericMappingAddress: "0x0000000000000000000000000000000000000004",
       allocatorAddress: "0x0000000000000000000000000000000000000005",
+      depositAddressManagerAddress:
+        "0x0000000000000000000000000000000000000008",
       auroraHttpRpcUrl: "http://localhost:8545",
       auroraEvmChainId: "1313161554",
       auroraAllocatorAddress: "0x0000000000000000000000000000000000000005",
@@ -865,6 +868,95 @@ describe("AttestationService", () => {
         service.attestWithdrawRequest(withdrawRequestInput),
       ).rejects.toThrow("Hash to sign not set for withdraw request at index 0");
     });
+  });
+
+  describe("attestDepositAddressTrigger", () => {
+    const triggerInput = {
+      input: {
+        vmType: "ethereum-vm",
+        chainId: "ethereum",
+        currency: "0x1111111111111111111111111111111111111111",
+        amount: "1000",
+      },
+      derivationFields: {
+        inputVmType: "ethereum-vm",
+        outputVmType: "ethereum-vm",
+        outputChainId: "ethereum",
+        outputCurrency: "0x3333333333333333333333333333333333333333",
+        outputRecipient: "0x2222222222222222222222222222222222222222",
+        solver: "0x1234567890123456789012345678901234567890",
+        pricingOracle: "0x4444444444444444444444444444444444444444",
+        depositor: "0x5555555555555555555555555555555555555555",
+        refundRecipient: "0x6666666666666666666666666666666666666666",
+        slippageBps: "50",
+      },
+      orderId:
+        "0x1234567890123456789012345678901234567890123456789012345678901234",
+      nonce: "7",
+      currencies: [
+        {
+          chainId: "ethereum",
+          currency: "0x1111111111111111111111111111111111111111",
+        },
+        {
+          chainId: "ethereum",
+          currency: "0x3333333333333333333333333333333333333333",
+        },
+      ],
+      prices: [
+        {
+          usdPrice: "123456",
+          usdPriceDecimals: 8,
+          currencyDecimals: 18,
+          expiration: "2000000000",
+        },
+        {
+          usdPrice: "789012",
+          usdPriceDecimals: 8,
+          currencyDecimals: 6,
+          expiration: "2000000000",
+        },
+      ],
+      extraData: "0x1234",
+    };
+
+    it("returns the SDK trigger hash after verifying it maps to the provided order id on-chain", async () => {
+      const expectedTriggerHash = getDepositAddressTriggerHash(triggerInput);
+      const mockedHubRpc = {
+        readContract: jest
+          .fn<any>()
+          .mockResolvedValueOnce(triggerInput.orderId),
+      };
+      jest.mocked(getHubHttpRpc).mockResolvedValueOnce(mockedHubRpc as any);
+
+      const result = await service.attestDepositAddressTrigger(triggerInput);
+
+      expect(result).toEqual({
+        chainId: "1",
+        depositAddressManager: "0x0000000000000000000000000000000000000008",
+        inputDepository: depositoryAddress,
+        triggerHash: expectedTriggerHash,
+      });
+      expect(mockedHubRpc.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: "0x0000000000000000000000000000000000000008",
+          functionName: "triggers",
+          args: [expectedTriggerHash],
+        }),
+      );
+    });
+
+    it("throws when the on-chain trigger hash does not map to the provided order id", async () => {
+      const mockedHubRpc = {
+        readContract: jest.fn<any>().mockResolvedValueOnce(zeroHash),
+      };
+      jest.mocked(getHubHttpRpc).mockResolvedValueOnce(mockedHubRpc as any);
+
+      await expect(
+        service.attestDepositAddressTrigger(triggerInput),
+      ).rejects.toThrow("Trigger hash does not map to the provided order id");
+    });
+
   });
 
   describe("attestSolverFill", () => {

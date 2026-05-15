@@ -1488,10 +1488,10 @@
   resolved "https://registry.yarnpkg.com/@relay-protocol/settlement-networks/-/settlement-networks-3.0.0.tgz#3fbaaf48b6874bfce6ed6c07ac5ff05bb9238cc7"
   integrity sha512-MpIShZKVLhqrAEHmPw1Osa41ewENwa8FNT3tq62ZyoZzt4K3wRvisquf9aNimKnHo0jxLs0JHhU6BDmiEVhVNQ==
 
-"@relay-protocol/settlement-sdk@0.0.97":
-  version "0.0.97"
-  resolved "https://registry.yarnpkg.com/@relay-protocol/settlement-sdk/-/settlement-sdk-0.0.97.tgz#c833541c3d0d7313f1a5cba716231159a14c966f"
-  integrity sha512-j2aRFfJGkU+VhIB8yhmv401Xf/lOWf6aJpOb83FcJJOlvtYo9DGRG6xYVFU6MXh2vHtSwsWqDz6PBh3gtL73AA==
+"@relay-protocol/settlement-sdk@0.0.99":
+  version "0.0.99"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/settlement-sdk/-/settlement-sdk-0.0.99.tgz#8cda71ab4f4a747594a3caed0e97b2eeb669daca"
+  integrity sha512-EQP4Jt2/QDyXQewzl6cb+ooBPwx7CPL8FFXN+/54/B9phItI2AkMmw+w4IGY+GEFqSU6iRBVLRRa6eEjCx2Kew==
   dependencies:
     "@coral-xyz/anchor" "^0.31.1"
     "@mysten/sui" "^1.24.0"

@@ -90,6 +90,119 @@ export const errorWrapper = (
 // This creates a custom type that tells TypeScript to expect bigint while serializing as string
 export const BigIntString = Type.Unsafe<bigint>({ type: "string" });
 
+export const orderSchema = Type.Object(
+  {
+    version: Type.Literal("v1", {
+      description: "The order schema version",
+    }),
+    solverChainId: Type.String({
+      description: "The chain id of the solver address",
+    }),
+    solver: Type.String({
+      description: "The solver address that signed the order",
+    }),
+    salt: Type.String({
+      description: "Order salt used to make the order id unique",
+    }),
+    inputs: Type.Array(
+      Type.Object({
+        payment: Type.Object({
+          chainId: Type.String({
+            description: "The chain id where the input payment is deposited",
+          }),
+          currency: Type.String({
+            description: "The input payment currency",
+          }),
+          amount: Type.String({
+            description: "The expected input payment amount",
+          }),
+          weight: Type.String({
+            description: "The input payment weight used for amount accounting",
+          }),
+        }),
+        refunds: Type.Array(
+          Type.Object({
+            chainId: Type.String({
+              description: "The chain id where this refund may be paid",
+            }),
+            recipient: Type.String({
+              description: "The refund recipient",
+            }),
+            currency: Type.String({
+              description: "The refund currency",
+            }),
+            minimumAmount: Type.String({
+              description: "The minimum acceptable refund amount",
+            }),
+            deadline: Type.Number({
+              description: "The refund payment deadline as a Unix timestamp",
+            }),
+            extraData: Type.String({
+              description: "VM-specific extra data for the refund payment",
+            }),
+          }),
+          { description: "Possible refunds for this input payment" },
+        ),
+      }),
+      { description: "Input payments required by the order" },
+    ),
+    output: Type.Object({
+      chainId: Type.String({
+        description: "The chain id where the solver output is paid",
+      }),
+      payments: Type.Array(
+        Type.Object({
+          recipient: Type.String({
+            description: "The output payment recipient",
+          }),
+          currency: Type.String({
+            description: "The output payment currency",
+          }),
+          minimumAmount: Type.String({
+            description: "The minimum acceptable output payment amount",
+          }),
+          expectedAmount: Type.String({
+            description: "The expected output payment amount",
+          }),
+        }),
+        { description: "Output payments the solver must make" },
+      ),
+      calls: Type.Array(Type.String({ description: "Encoded call data" }), {
+        description: "Calls the solver must execute on the output chain",
+      }),
+      deadline: Type.Number({
+        description: "The output payment deadline as a Unix timestamp",
+      }),
+      extraData: Type.String({
+        description: "VM-specific extra data for the output payment",
+      }),
+    }),
+    fees: Type.Array(
+      Type.Object({
+        recipientChainId: Type.String({
+          description: "The chain id of the fee recipient",
+        }),
+        recipient: Type.String({
+          description: "The fee recipient",
+        }),
+        currencyChainId: Type.String({
+          description: "The chain id of the fee currency",
+        }),
+        currency: Type.String({
+          description: "The fee currency",
+        }),
+        amount: Type.String({
+          description: "The fee amount",
+        }),
+      }),
+      { description: "Fees associated with the order" },
+    ),
+  },
+  {
+    description: "The order data",
+  },
+);
+
 export const executionMessageSignatureSchema = Type.Object({
   oracleChainId: BigIntString,
   oracleContract: Type.String({

@@ -8,6 +8,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
   getPeerResponses,
+  orderSchema,
 } from "../../utils";
 import { signExecutionMessage } from "../../../common/signer";
 import { config } from "../../../config";
@@ -24,63 +25,7 @@ const Schema = {
     onchainId: Type.String({
       description: "The onchain id of the specific deposit to recover",
     }),
-    order: Type.Optional(
-      Type.Object(
-        {
-          version: Type.Literal("v1"),
-          solverChainId: Type.String(),
-          solver: Type.String(),
-          salt: Type.String(),
-          inputs: Type.Array(
-            Type.Object({
-              payment: Type.Object({
-                chainId: Type.String(),
-                currency: Type.String(),
-                amount: Type.String(),
-                weight: Type.String(),
-              }),
-              refunds: Type.Array(
-                Type.Object({
-                  chainId: Type.String(),
-                  recipient: Type.String(),
-                  currency: Type.String(),
-                  minimumAmount: Type.String(),
-                  deadline: Type.Number(),
-                  extraData: Type.String(),
-                }),
-              ),
-            }),
-          ),
-          output: Type.Object({
-            chainId: Type.String(),
-            payments: Type.Array(
-              Type.Object({
-                recipient: Type.String(),
-                currency: Type.String(),
-                minimumAmount: Type.String(),
-                expectedAmount: Type.String(),
-              }),
-            ),
-            calls: Type.Array(Type.String()),
-            deadline: Type.Number(),
-            extraData: Type.String(),
-          }),
-          fees: Type.Array(
-            Type.Object({
-              recipientChainId: Type.String(),
-              recipient: Type.String(),
-              currencyChainId: Type.String(),
-              currency: Type.String(),
-              amount: Type.String(),
-            }),
-          ),
-        },
-        {
-          description:
-            "The order data (required for deposits less than 7 days old)",
-        },
-      ),
-    ),
+    order: Type.Optional(orderSchema),
     orderSignature: Type.Optional(
       Type.String({
         description:
