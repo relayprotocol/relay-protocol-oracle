@@ -902,6 +902,61 @@ export class AttestationService {
     };
   }
 
+  // Shared validation: order matches on-chain deposit + solver signed it +
+  // solver declared no-fill-or-refund on hub. Used by attestRecover (≤7d path)
+  // and recoverMode-based withdrawal initiation (slow refund).
+  public async validateOrderForDeposit(params: {
+    deposit: DepositoryDepositMessage;
+    order: Order;
+    orderSignature: string;
+  }): Promise<{ orderId: string }> {
+    const orderId = getOrderId(params.order, await getSdkChainsConfig());
+    if (params.deposit.result.depositId !== orderId) {
+      throw externalError(
+        "Deposit depositId does not match the computed orderId",
+      );
+    }
+
+    const isSignatureValid = await verifyMessage({
+      address: params.order.solver as Address,
+      message: { raw: orderId },
+      signature: params.orderSignature as Hex,
+    }).catch(() => false);
+    if (!isSignatureValid) {
+      throw externalError("Invalid order signature");
+    }
+
+    const solverAlias = generateAddress({
+      address: params.order.solver,
+      chainId: params.order.solverChainId,
+      family: await getChainVmType(params.order.solverChainId),
+    });
+
+    const noFillOrRefundMessage = getNoFillOrRefundMessage(
+      solverAlias,
+      orderId,
+    );
+
+    const hubInfo = await getHubInfo();
+    const genericMappingContract = getContract({
+      address: hubInfo.genericMappingAddress as Address,
+      abi: parseAbi([
+        "function getEntry(address user, bytes32 id) view returns (bytes data, uint256 createdAt)",
+      ]),
+      client: await getHubHttpRpc(),
+    });
+
+    const [, createdAt] = await genericMappingContract.read.getEntry([
+      noFillOrRefundMessage.user as Address,
+      noFillOrRefundMessage.id as Hex,
+    ]);
+    if (createdAt === 0n) {
+      throw externalError("No fill or refund entry not found for this order");
+    }
+
+    return { orderId };
+  }
+
   public async attestRecover(data: {
     chainId: string;
     transactionId: string;
@@ -971,53 +1026,11 @@ export class AttestationService {
         );
       }
 
-      // Compute orderId and verify it matches the deposit
-      const orderId = getOrderId(data.order, await getSdkChainsConfig());
-      if (deposit.result.depositId !== orderId) {
-        throw externalError(
-          "Deposit depositId does not match the computed orderId",
-        );
-      }
-
-      // Verify order signature
-      const isSignatureValid = await verifyMessage({
-        address: data.order.solver as Address,
-        message: { raw: orderId },
-        signature: data.orderSignature as Hex,
-      }).catch(() => false);
-      if (!isSignatureValid) {
-        throw externalError("Invalid order signature");
-      }
-
-      // Derive solver hub alias
-      const solverAlias = generateAddress({
-        address: data.order.solver,
-        chainId: data.order.solverChainId,
-        family: await getChainVmType(data.order.solverChainId),
+      await this.validateOrderForDeposit({
+        deposit,
+        order: data.order,
+        orderSignature: data.orderSignature,
       });
-
-      // Check no_fill_or_refund on hub generic mapping contract
-      const noFillOrRefundMessage = getNoFillOrRefundMessage(
-        solverAlias,
-        orderId,
-      );
-
-      const hubInfo = await getHubInfo();
-      const genericMappingContract = getContract({
-        address: hubInfo.genericMappingAddress as Address,
-        abi: parseAbi([
-          "function getEntry(address user, bytes32 id) view returns (bytes data, uint256 createdAt)",
-        ]),
-        client: await getHubHttpRpc(),
-      });
-
-      const [, createdAt] = await genericMappingContract.read.getEntry([
-        noFillOrRefundMessage.user as Address,
-        noFillOrRefundMessage.id as Hex,
-      ]);
-      if (createdAt === 0n) {
-        throw externalError("No fill or refund entry not found for this order");
-      }
     }
 
     // Sign TRANSFER from order address to depositor alias

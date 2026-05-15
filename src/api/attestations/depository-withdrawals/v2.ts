@@ -11,6 +11,12 @@ import {
   getPeerResponses,
 } from "../../utils";
 import { getChain } from "../../../common/chains";
+import { externalError } from "../../../common/error";
+import { logger } from "../../../common/logger";
+import {
+  recoverModeSchemaFields,
+  validateRecoverMode,
+} from "../../../common/recover-mode-verification";
 import { signExecutionMessage } from "../../../common/signer";
 import { verifyWithdrawalSignature } from "../../../common/signature-verification";
 import { config } from "../../../config";
@@ -32,9 +38,7 @@ const MessageData = Type.Object({
   owner: Type.String({
     description: "The owner of the funds",
   }),
-  ownerSignature: Type.String({
-    description: "Owner signature authorizing the withdrawal",
-  }),
+  ...recoverModeSchemaFields,
   recipient: Type.String({
     description: "The withdrawal recipient",
   }),
@@ -110,15 +114,43 @@ export default {
     req: FastifyRequestTypeBox<typeof Schema>,
     reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
-    // Ensure the owner authorized the withdrawal
-    await verifyWithdrawalSignature({
-      data: req.body,
-      signature: req.body.ownerSignature,
-    });
+    const isRecoverMode = req.body.recoverMode === true;
+    const attestationService = new AttestationService();
+
+    if (isRecoverMode) {
+      // Slow refund: skip user signature, validate the order against the
+      // on-chain deposit + solver's no-fill-or-refund declaration instead.
+      await validateRecoverMode({
+        attestationService,
+        ...req.body,
+      });
+      // Audit log — recoverMode bypasses user signature; every accepted
+      // invocation must be observable.
+      logger.info(
+        "recover-mode-verification",
+        JSON.stringify({
+          msg: "recoverMode attestation accepted",
+          endpoint: "depository-withdrawals/v2",
+          depositChainId: req.body.depositChainId,
+          depositTransactionId: req.body.depositTransactionId,
+          depositOnchainId: req.body.depositOnchainId,
+          owner: req.body.owner,
+          recipient: req.body.recipient,
+          chainId: req.body.chainId,
+        }),
+      );
+    } else {
+      if (!req.body.ownerSignature) {
+        throw externalError("ownerSignature is required");
+      }
+      await verifyWithdrawalSignature({
+        data: req.body,
+        signature: req.body.ownerSignature,
+      });
+    }
 
     const chain = await getChain(req.body.chainId);
 
-    const attestationService = new AttestationService();
     const { status, execution } =
       await attestationService.attestDepositoryWithdrawalV2({
         chainId: req.body.chainId,
