@@ -16,7 +16,6 @@ const Schema = {
               Type.Literal("hyperliquid-vm"),
               Type.Literal("lighter-vm"),
               Type.Literal("solana-vm"),
-              Type.Literal("sui-vm"),
               Type.Literal("ton-vm"),
               Type.Literal("tron-vm"),
             ],
@@ -47,11 +46,13 @@ export default {
     const chains = await getChains();
 
     return reply.send({
-      chains: Object.values(chains).map((chain) => ({
-        id: chain.id,
-        vmType: chain.vmType,
-        depository: chain.depository,
-      })),
+      chains: Object.values(chains)
+        .filter((chain) => chain.vmType !== ("sui-vm" as typeof chain.vmType))
+        .map((chain) => ({
+          id: chain.id,
+          vmType: chain.vmType as Exclude<typeof chain.vmType, "sui-vm">,
+          depository: chain.depository,
+        })),
     });
   },
 } as Endpoint;

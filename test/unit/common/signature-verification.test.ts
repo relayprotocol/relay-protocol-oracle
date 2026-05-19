@@ -13,7 +13,6 @@ import * as bitcoin from "bitcoinjs-lib";
 const { payments, Transaction, script, opcodes, networks, initEccLib } =
   bitcoin;
 import * as bitcoinMessage from "bitcoinjs-message";
-import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import * as tronweb from "tronweb";
 
 import { Chain } from "../../../src/common/chains";
@@ -416,11 +415,6 @@ beforeAll(() => {
     id: "bitcoin-mainnet",
     vmType: "bitcoin-vm",
     httpRpcUrl: "http://localhost:8332",
-  };
-  mockChains["sui-mainnet"] = {
-    id: "sui-mainnet",
-    vmType: "sui-vm",
-    httpRpcUrl: "http://localhost:9000",
   };
   mockChains["tron-mainnet"] = {
     id: "tron-mainnet",
@@ -1003,54 +997,6 @@ describe("verifyWithdrawalSignature", () => {
           signature: "0x",
         }),
       ).rejects.toThrow();
-    });
-  });
-
-  describe("Sui signPersonalMessage", () => {
-    it("should pass with valid Sui personal message signature", async () => {
-      const suiKeypair = Ed25519Keypair.generate();
-      const suiOwner = suiKeypair.toSuiAddress();
-      const data = {
-        ...baseData,
-        ownerChainId: "sui-mainnet",
-        owner: suiOwner,
-      };
-
-      const digestBytes = Buffer.from(computeDigest(data), "utf-8");
-      const { signature: sigBase64 } =
-        await suiKeypair.signPersonalMessage(digestBytes);
-
-      // Convert base64 → hex (our wire format)
-      const sigHex = "0x" + Buffer.from(sigBase64, "base64").toString("hex");
-
-      await expect(
-        verifyWithdrawalSignature({
-          data,
-          signature: sigHex,
-        }),
-      ).resolves.toBeUndefined();
-    });
-
-    it("should throw with wrong Sui signer", async () => {
-      const signerKeypair = Ed25519Keypair.generate();
-      const otherKeypair = Ed25519Keypair.generate();
-      const data = {
-        ...baseData,
-        ownerChainId: "sui-mainnet",
-        owner: otherKeypair.toSuiAddress(), // different address
-      };
-
-      const digestBytes = Buffer.from(computeDigest(data), "utf-8");
-      const { signature: sigBase64 } =
-        await signerKeypair.signPersonalMessage(digestBytes);
-      const sigHex = "0x" + Buffer.from(sigBase64, "base64").toString("hex");
-
-      await expect(
-        verifyWithdrawalSignature({
-          data,
-          signature: sigHex,
-        }),
-      ).rejects.toThrow("Invalid signature");
     });
   });
 

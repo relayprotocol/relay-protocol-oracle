@@ -3,8 +3,6 @@ import stringify from "json-stable-stringify";
 import bs58 from "bs58";
 import { ed25519 } from "@noble/curves/ed25519";
 import { Verifier as Bip322Verifier } from "bip322-js";
-import { verifyPersonalMessageSignature } from "@mysten/sui/verify";
-import { SuiClient } from "@mysten/sui/client";
 import { Address, Hex, keccak256, recoverAddress, verifyMessage } from "viem";
 
 import { getChain } from "./chains";
@@ -46,9 +44,6 @@ export const verifyWithdrawalSignature = async ({
 
     case "bitcoin-vm":
       return verifyBitcoinMessage(data, signature);
-
-    case "sui-vm":
-      return verifySuiPersonalMessage(data, signature, ownerChain.httpRpcUrl);
 
     case "lighter-vm":
       return verifyLighterPersonalSign(data, signature);
@@ -232,36 +227,3 @@ const verifyBitcoinMessage = (
   }
 };
 
-// Sui: signPersonalMessage over SHA256 hex string (as UTF-8 bytes).
-// Raw bytes show as garbled text in wallet confirmation dialogs.
-// SuiClient is needed for ZkLogin signature verification (GraphQL proof check).
-const verifySuiPersonalMessage = async (
-  data: WithdrawalSignatureData,
-  signature: string,
-  httpRpcUrl?: string,
-) => {
-  const messageBytes = Buffer.from(computeDigest(data), "utf-8");
-
-  const sigHex = signature.startsWith("0x") ? signature.slice(2) : signature;
-  const sigBase64 = Buffer.from(sigHex, "hex").toString("base64");
-
-  const client = httpRpcUrl ? new SuiClient({ url: httpRpcUrl }) : undefined;
-
-  try {
-    const publicKey = await verifyPersonalMessageSignature(
-      messageBytes,
-      sigBase64,
-      { client },
-    );
-
-    const recoveredAddress = publicKey.toSuiAddress();
-    if (recoveredAddress !== data.owner) {
-      throw externalError("Invalid signature");
-    }
-  } catch (error: any) {
-    if (error?.message === "Invalid signature") {
-      throw error;
-    }
-    throw externalError("Invalid signature");
-  }
-};

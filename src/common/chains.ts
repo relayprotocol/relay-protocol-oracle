@@ -45,7 +45,6 @@ export const HUB_CHAIN_ID = 0n;
 const DEPOSITORY_REQUIRED_VM_TYPES = new Set<VmType>([
   "ethereum-vm",
   "solana-vm",
-  "sui-vm",
   "bitcoin-vm",
   "tron-vm",
   "hyperliquid-vm",
