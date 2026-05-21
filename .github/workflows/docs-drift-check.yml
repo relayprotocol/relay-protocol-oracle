@@ -12,9 +12,9 @@ permissions:
 
 jobs:
   docs-drift-check:
-    uses: relayprotocol/agents-config/.github/workflows/reusable-docs-drift-check.yml@main
+    uses: unevenlabs/agents-config/.github/workflows/reusable-docs-drift-check.yml@main
     with:
-      runner: blacksmith-4vcpu-ubuntu-2404
+      runner: ubuntu-latest
       is_public_repo: false
       docs_scope: "references/protocol/**"
       source_surface: |

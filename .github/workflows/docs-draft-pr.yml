@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   docs-draft-pr:
-    uses: relayprotocol/agents-config/.github/workflows/reusable-docs-draft-pr.yml@main
+    uses: unevenlabs/agents-config/.github/workflows/reusable-docs-draft-pr.yml@main
     with:
       runner: blacksmith-4vcpu-ubuntu-2404
       is_public_repo: false
