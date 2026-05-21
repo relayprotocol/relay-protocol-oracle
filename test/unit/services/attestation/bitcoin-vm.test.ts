@@ -337,6 +337,236 @@ describe("BitcoinVmAttestor", () => {
       );
     });
 
+    it("should use explicit depositor from deposit OP_RETURN metadata", async () => {
+      const transactionId = randomHex(32);
+      const depositId = randomHex(32);
+      const explicitDepositor = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
+      const depositTx = createDepositTransaction(
+        transactionId,
+        `${depositId}|depositor=${explicitDepositor}|`,
+      );
+      const inputTxid = depositTx.vin[0].txid;
+      const inputTx = createInputTransaction(inputTxid);
+
+      setupRpcMock({
+        getTransaction: async (txid: string) => {
+          if (txid === transactionId) {
+            return depositTx;
+          } else if (txid === inputTxid) {
+            return inputTx;
+          }
+          return null;
+        },
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depositId).toBe(depositId);
+      expect(messages[0].result.depositor).toBe(explicitDepositor);
+    });
+
+    it("should use explicit depositor from OP_RETURN metadata without a deposit id", async () => {
+      const transactionId = randomHex(32);
+      const explicitDepositor = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
+      const depositTx = createDepositTransaction(
+        transactionId,
+        `|depositor=${explicitDepositor}|`,
+      );
+      const inputTxid = depositTx.vin[0].txid;
+      const inputTx = createInputTransaction(inputTxid);
+
+      setupRpcMock({
+        getTransaction: async (txid: string) => {
+          if (txid === transactionId) {
+            return depositTx;
+          } else if (txid === inputTxid) {
+            return inputTx;
+          }
+          return null;
+        },
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depositId).toBe(zeroHash);
+      expect(messages[0].result.depositor).toBe(explicitDepositor);
+    });
+
+    it("should use explicit depositor when OP_RETURN deposit id is shorter than 32 bytes", async () => {
+      const transactionId = randomHex(32);
+      const explicitDepositor = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
+      const shortDepositId = randomHex(16);
+      const depositTx = createDepositTransaction(
+        transactionId,
+        `${shortDepositId}|depositor=${explicitDepositor}|`,
+      );
+      const inputTxid = depositTx.vin[0].txid;
+      const inputTx = createInputTransaction(inputTxid);
+
+      setupRpcMock({
+        getTransaction: async (txid: string) => {
+          if (txid === transactionId) {
+            return depositTx;
+          } else if (txid === inputTxid) {
+            return inputTx;
+          }
+          return null;
+        },
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depositId).toBe(zeroHash);
+      expect(messages[0].result.depositor).toBe(explicitDepositor);
+    });
+
+    it("should skip OP_RETURN deposit ids that are not valid hex", async () => {
+      const transactionId = randomHex(32);
+      const invalidDepositId = `0x${"g".repeat(64)}`;
+      const validDepositId = randomHex(32);
+      const depositTx = createDepositTransaction(transactionId, invalidDepositId);
+      depositTx.vout.push(generateOpReturnOutput(validDepositId, 2));
+      const inputTxid = depositTx.vin[0].txid;
+      const inputTx = createInputTransaction(inputTxid);
+
+      setupRpcMock({
+        getTransaction: async (txid: string) => {
+          if (txid === transactionId) {
+            return depositTx;
+          } else if (txid === inputTxid) {
+            return inputTx;
+          }
+          return null;
+        },
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depositId).toBe(validDepositId);
+    });
+
+    it("should skip invalid OP_RETURN depositor matches", async () => {
+      const transactionId = randomHex(32);
+      const depositId = randomHex(32);
+      const explicitDepositor = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
+      const depositTx = createDepositTransaction(
+        transactionId,
+        `${depositId}|depositor=not-a-btc-address|depositor=${explicitDepositor}|`,
+      );
+
+      setupRpcMock({
+        getTransaction: jest.fn().mockReturnValue(depositTx),
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depositor).toBe(explicitDepositor);
+    });
+
+    it("should fall back to input depositor when the only OP_RETURN depositor is invalid", async () => {
+      const transactionId = randomHex(32);
+      const depositId = randomHex(32);
+      const depositTx = createDepositTransaction(
+        transactionId,
+        `${depositId}|depositor=not-a-btc-address|`,
+      );
+      const inputTxid = depositTx.vin[0].txid;
+      const inputTx = createInputTransaction(inputTxid);
+
+      setupRpcMock({
+        getTransaction: async (txid: string) => {
+          if (txid === transactionId) {
+            return depositTx;
+          } else if (txid === inputTxid) {
+            return inputTx;
+          }
+          return null;
+        },
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depositId).toBe(depositId);
+      expect(messages[0].result.depositor).toBe(testUserAddress);
+    });
+
+    it.each([
+      ["mistyped depositor key", "|depositer=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh|"],
+      ["missing equals sign", "|depositorbc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh|"],
+      ["missing initial pipe", "depositor=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh|"],
+      ["missing ending pipe", "|depositor=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"],
+    ])(
+      "should ignore malformed OP_RETURN depositor metadata: %s",
+      async (_caseName, metadata) => {
+        const transactionId = randomHex(32);
+        const depositId = randomHex(32);
+        const depositTx = createDepositTransaction(
+          transactionId,
+          `${depositId}${metadata}`,
+        );
+        const inputTxid = depositTx.vin[0].txid;
+        const inputTx = createInputTransaction(inputTxid);
+
+        setupRpcMock({
+          getTransaction: async (txid: string) => {
+            if (txid === transactionId) {
+              return depositTx;
+            } else if (txid === inputTxid) {
+              return inputTx;
+            }
+            return null;
+          },
+          getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
+        });
+
+        const { messages } =
+          await new AttestationService().attestDepositoryDeposits({
+            chainId: "bitcoin",
+            transactionId,
+          });
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0].result.depositId).toBe(depositId);
+        expect(messages[0].result.depositor).toBe(testUserAddress);
+      },
+    );
+
     it("should throw error when transaction confirmations are insufficient", async () => {
       // Prepare test data
       const transactionId = randomHex(32);

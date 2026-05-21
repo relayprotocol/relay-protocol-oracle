@@ -21,6 +21,9 @@ import { httpRpc } from "../../../../common/vm/bitcoin-vm/rpc";
 
 const VM_TYPE = "bitcoin-vm";
 
+const DEPOSIT_ID_REGEX = /^0x[0-9a-fA-F]{64}$/;
+const DEPOSITOR_REGEX = /\|depositor=([^|]+)(?=\|)/g;
+
 export class BitcoinVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
@@ -56,21 +59,28 @@ export class BitcoinVmAttestor extends VmAttestor {
     for (const { i, opReturn } of decodedVouts) {
       if (opReturn && opReturn.startsWith("0x") && opReturn.length >= 66) {
         // Take the first 32 bytes (64 hex chars + '0x')
-        depositId = opReturn.slice(0, 66);
+        const parsedDepositId = opReturn.slice(0, 66);
+        if (!DEPOSIT_ID_REGEX.test(parsedDepositId)) {
+          continue;
+        }
+
+        depositId = parsedDepositId;
         depositIdIndex = i;
         break;
       }
     }
 
-    // Get the depositor from the first transaction input
-    let depositor: string | undefined;
-    for (const input of transaction.vin) {
-      await logRpcUsage(chainId, "getTransaction", trackingId);
-      const inputTransaction = await rpc.getTransaction(input.txid);
-      const vout = inputTransaction.vout[input.vout];
-      if (vout && vout.scriptPubKey && vout.scriptPubKey.address) {
-        depositor = vout.scriptPubKey.address;
-        break;
+    // Get the depositor from OP_RETURN metadata, or fall back to the first transaction input
+    let depositor = this._extractExplicitDepositor(decodedVouts);
+    if (!depositor) {
+      for (const input of transaction.vin) {
+        await logRpcUsage(chainId, "getTransaction", trackingId);
+        const inputTransaction = await rpc.getTransaction(input.txid);
+        const vout = inputTransaction.vout[input.vout];
+        if (vout && vout.scriptPubKey && vout.scriptPubKey.address) {
+          depositor = vout.scriptPubKey.address;
+          break;
+        }
       }
     }
     if (!depositor) {
@@ -192,9 +202,7 @@ export class BitcoinVmAttestor extends VmAttestor {
           `${esploraCompatibleApiUrl}/tx/${input.txid}/outspend/${input.vout}`,
           {
             timeout: 10000,
-            ...(authorizationHeader
-              ? { headers: authorizationHeader }
-              : {}),
+            ...(authorizationHeader ? { headers: authorizationHeader } : {}),
           },
         )
         .then((response) => response.data);
@@ -386,6 +394,28 @@ export class BitcoinVmAttestor extends VmAttestor {
     if (!tx.confirmations || tx.confirmations < finalizationBlocks) {
       throw externalError(`Transaction ${transactionId} is not finalized`);
     }
+  }
+
+  private _extractExplicitDepositor(
+    decodedVouts: { opReturn?: string }[],
+  ): string | undefined {
+    for (const { opReturn } of decodedVouts) {
+      if (!opReturn) {
+        continue;
+      }
+
+      for (const match of opReturn.matchAll(DEPOSITOR_REGEX)) {
+        const depositor = match[1];
+        try {
+          bitcoin.address.toOutputScript(depositor, bitcoin.networks.bitcoin);
+          return depositor;
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    return undefined;
   }
 
   private _decodeTxOpReturnVouts(
