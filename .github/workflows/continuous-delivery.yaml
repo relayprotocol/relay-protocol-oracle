@@ -98,7 +98,7 @@ jobs:
           GH_TOKEN: ${{ secrets.DEVOPSBOT_TOKEN }}
           VERSION: ${{ github.sha }}
         run: |
-          payload=$(printf '{"event_type":"deploy","client_payload":{"app":"relay-protocol-oracle","version":"%s","environment":"stag+prod","actor":"%s"}}' "$VERSION" "${{ github.actor }}")
+          payload=$(printf '{"event_type":"deploy","client_payload":{"app":"relay-protocol-oracle","version":"%s","environment":"stag","actor":"%s"}}' "$VERSION" "${{ github.actor }}")
           gh api repos/unevenlabs/k8s-configs/dispatches --method POST --input - <<< "$payload"
 
       - name: Summary
@@ -115,6 +115,6 @@ jobs:
             echo "|---|---|"
             echo "| **App** | \`relay-protocol-oracle\` |"
             echo "| **Version** | \`${{ github.sha }}\` |"
-            echo "| **Environment** | \`stag+prod\` |"
+            echo "| **Environment** | \`stag\` |"
             echo "| **Triggered by** | @${{ github.actor }} |"
           } >> "$GITHUB_STEP_SUMMARY"
