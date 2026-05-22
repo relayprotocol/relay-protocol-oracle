@@ -19,6 +19,7 @@ import {
   Address,
   parseAbi,
   Hex,
+  zeroAddress,
 } from "viem";
 
 import { getDeterministicId } from "../../utils";
@@ -188,10 +189,10 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
         // Check if this is a deposit to the depository
         if (action.destination.toLowerCase() === depository.toLowerCase()) {
-          const depositor = txDetails.user.toLowerCase();
-          const depositId = await this._lookupDepositId(
+          const sender = txDetails.user.toLowerCase();
+          const nonceMapping = await this._lookupDepositId(
             chainId,
-            depositor,
+            sender,
             Number(action.time),
             Number(txDetails.time),
           );
@@ -204,8 +205,8 @@ export class HyperliquidVmAttestor extends VmAttestor {
             result: {
               onchainId: getDeterministicId(chainId, transactionId, "0"),
               depository,
-              depositId: depositId ?? zeroHash,
-              depositor,
+              depositId: nonceMapping?.id ?? zeroHash,
+              depositor: nonceMapping?.depositor ?? sender,
               currency: getVmTypeNativeCurrency(VM_TYPE),
               amount: parseUnits(
                 Number(action.amount).toFixed(8),
@@ -228,7 +229,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
         // Check if this is a deposit to the depository
         if (action.destination.toLowerCase() === depository.toLowerCase()) {
-          const depositor = txDetails.user.toLowerCase();
+          const sender = txDetails.user.toLowerCase();
           const tokenAddress = action.token.split(":")[1];
           const tokenDex = action.destinationDex;
           if (tokenDex === "" && tokenAddress !== SPOT_USDC) {
@@ -260,9 +261,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
             throw externalError("Could not retrieve payment currency decimals");
           }
 
-          const depositId = await this._lookupDepositId(
+          const nonceMapping = await this._lookupDepositId(
             chainId,
-            depositor,
+            sender,
             Number(action.nonce),
             Number(txDetails.time),
           );
@@ -275,8 +276,8 @@ export class HyperliquidVmAttestor extends VmAttestor {
             result: {
               onchainId: getDeterministicId(chainId, transactionId, "0"),
               depository,
-              depositId: depositId ?? zeroHash,
-              depositor,
+              depositId: nonceMapping?.id ?? zeroHash,
+              depositor: nonceMapping?.depositor ?? sender,
               currency,
               amount: parseUnits(
                 Number(action.amount).toFixed(currencyDecimals),
@@ -438,11 +439,16 @@ export class HyperliquidVmAttestor extends VmAttestor {
     let nonce: number;
     if (txDetails.action.type === "sendAsset") {
       nonce = Number(
-        (txDetails.action as unknown as hl.SendAssetParameters & { nonce: number }).nonce,
+        (
+          txDetails.action as unknown as hl.SendAssetParameters & {
+            nonce: number;
+          }
+        ).nonce,
       );
     } else if (txDetails.action.type === "usdSend") {
       nonce = Number(
-        (txDetails.action as unknown as hl.UsdSendParameters & { time: number }).time,
+        (txDetails.action as unknown as hl.UsdSendParameters & { time: number })
+          .time,
       );
     } else {
       throw externalError("Could not detect payment");
@@ -557,19 +563,22 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
   private async _lookupDepositId(
     chainId: string,
-    depositor: string,
+    sender: string,
     nonce: number,
     timestamp: number,
-  ): Promise<string | undefined> {
+  ): Promise<{ id: string; depositor?: string } | undefined> {
     const THRESHOLD = 3600 * 1000;
 
-    const data = await this._lookupIdOnHub(chainId, depositor, nonce);
+    const data = await this._lookupIdOnHub(chainId, sender, nonce);
     if (data) {
       // If we have a nonce-mapping available, make sure it was created within the time threshold
       if (new Date(data.createdAt).getTime() > timestamp + THRESHOLD) {
         return undefined;
       } else {
-        return data.id;
+        return {
+          id: data.id,
+          depositor: data.depositor,
+        };
       }
     } else {
       // If we don't have any nonce-mapping available, don't attest anything unless we're sure none can ever get associated
@@ -577,7 +586,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
         return undefined;
       } else {
         throw externalError(
-          `No nonce mapping found for nonce ${nonce} and depositor ${depositor}`,
+          `No nonce mapping found for nonce ${nonce} and depositor ${sender}`,
         );
       }
     }
@@ -587,7 +596,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
     chainId: string,
     wallet: string,
     nonce: number,
-  ): Promise<{ id: string; createdAt: string } | undefined> {
+  ): Promise<
+    { id: string; depositor?: string; createdAt: string } | undefined
+  > {
     const hubInfo = await getHubInfo();
 
     const genericMappingContract = getContract({
@@ -608,8 +619,9 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const { id } = getNonceMappingMessage(
       user,
       String(nonce),
-      // Use a random `depositId` since all we care is getting the correct entry id
+      // Use random values since all we care is getting the correct entry id
       zeroHash,
+      zeroAddress,
     );
 
     const [data, createdAt] = await genericMappingContract.read.getEntry([
@@ -617,13 +629,32 @@ export class HyperliquidVmAttestor extends VmAttestor {
       id as Hex,
     ]);
     if (createdAt > 0n) {
+      const decoded = this._decodeNonceMappingData(data);
       return {
-        id: data,
+        id: decoded.id,
+        depositor: decoded.depositor,
         createdAt: new Date(Number(createdAt * 1000n)).toISOString(),
       };
     }
 
     return undefined;
+  }
+
+  private _decodeNonceMappingData(data: Hex): {
+    id: string;
+    depositor?: string;
+  } {
+    if (data.length === 106) {
+      const id = data.slice(0, 66);
+      const depositor = `0x${data.slice(66)}`.toLowerCase();
+
+      return {
+        id,
+        depositor: depositor === zeroAddress ? undefined : depositor,
+      };
+    }
+
+    return { id: data };
   }
 
   private _getMessageHash(action: any): string | undefined {

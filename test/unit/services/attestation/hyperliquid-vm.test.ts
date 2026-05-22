@@ -149,6 +149,48 @@ describe("HyperliquidVmAttestor", () => {
       expect(messages[0].result.onchainId).toBeDefined();
     });
 
+    it("should use depositor from nonce mapping data when present", async () => {
+      const transactionId = randomHex(32);
+      const expectedDepositId = randomHex(32);
+      const mappedDepositor = "0x1111111111111111111111111111111111111111";
+
+      const depositTx = {
+        time: Date.now(),
+        user: testUserAddress,
+        action: {
+          type: "usdSend",
+          signatureChainId: "0x1",
+          hyperliquidChain: "Mainnet",
+          destination: testDepositoryAddress,
+          amount: "100.0",
+          time: 1761563890702,
+        },
+        block: 776752679,
+        hash: transactionId,
+        error: null,
+      };
+
+      setupHubRpcMock({
+        id: `${expectedDepositId}${mappedDepositor.slice(2)}`,
+      });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: depositTx,
+        }),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "hyperliquid",
+          transactionId,
+        });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depositor).toBe(mappedDepositor);
+      expect(messages[0].result.depositId).toBe(expectedDepositId);
+    });
+
     it("should correctly parse SendAsset deposit transaction", async () => {
       const transactionId = randomHex(32);
       const expectedDepositId = randomHex(32);

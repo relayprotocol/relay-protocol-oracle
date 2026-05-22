@@ -799,6 +799,76 @@ export class AttestationService {
     };
   }
 
+  public async attestNonceMappingSignatureV2(data: {
+    walletChainId: string;
+    wallet: string;
+    nonce: string;
+    id: string;
+    depositor: string;
+    signatureChainId: string;
+    signature: string;
+  }): Promise<{
+    genericMapping: GenericMappingMessage;
+  }> {
+    const NONCE_MAPPING_DOMAIN = (chainId: number) => ({
+      name: "RelayNonceMapping",
+      version: "2",
+      chainId,
+      verifyingContract: zeroAddress,
+    });
+
+    const NONCE_MAPPING_TYPES = {
+      NonceMapping: [
+        { name: "chainId", type: "string" },
+        { name: "wallet", type: "address" },
+        { name: "depositor", type: "address" },
+        { name: "id", type: "bytes32" },
+        { name: "nonce", type: "uint256" },
+      ],
+    };
+
+    const message = {
+      chainId: data.walletChainId,
+      wallet: data.wallet as Address,
+      depositor: data.depositor as Address,
+      id: data.id as Hex,
+      nonce: BigInt(data.nonce),
+    };
+
+    const signatureChain = await getChain(data.signatureChainId);
+    if (signatureChain.vmType !== "ethereum-vm") {
+      throw externalError("Unsupported signature chain");
+    }
+
+    const isValidSignature = await verifyTypedData({
+      address: data.depositor as Address,
+      domain: NONCE_MAPPING_DOMAIN(Number(signatureChain.hubChainId!)),
+      types: NONCE_MAPPING_TYPES,
+      primaryType: "NonceMapping",
+      message,
+      signature: data.signature as Hex,
+    }).catch(() => false);
+    if (!isValidSignature) {
+      throw externalError("Invalid signature");
+    }
+
+    const walletChain = await getChain(data.walletChainId);
+    const user = generateAddress({
+      family: walletChain.vmType,
+      chainId: walletChain.id,
+      address: data.wallet,
+    });
+
+    return {
+      genericMapping: getNonceMappingMessage(
+        user,
+        data.nonce,
+        data.id,
+        data.depositor,
+      ),
+    };
+  }
+
   public async attestNoFillOrRefundSignature(data: {
     solverChainId: string;
     solver: string;

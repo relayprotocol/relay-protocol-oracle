@@ -88,6 +88,13 @@ jest.mock("../../../../src/common/chains", () => {
       hubChainId:
         "50176979118388105370421134508366610418687875236156196470082648173271157915018",
     },
+    "hyperliquid-vm": {
+      id: "hyperliquid-vm",
+      vmType: "hyperliquid-vm",
+      httpRpcUrl: "http://127.0.0.1:8545",
+      depository: "0x0987654321098765432109876543210987654321",
+      hubChainId: "1",
+    },
   };
   return {
     HUB_VM_TYPE: "hub-vm",
@@ -97,12 +104,14 @@ jest.mock("../../../../src/common/chains", () => {
     getChainVmType: jest.fn().mockImplementation(async (chainId) => {
       if (chainId === "ethereum") return "ethereum-vm";
       if (chainId === "solana") return "solana-vm";
+      if (chainId === "hyperliquid-vm") return "hyperliquid-vm";
       if (chainId === "base") return "ethereum-vm";
       throw new Error(`Unknown chain: ${chainId}`);
     }),
     getChainHubChainId: jest.fn().mockImplementation(async (chainId) => {
       if (chainId === "ethereum") return 1;
       if (chainId === "solana") return 101;
+      if (chainId === "hyperliquid-vm") return 1;
       if (chainId === "base") return 8543;
       throw new Error(`Unknown chain: ${chainId}`);
     }),
@@ -719,6 +728,104 @@ describe("AttestationService", () => {
           signature: mockSignature,
         }),
       ).rejects.toThrow("Unsupported signature chain");
+    });
+  });
+
+  describe("attestNonceMappingSignatureV2", () => {
+    const wallet = "0x1234567890123456789012345678901234567890";
+    const depositor = "0x2234567890123456789012345678901234567890";
+    const nonce = "1";
+    const id = keccak256("0x1234" as Hex);
+    const signatureChainId = "ethereum";
+    const walletChainId = "hyperliquid-vm";
+    const mockSignature = "0x" + "ab".repeat(65);
+
+    it("returns a generic mapping that includes the depositor", async () => {
+      const result = await service.attestNonceMappingSignatureV2({
+        walletChainId,
+        wallet,
+        depositor,
+        nonce,
+        id,
+        signatureChainId,
+        signature: mockSignature,
+      });
+
+      const expectedUser = generateAddress({
+        family: "hyperliquid-vm",
+        chainId: "hyperliquid-vm",
+        address: wallet,
+      });
+
+      expect(result.genericMapping).toEqual(
+        getNonceMappingMessage(expectedUser, nonce, id, depositor),
+      );
+      expect(result.genericMapping.user).toBe(expectedUser);
+      expect(result.genericMapping.data).toBe(
+        `${id}${depositor ? depositor.slice(2) : ""}`,
+      );
+      expect(result.genericMapping).not.toEqual(
+        getNonceMappingMessage(expectedUser, nonce, id),
+      );
+    });
+
+    it("verifies the typed data signature against the depositor", async () => {
+      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
+
+      await service.attestNonceMappingSignatureV2({
+        walletChainId,
+        wallet,
+        depositor,
+        nonce,
+        id,
+        signatureChainId,
+        signature: mockSignature,
+      });
+
+      expect(mockedVerifyTypedData).toHaveBeenCalledWith({
+        address: depositor,
+        domain: {
+          name: "RelayNonceMapping",
+          version: "2",
+          chainId: 1,
+          verifyingContract: "0x0000000000000000000000000000000000000000",
+        },
+        types: {
+          NonceMapping: [
+            { name: "chainId", type: "string" },
+            { name: "wallet", type: "address" },
+            { name: "depositor", type: "address" },
+            { name: "id", type: "bytes32" },
+            { name: "nonce", type: "uint256" },
+          ],
+        },
+        primaryType: "NonceMapping",
+        message: {
+          chainId: walletChainId,
+          wallet,
+          depositor,
+          id,
+          nonce: BigInt(nonce),
+        },
+        signature: mockSignature,
+      });
+    });
+
+    it("throws on invalid depositor signature", async () => {
+      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
+      mockedVerifyTypedData.mockResolvedValueOnce(false);
+
+      await expect(
+        service.attestNonceMappingSignatureV2({
+          walletChainId,
+          wallet,
+          depositor,
+          nonce,
+          id,
+          signatureChainId,
+          signature: mockSignature,
+        }),
+      ).rejects.toThrow("Invalid signature");
     });
   });
 
