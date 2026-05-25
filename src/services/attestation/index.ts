@@ -841,7 +841,7 @@ export class AttestationService {
     }
 
     const isValidSignature = await verifyTypedData({
-      address: data.depositor as Address,
+      address: data.wallet as Address,
       domain: NONCE_MAPPING_DOMAIN(Number(signatureChain.hubChainId!)),
       types: NONCE_MAPPING_TYPES,
       primaryType: "NonceMapping",

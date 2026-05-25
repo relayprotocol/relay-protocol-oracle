@@ -729,6 +729,27 @@ describe("AttestationService", () => {
         }),
       ).rejects.toThrow("Unsupported signature chain");
     });
+
+    it("throws when a different address (e.g. depositor) signed instead of the wallet", async () => {
+      const depositor = "0x2234567890123456789012345678901234567890";
+      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
+      // Simulate signature recovered to `depositor`, not `wallet`: verification
+      // only succeeds when the address being verified matches `depositor`.
+      mockedVerifyTypedData.mockImplementationOnce(async ({ address }) =>
+        address === depositor,
+      );
+
+      await expect(
+        service.attestNonceMappingSignature({
+          walletChainId,
+          wallet,
+          nonce,
+          id,
+          signatureChainId,
+          signature: mockSignature,
+        }),
+      ).rejects.toThrow("Invalid signature");
+    });
   });
 
   describe("attestNonceMappingSignatureV2", () => {
@@ -769,7 +790,7 @@ describe("AttestationService", () => {
       );
     });
 
-    it("verifies the typed data signature against the depositor", async () => {
+    it("verifies the typed data signature against the wallet", async () => {
       const mockedVerifyTypedData = jest.mocked(verifyTypedData);
 
       await service.attestNonceMappingSignatureV2({
@@ -783,7 +804,7 @@ describe("AttestationService", () => {
       });
 
       expect(mockedVerifyTypedData).toHaveBeenCalledWith({
-        address: depositor,
+        address: wallet,
         domain: {
           name: "RelayNonceMapping",
           version: "2",
@@ -811,9 +832,44 @@ describe("AttestationService", () => {
       });
     });
 
-    it("throws on invalid depositor signature", async () => {
+    it("throws on invalid wallet signature", async () => {
       const mockedVerifyTypedData = jest.mocked(verifyTypedData);
       mockedVerifyTypedData.mockResolvedValueOnce(false);
+
+      await expect(
+        service.attestNonceMappingSignatureV2({
+          walletChainId,
+          wallet,
+          depositor,
+          nonce,
+          id,
+          signatureChainId,
+          signature: mockSignature,
+        }),
+      ).rejects.toThrow("Invalid signature");
+    });
+
+    it("throws on unsupported signature chain", async () => {
+      await expect(
+        service.attestNonceMappingSignatureV2({
+          walletChainId,
+          wallet,
+          depositor,
+          nonce,
+          id,
+          signatureChainId: "solana",
+          signature: mockSignature,
+        }),
+      ).rejects.toThrow("Unsupported signature chain");
+    });
+
+    it("throws when the depositor signed instead of the wallet", async () => {
+      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
+      // Simulate signature recovered to `depositor`, not `wallet`: verification
+      // only succeeds when the address being verified matches `depositor`.
+      mockedVerifyTypedData.mockImplementationOnce(async ({ address }) =>
+        address === depositor,
+      );
 
       await expect(
         service.attestNonceMappingSignatureV2({
