@@ -76,13 +76,6 @@
     "hubChainId": "169"
   },
   {
-    "id": "mint",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$MINT_RPC_URL",
-    "hubChainId": "185"
-  },
-  {
     "id": "boba",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
@@ -107,25 +100,11 @@
     "hubChainId": "360"
   },
   {
-    "id": "appchain",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$APPCHAIN_RPC_URL",
-    "hubChainId": "466"
-  },
-  {
     "id": "worldchain",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$WORLDCHAIN_RPC_URL",
     "hubChainId": "480"
-  },
-  {
-    "id": "redstone",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$REDSTONE_RPC_URL",
-    "hubChainId": "690"
   },
   {
     "id": "eden",
@@ -163,13 +142,6 @@
     "hubChainId": "1088"
   },
   {
-    "id": "polygon_zkevm",
-    "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$POLYGON_ZKEVM_RPC_URL",
-    "hubChainId": "1101"
-  },
-  {
     "id": "lisk",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
@@ -198,13 +170,6 @@
     "hubChainId": "1514"
   },
   {
-    "id": "gravity",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$GRAVITY_RPC_URL",
-    "hubChainId": "1625"
-  },
-  {
     "id": "soneium",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
@@ -217,13 +182,6 @@
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SWELLCHAIN_RPC_URL",
     "hubChainId": "1923"
-  },
-  {
-    "id": "sanko",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$SANKO_RPC_URL",
-    "hubChainId": "1996"
   },
   {
     "id": "ronin",
@@ -292,20 +250,6 @@
     "hubChainId": "7560"
   },
   {
-    "id": "powerloom",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$POWERLOOM_RPC_URL",
-    "hubChainId": "7869"
-  },
-  {
-    "id": "arena_z",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$ARENA_Z_RPC_URL",
-    "hubChainId": "7897"
-  },
-  {
     "id": "b3",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
@@ -332,13 +276,6 @@
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$APECHAIN_RPC_URL",
     "hubChainId": "33139"
-  },
-  {
-    "id": "funki",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$FUNKI_RPC_URL",
-    "hubChainId": "33979"
   },
   {
     "id": "mode",
@@ -498,13 +435,6 @@
     }
   },
   {
-    "id": "xai",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$XAI_RPC_URL",
-    "hubChainId": "660279"
-  },
-  {
     "id": "gensyn",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
@@ -517,13 +447,6 @@
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$KATANA_RPC_URL",
     "hubChainId": "747474"
-  },
-  {
-    "id": "forma",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$FORMA_RPC_URL",
-    "hubChainId": "984122"
   },
   {
     "id": "ethereal",
