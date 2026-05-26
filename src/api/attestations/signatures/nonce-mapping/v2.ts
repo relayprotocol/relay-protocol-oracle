@@ -86,7 +86,7 @@ export default {
     reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
     const { genericMapping } =
-      await new AttestationService().attestNonceMappingSignatureV2(req.body);
+      await new AttestationService().attestNonceMappingSignature(req.body);
 
     const peerSignatures =
       req.body.requestPeerSignatures && config.peers

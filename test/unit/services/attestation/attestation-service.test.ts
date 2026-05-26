@@ -129,7 +129,8 @@ jest.mock("../../../../src/common/chains", () => {
       auroraHttpRpcUrl: "http://localhost:8545",
       auroraEvmChainId: "1313161554",
       auroraAllocatorAddress: "0x0000000000000000000000000000000000000005",
-      auroraAllocatorSpenderAddress: "0x0000000000000000000000000000000000000006",
+      auroraAllocatorSpenderAddress:
+        "0x0000000000000000000000000000000000000006",
       auroraOracleMultisigAddress: "0x0000000000000000000000000000000000000007",
     })),
     getSdkChainsConfig: jest.fn(() => ({
@@ -629,131 +630,6 @@ describe("AttestationService", () => {
 
   describe("attestNonceMappingSignature", () => {
     const wallet = "0x1234567890123456789012345678901234567890";
-    const nonce = "1";
-    const id = keccak256("0x1234" as Hex);
-    const signatureChainId = "ethereum";
-    const walletChainId = "ethereum";
-    const mockSignature = "0x" + "ab".repeat(65);
-
-    it("returns correct generic mapping for valid signature", async () => {
-      const result = await service.attestNonceMappingSignature({
-        walletChainId,
-        wallet,
-        nonce,
-        id,
-        signatureChainId,
-        signature: mockSignature,
-      });
-
-      const expectedUser = generateAddress({
-        family: "ethereum-vm",
-        chainId: "ethereum",
-        address: wallet,
-      });
-
-      const expectedGenericMapping = getNonceMappingMessage(
-        expectedUser,
-        nonce,
-        id,
-      );
-
-      expect(result.genericMapping).toEqual(expectedGenericMapping);
-      expect(result.genericMapping.user).toBe(expectedUser);
-      expect(result.genericMapping.data).toBe(id);
-    });
-
-    it("verifies the typed data signature with correct parameters", async () => {
-      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
-
-      await service.attestNonceMappingSignature({
-        walletChainId,
-        wallet,
-        nonce,
-        id,
-        signatureChainId,
-        signature: mockSignature,
-      });
-
-      expect(mockedVerifyTypedData).toHaveBeenCalledWith({
-        address: wallet,
-        domain: {
-          name: "RelayNonceMapping",
-          version: "1",
-          chainId: 1, // hubChainId for "ethereum"
-          verifyingContract: "0x0000000000000000000000000000000000000000",
-        },
-        types: {
-          NonceMapping: [
-            { name: "chainId", type: "string" },
-            { name: "wallet", type: "address" },
-            { name: "id", type: "bytes32" },
-            { name: "nonce", type: "uint256" },
-          ],
-        },
-        primaryType: "NonceMapping",
-        message: {
-          chainId: walletChainId,
-          wallet,
-          id,
-          nonce: BigInt(nonce),
-        },
-        signature: mockSignature,
-      });
-    });
-
-    it("throws on invalid signature", async () => {
-      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
-      mockedVerifyTypedData.mockResolvedValueOnce(false);
-
-      await expect(
-        service.attestNonceMappingSignature({
-          walletChainId,
-          wallet,
-          nonce,
-          id,
-          signatureChainId,
-          signature: mockSignature,
-        }),
-      ).rejects.toThrow("Invalid signature");
-    });
-
-    it("throws on unsupported signature chain", async () => {
-      await expect(
-        service.attestNonceMappingSignature({
-          walletChainId,
-          wallet,
-          nonce,
-          id,
-          signatureChainId: "solana",
-          signature: mockSignature,
-        }),
-      ).rejects.toThrow("Unsupported signature chain");
-    });
-
-    it("throws when a different address (e.g. depositor) signed instead of the wallet", async () => {
-      const depositor = "0x2234567890123456789012345678901234567890";
-      const mockedVerifyTypedData = jest.mocked(verifyTypedData);
-      // Simulate signature recovered to `depositor`, not `wallet`: verification
-      // only succeeds when the address being verified matches `depositor`.
-      mockedVerifyTypedData.mockImplementationOnce(async ({ address }) =>
-        address === depositor,
-      );
-
-      await expect(
-        service.attestNonceMappingSignature({
-          walletChainId,
-          wallet,
-          nonce,
-          id,
-          signatureChainId,
-          signature: mockSignature,
-        }),
-      ).rejects.toThrow("Invalid signature");
-    });
-  });
-
-  describe("attestNonceMappingSignatureV2", () => {
-    const wallet = "0x1234567890123456789012345678901234567890";
     const depositor = "0x2234567890123456789012345678901234567890";
     const nonce = "1";
     const id = keccak256("0x1234" as Hex);
@@ -762,7 +638,7 @@ describe("AttestationService", () => {
     const mockSignature = "0x" + "ab".repeat(65);
 
     it("returns a generic mapping that includes the depositor", async () => {
-      const result = await service.attestNonceMappingSignatureV2({
+      const result = await service.attestNonceMappingSignature({
         walletChainId,
         wallet,
         depositor,
@@ -793,7 +669,7 @@ describe("AttestationService", () => {
     it("verifies the typed data signature against the wallet", async () => {
       const mockedVerifyTypedData = jest.mocked(verifyTypedData);
 
-      await service.attestNonceMappingSignatureV2({
+      await service.attestNonceMappingSignature({
         walletChainId,
         wallet,
         depositor,
@@ -837,7 +713,7 @@ describe("AttestationService", () => {
       mockedVerifyTypedData.mockResolvedValueOnce(false);
 
       await expect(
-        service.attestNonceMappingSignatureV2({
+        service.attestNonceMappingSignature({
           walletChainId,
           wallet,
           depositor,
@@ -851,7 +727,7 @@ describe("AttestationService", () => {
 
     it("throws on unsupported signature chain", async () => {
       await expect(
-        service.attestNonceMappingSignatureV2({
+        service.attestNonceMappingSignature({
           walletChainId,
           wallet,
           depositor,
@@ -867,12 +743,12 @@ describe("AttestationService", () => {
       const mockedVerifyTypedData = jest.mocked(verifyTypedData);
       // Simulate signature recovered to `depositor`, not `wallet`: verification
       // only succeeds when the address being verified matches `depositor`.
-      mockedVerifyTypedData.mockImplementationOnce(async ({ address }) =>
-        address === depositor,
+      mockedVerifyTypedData.mockImplementationOnce(
+        async ({ address }) => address === depositor,
       );
 
       await expect(
-        service.attestNonceMappingSignatureV2({
+        service.attestNonceMappingSignature({
           walletChainId,
           wallet,
           depositor,
@@ -985,7 +861,8 @@ describe("AttestationService", () => {
       spenderChainId: "ethereum",
       spender: owner,
       receiver: "0xf70da97812cb96acdf810712aa562db8dfa3dbef",
-      nonce: "0x0000000000000000000000000000000000000000000000000000000000000001",
+      nonce:
+        "0x0000000000000000000000000000000000000000000000000000000000000001",
       hashIndexes: [0, 1],
     };
 
@@ -1002,9 +879,7 @@ describe("AttestationService", () => {
       };
       jest.mocked(getHubHttpRpc).mockResolvedValueOnce(mockedHubRpc as any);
 
-      const result = await service.attestWithdrawRequest(
-        withdrawRequestInput,
-      );
+      const result = await service.attestWithdrawRequest(withdrawRequestInput);
 
       const withdrawRequest = normalizeWithdrawRequest({
         ...withdrawRequestInput,
@@ -1119,7 +994,6 @@ describe("AttestationService", () => {
         service.attestDepositAddressTrigger(triggerInput),
       ).rejects.toThrow("Trigger hash does not map to the provided order id");
     });
-
   });
 
   describe("attestSolverFill", () => {
@@ -1541,8 +1415,8 @@ describe("AttestationService", () => {
       const scaledRefundMinimum =
         BigInt(refundMinimumAmount) +
         (BigInt(refundMinimumAmount) *
-          ((BigInt(depositAmount) - BigInt(orderAmount)) * 10n ** 18n) /
-            BigInt(orderAmount)) /
+          ((BigInt(depositAmount) - BigInt(orderAmount)) * 10n ** 18n)) /
+          BigInt(orderAmount) /
           10n ** 18n;
 
       const mockDepositMessage = {
@@ -1844,9 +1718,7 @@ describe("AttestationService", () => {
           transactionId,
           onchainId,
         }),
-      ).rejects.toThrow(
-        "Insufficient balance at order address for recovery",
-      );
+      ).rejects.toThrow("Insufficient balance at order address for recovery");
     });
 
     it("throws when deposit is recent and no order data provided", async () => {
