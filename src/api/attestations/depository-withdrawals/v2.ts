@@ -90,6 +90,21 @@ const MessageData = Type.Object({
         "The transaction id that executed the withdrawal (required for Hyperliquid VM)",
     }),
   ),
+  hints: Type.Optional(
+    Type.Object(
+      {
+        "ton-vm": Type.Optional(
+          Type.Object({
+            lt: Type.String({
+              description:
+                "The logical time of the executing tx on the depository wallet (required for ton-vm)",
+            }),
+          }),
+        ),
+      },
+      { description: "Hints for verifying the executing tx" },
+    ),
+  ),
 });
 
 const Schema = {
@@ -168,6 +183,7 @@ export default {
         nonce: req.body.nonce,
         additionalData: req.body.additionalData,
         transactionId: req.body.transactionId,
+        hints: req.body.hints,
         withdrawalAddressRequest: {
           chainId: req.body.chainId,
           currency: req.body.currency,

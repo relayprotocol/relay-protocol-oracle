@@ -36,6 +36,8 @@ export type Chain = {
     // For "lighter-vm"
     rpcApiKey?: string;
     explorerApiUrl?: string;
+    // For "ton-vm" — masterchain finality buffer (mc blocks past tip).
+    tonMinFinalityBlocks?: number;
   };
 };
 

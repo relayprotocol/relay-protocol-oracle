@@ -4,7 +4,7 @@ import {
   DepositoryWithdrawalMessage,
 } from "@relay-protocol/settlement-sdk";
 
-import { TxHints } from "..";
+import type { TxHints } from "..";
 
 export type EnhancedDepositoryDepositMessage = DepositoryDepositMessage & {
   extraData: {
@@ -16,12 +16,14 @@ export abstract class VmAttestor {
   public abstract getDepositoryDepositMessages(
     chainId: string,
     transactionId: string,
+    hints?: TxHints,
   ): Promise<EnhancedDepositoryDepositMessage[]>;
 
   public abstract getDepositoryWithdrawalMessage(
     chainId: string,
     withdrawal: string,
     transactionId?: string,
+    hints?: TxHints,
   ): Promise<DepositoryWithdrawalMessage>;
 
   public abstract getSolverPaidAmount(

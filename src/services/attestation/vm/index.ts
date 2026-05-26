@@ -7,6 +7,7 @@ import { BitcoinVmAttestor } from "./bitcoin-vm";
 import { HyperliquidVmAttestor } from "./hyperliquid-vm";
 import { LighterVmAttestor } from "./lighter-vm";
 import { SolanaVmAttestor } from "./solana-vm";
+import { TonVmAttestor } from "./ton-vm";
 import { TronVmAttestor } from "./tron-vm";
 
 export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
@@ -26,6 +27,9 @@ export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
 
     case "bitcoin-vm":
       return new BitcoinVmAttestor();
+
+    case "ton-vm":
+      return new TonVmAttestor();
 
     case "tron-vm":
       return new TronVmAttestor();

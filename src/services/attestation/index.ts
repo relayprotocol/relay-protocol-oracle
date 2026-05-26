@@ -89,11 +89,37 @@ export type TxHints = {
     user: string;
     timestamp: number;
   };
+  "ton-vm"?: {
+    // Solver wallet — required for fill/refund (TON has no global tx-hash
+    // lookup). Unused for deposit (account = chain.depository).
+    solverAddress?: string;
+    // Tx logical time — required for deposit (direct lookup only, no scan
+    // fallback on high-throughput depositories). Optional for fill/refund
+    // (enables O(1) lookup vs scan-window fallback).
+    lt?: string;
+  };
+};
+
+// Per-input deposit hints, parallel to the fill-tx `hints` field.
+export type InputHints = Array<
+  { inputIndex: number } & Pick<TxHints, "ton-vm">
+>;
+
+const getInputHints = (
+  inputIndex: number,
+  inputHints: InputHints | undefined,
+): TxHints | undefined => {
+  const entry = inputHints?.find((h) => h.inputIndex === inputIndex);
+  if (!entry) {
+    return undefined;
+  }
+  const { inputIndex: _idx, ...rest } = entry;
+  return rest;
 };
 
 export class AttestationService {
   public async attestDepositoryDeposits(
-    data: DepositoryDepositMessage["data"],
+    data: DepositoryDepositMessage["data"] & { hints?: TxHints },
   ): Promise<{
     messages: DepositoryDepositMessage[];
     execution?: ExecutionMessage;
@@ -102,6 +128,7 @@ export class AttestationService {
     const messages = await attestor.getDepositoryDepositMessages(
       data.chainId,
       data.transactionId,
+      data.hints,
     );
 
     // Generate Hub execution
@@ -280,6 +307,7 @@ export class AttestationService {
   public async attestDepositoryWithdrawal(
     data: DepositoryWithdrawalMessage["data"] & {
       transactionId?: string;
+      hints?: TxHints;
       withdrawalAddressRequest: WithdrawalAddressRequest;
     },
   ): Promise<{
@@ -291,6 +319,7 @@ export class AttestationService {
         data.chainId,
         data.withdrawal,
         data.transactionId,
+        data.hints,
       ),
     );
 
@@ -354,6 +383,7 @@ export class AttestationService {
   public async attestDepositoryWithdrawalV2(
     data: DenormalizedSubmitWithdrawRequest & {
       transactionId?: string;
+      hints?: TxHints;
       withdrawalAddressRequest: WithdrawalAddressRequest;
     },
   ): Promise<{
@@ -374,6 +404,7 @@ export class AttestationService {
       chainId: data.chainId,
       withdrawal,
       transactionId: data.transactionId,
+      hints: data.hints,
       withdrawalAddressRequest: data.withdrawalAddressRequest,
     });
 
@@ -386,6 +417,7 @@ export class AttestationService {
   public async attestDepositoryWithdrawalV3(
     data: DenormalizedWithdrawRequest & {
       transactionId?: string;
+      hints?: TxHints;
     },
   ): Promise<{
     status: DepositoryWithdrawalStatus;
@@ -403,6 +435,7 @@ export class AttestationService {
           withdrawRequest.chainId,
           await this._getEncodedWithdrawalV3(withdrawRequest),
           data.transactionId,
+          data.hints,
         ),
     );
 
@@ -448,7 +481,9 @@ export class AttestationService {
   }
 
   public async attestSolverFill(
-    data: SolverFillMessage["data"] & { hints?: TxHints } & {
+    data: SolverFillMessage["data"] & {
+      hints?: TxHints;
+      inputHints?: InputHints;
       force?: boolean;
     },
   ): Promise<{ message: SolverFillMessage; execution?: ExecutionMessage }> {
@@ -465,6 +500,7 @@ export class AttestationService {
               attestor.getDepositoryDepositMessages(
                 chainId,
                 input.transactionId,
+                getInputHints(input.inputIndex, data.inputHints),
               ),
             )
             .then((deposits) =>
@@ -562,7 +598,9 @@ export class AttestationService {
   }
 
   public async attestSolverRefund(
-    data: SolverRefundMessage["data"] & { hints?: TxHints } & {
+    data: SolverRefundMessage["data"] & {
+      hints?: TxHints;
+      inputHints?: InputHints;
       force?: boolean;
     },
   ): Promise<{ message: SolverRefundMessage; execution?: ExecutionMessage }> {
@@ -579,6 +617,7 @@ export class AttestationService {
               attestor.getDepositoryDepositMessages(
                 chainId,
                 input.transactionId,
+                getInputHints(input.inputIndex, data.inputHints),
               ),
             )
             .then((deposits) =>
@@ -971,12 +1010,14 @@ export class AttestationService {
     onchainId: string;
     order?: Order;
     orderSignature?: string;
+    hints?: TxHints;
   }): Promise<{ execution: ExecutionMessage }> {
     // Fetch all deposits from the transaction
     const attestor = await getVmAttestor(data.chainId);
     const deposits = await attestor.getDepositoryDepositMessages(
       data.chainId,
       data.transactionId,
+      data.hints,
     );
 
     // Find the specific deposit
@@ -1068,6 +1109,7 @@ export class AttestationService {
       onchainId: string;
       inputIndex: number;
     }[];
+    inputHints?: InputHints;
   }): Promise<{
     totalWeightedInputPaymentBpsDiff: bigint;
     depositoryDeposits: EnhancedDepositoryDepositMessage[];
@@ -1123,6 +1165,7 @@ export class AttestationService {
           attestor.getDepositoryDepositMessages(
             orderInput.payment.chainId,
             inputInformation.transactionId,
+            getInputHints(inputInformation.inputIndex, data.inputHints),
           ),
         );
         const depositoryDeposit = fetchedDeposits.find(

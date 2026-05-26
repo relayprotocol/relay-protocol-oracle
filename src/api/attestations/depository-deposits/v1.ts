@@ -20,6 +20,21 @@ const MessageData = Type.Object({
   transactionId: Type.String({
     description: "The transaction id to attest",
   }),
+  hints: Type.Optional(
+    Type.Object(
+      {
+        "ton-vm": Type.Optional(
+          Type.Object({
+            lt: Type.String({
+              description:
+                "The logical time of the deposit tx (required for ton-vm — TON has no global tx-hash lookup; high-throughput depositories make scan-fallback unreliable)",
+            }),
+          }),
+        ),
+      },
+      { description: "Hints for attesting the deposit transaction" },
+    ),
+  ),
   requestPeerSignatures: Type.Optional(
     Type.Boolean({
       description:

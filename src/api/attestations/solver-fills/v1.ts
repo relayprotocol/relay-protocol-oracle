@@ -56,8 +56,43 @@ const MessageData = Type.Object({
             }),
           }),
         ),
+        "ton-vm": Type.Optional(
+          Type.Object({
+            solverAddress: Type.String({
+              description:
+                "The solver wallet that signed the fill (required — TON has no global tx-hash lookup)",
+            }),
+            lt: Type.Optional(
+              Type.String({
+                description:
+                  "The logical time of the tx (optional but strongly preferred — enables O(1) lookup; without it attestor falls back to scanning recent txs and may miss older targets)",
+              }),
+            ),
+          }),
+        ),
       },
       { description: "Hints for attesting the fill transaction" },
+    ),
+  ),
+  inputHints: Type.Optional(
+    Type.Array(
+      Type.Object({
+        inputIndex: Type.Number({
+          description: "The input index these hints apply to",
+        }),
+        "ton-vm": Type.Optional(
+          Type.Object({
+            lt: Type.String({
+              description:
+                "The logical time of the deposit tx (required for ton-vm deposit re-verification — TON has no global tx-hash lookup)",
+            }),
+          }),
+        ),
+      }),
+      {
+        description:
+          "Per-input deposit attestation hints, looked up by `inputIndex`. Required for bridge-from-TON orders so the fill re-verification can locate the user's deposit tx.",
+      },
     ),
   ),
   requestPeerSignatures: Type.Optional(

@@ -32,6 +32,21 @@ const Schema = {
           "The solver signature of the order (required when order is provided)",
       }),
     ),
+    hints: Type.Optional(
+      Type.Object(
+        {
+          "ton-vm": Type.Optional(
+            Type.Object({
+              lt: Type.String({
+                description:
+                  "The logical time of the deposit tx (required for ton-vm — TON has no global tx-hash lookup)",
+              }),
+            }),
+          ),
+        },
+        { description: "Hints for attesting the deposit transaction" },
+      ),
+    ),
     requestPeerSignatures: Type.Optional(
       Type.Boolean({
         description:
