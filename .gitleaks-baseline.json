@@ -1,0 +1,23 @@
+[
+ {
+  "RuleID": "generic-api-key",
+  "Description": "Detected a Generic API Key, potentially exposing access to various services and sensitive operations.",
+  "StartLine": 47,
+  "EndLine": 47,
+  "StartColumn": 19,
+  "EndColumn": 72,
+  "Match": "X-Nft-Api-Key\": \"REDACTED\"",
+  "Secret": "REDACTED",
+  "File": "src/services/attestation/vm/hyperliquid-vm/index.ts",
+  "SymlinkFile": "",
+  "Commit": "d2ccceb6b3d5f29ac8c81fc4dff21ea9df606614",
+  "Link": "https://github.com/unevenlabs/relay-protocol-oracle/blob/d2ccceb6b3d5f29ac8c81fc4dff21ea9df606614/src/services/attestation/vm/hyperliquid-vm/index.ts#L47",
+  "Entropy": 3.6070178,
+  "Author": "George Roman",
+  "Email": "30772943+georgeroman@users.noreply.github.com",
+  "Date": "2025-12-12T11:51:32Z",
+  "Message": "feat: use fallback when fetching hypevm tx-details (#95)\n\n* feat: use fallback when fetching hypevm tx-details\n\n* feat: use fallback when fetching hypevm tx-details",
+  "Tags": [],
+  "Fingerprint": "d2ccceb6b3d5f29ac8c81fc4dff21ea9df606614:src/services/attestation/vm/hyperliquid-vm/index.ts:generic-api-key:47"
+ }
+]

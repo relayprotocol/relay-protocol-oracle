@@ -1,0 +1,47 @@
+# ABOUTME: Gitleaks configuration — used by the local pre-commit hook
+# ABOUTME: and the CI workflow to scan for accidentally committed secrets.
+
+title = "Gitleaks config for relay-protocol-oracle"
+
+# Inherit gitleaks' built-in detector ruleset so we still benefit from
+# provider-specific verifiers (Alchemy, AWS, GitHub, Stripe, …).
+[extend]
+useDefault = true
+
+# Global allowlist — paths that contain high-entropy strings that are
+# not secrets: lockfile integrity hashes, third-party npm patches, and
+# build artifacts.
+[[allowlists]]
+description = "Lockfiles, npm patches, and build output"
+paths = [
+    '''yarn\.lock''',
+    '''\.yarn/patches/.*''',
+    '''dist/.*''',
+]
+
+# README curl examples use the curl-auth-header pattern syntactically
+# but never embed a real credential.
+[[allowlists]]
+description = "Documentation curl examples"
+targetRules = ["curl-auth-header"]
+paths = ['''README\.md''']
+
+# Test fixtures in this file use Ethereum addresses and tokenIds whose
+# high entropy looks like a generic API key. They are not credentials.
+[[allowlists]]
+description = "Hyperliquid VM test fixtures"
+targetRules = ["generic-api-key"]
+paths = [
+    '''test/unit/services/attestation/hyperliquid-vm\.test\.ts''',
+]
+
+# Property comparison in the execution-message dedup helper. The
+# generic-api-key rule misreads `x.idempotencyKey === y.idempotencyKey`
+# as a literal assignment to a high-entropy value.
+[[allowlists]]
+description = "ExecutionMessage idempotencyKey comparison"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''src/api/utils\.ts''']
+regexTarget = "line"
+regexes = ['''msg1\.idempotencyKey === msg2\.idempotencyKey''']
