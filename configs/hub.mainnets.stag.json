@@ -2,5 +2,10 @@
   "id": "relay",
   "httpRpcUrl": "http://proxy-relay.internal.relay.link/relay",
   "evmChainId": "537713",
-  "oracleAddress": "0xA5978Df9a664C56d62313EE9EAaC7930977164E4"
+  "oracleAddress": "0xA5978Df9a664C56d62313EE9EAaC7930977164E4",
+  "auroraHttpRpcUrl": "https://mainnet.aurora.dev",
+  "auroraEvmChainId": "1313161554",
+  "auroraAllocatorAddress": "0x910F56Fb797D9c7a978a08e73D7280e67eb81372",
+  "auroraAllocatorSpenderAddress": "0x797e3E92dC5b16816EcA3ecbE51A1C494E477C70",
+  "auroraOracleMultisigAddress": "0x3fFcE8afE23EDE9c84f6478D3Bf0e1140383d8CE"
 }
