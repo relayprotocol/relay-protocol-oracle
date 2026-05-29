@@ -222,6 +222,13 @@
     "hubChainId": "4326"
   },
   {
+    "id": "zorro",
+    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "$ZORRO_RPC_URL",
+    "hubChainId": "4663"
+  },
+  {
     "id": "mantle",
     "depository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca",
     "vmType": "ethereum-vm",
