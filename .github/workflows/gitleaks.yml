@@ -28,8 +28,25 @@ jobs:
           gitleaks version
 
       - name: Run gitleaks
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
+          zero_sha="0000000000000000000000000000000000000000"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            log_opts="${PR_BASE_SHA}..${PR_HEAD_SHA}"
+          elif [ -n "$PUSH_BEFORE_SHA" ] && [ "$PUSH_BEFORE_SHA" != "$zero_sha" ]; then
+            log_opts="${PUSH_BEFORE_SHA}..${HEAD_SHA}"
+          else
+            log_opts="$HEAD_SHA"
+          fi
+
+          set +e
           gitleaks git . \
+            --log-opts "$log_opts" \
             --config .gitleaks.toml \
             --baseline-path .gitleaks-baseline.json \
             --no-banner \
@@ -37,6 +54,22 @@ jobs:
             --report-format sarif \
             --report-path gitleaks.sarif \
             --exit-code 1
+          gitleaks_exit=$?
+          set -e
+
+          if [ "$gitleaks_exit" -ne 0 ] && [ -s gitleaks.sarif ]; then
+            echo "::group::Gitleaks findings (redacted)"
+            jq -r '
+              .runs[].results[]? |
+              (.locations[0].physicalLocation // {}) as $loc |
+              ($loc.region // {}) as $region |
+              (.partialFingerprints // {}) as $fingerprints |
+              "- rule: \(.ruleId // "unknown")\n  file: \($loc.artifactLocation.uri // "unknown"):\($region.startLine // "?")\n  commit: \($fingerprints.commitSha // "unknown")\n  message: \((.message.text // "no message") | gsub("\n"; " "))"
+            ' gitleaks.sarif
+            echo "::endgroup::"
+          fi
+
+          exit "$gitleaks_exit"
 
       - name: Upload SARIF report
         if: always()
