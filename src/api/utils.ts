@@ -304,6 +304,10 @@ export const areGenericMappingsEqual = (
  * signatures whose execution payload matches the local execution. Failures and
  * timeouts are logged and skipped so one unhealthy peer does not fail the
  * entire request path.
+ *
+ * When `ORACLE_SIGNERS` is set, returns as soon as `threshold` unique
+ * multisig-eligible signers have responded. Falls back to waiting for all
+ * peers when below target — never errors.
  */
 export const getPeerResponses = async ({
   endpointPath,
@@ -315,62 +319,72 @@ export const getPeerResponses = async ({
   requestBody: Record<string, unknown>;
   requestApiKey?: string | string[];
   validateAndExtractResponse: (peerData: any) => any[];
-}) => {
-  if (!config.peers) {
-    return [];
-  }
+}): Promise<any[]> => {
+  if (!config.peers) return [];
 
-  const peerResponses = await Promise.all(
-    Object.entries(config.peers).map(async ([url, apiKey]) => {
-      const start = Date.now();
-      try {
-        const response = await axios.post(
-          `${url}${endpointPath}`,
-          {
-            ...requestBody,
-            requestPeerSignatures: false,
-          },
-          {
-            headers: {
-              "x-api-key": apiKey === "pass-through" ? requestApiKey : apiKey,
-            },
-            timeout: config.peerRequestTimeoutMs,
-          },
-        );
+  const peerEntries = Object.entries(config.peers);
+  const { oracleSigners: signers, oracleSignersThreshold: threshold } = config;
 
-        const durationMs = Date.now() - start;
-        const logLevel = durationMs > 5000 ? "warn" : "info";
-        logger[logLevel](
-          "oracle-peer",
-          JSON.stringify({
-            msg: "Peer request completed",
-            endpointPath,
-            url,
-            durationMs,
-            data: response.data,
-            status: response.status,
-          }),
-        );
+  if (signers && threshold === 0) return [];
 
-        return validateAndExtractResponse(response.data);
-      } catch (error: any) {
-        const durationMs = Date.now() - start;
-        logger.warn(
-          "oracle-peer",
-          JSON.stringify({
-            msg: "Skipping peer signature",
-            endpointPath,
-            url,
-            durationMs,
-            timeoutMs: config.peerRequestTimeoutMs,
-            error: String(error),
-            errorResponse: error?.response?.data ?? error?.response?.body,
-          }),
-        );
-        return [];
+  // Dedupe by signer (multisig rejects duplicates); resolve `enough` once
+  // `matched` unique eligible signers arrive, so we stop waiting for dead peers.
+  const collected: any[] = [];
+  const seen = new Set<string>();
+  let matched = 0;
+  let resolveEnough!: () => void;
+  const enough = new Promise<void>((r) => (resolveEnough = r));
+
+  const record = (sigs: any[]) => {
+    for (const s of sigs) {
+      const signer =
+        typeof s?.oracleSigner === "string" ? s.oracleSigner.toLowerCase() : undefined;
+      if (signers && signer) {
+        if (seen.has(signer)) continue;
+        seen.add(signer);
+        if (signers.has(signer)) matched++;
       }
-    }),
-  );
+      collected.push(s);
+    }
+    if (signers && matched >= threshold) resolveEnough();
+  };
 
-  return peerResponses.flat();
+  const peerDone = peerEntries.map(([url, apiKey]) => {
+    const start = Date.now();
+    return axios
+      .post(
+        `${url}${endpointPath}`,
+        { ...requestBody, requestPeerSignatures: false },
+        {
+          headers: { "x-api-key": apiKey === "pass-through" ? requestApiKey : apiKey },
+          timeout: config.peerRequestTimeoutMs,
+        },
+      )
+      .then((response) => {
+        const durationMs = Date.now() - start;
+        logger[durationMs > 5000 ? "warn" : "info"]("oracle-peer", JSON.stringify({
+          msg: "Peer request completed", endpointPath, url, durationMs,
+          data: response.data, status: response.status,
+        }));
+        try {
+          record(validateAndExtractResponse(response.data));
+        } catch (error: any) {
+          logger.warn("oracle-peer", JSON.stringify({
+            msg: "Skipping peer signature (validator error)",
+            endpointPath, url, durationMs: Date.now() - start, error: String(error),
+          }));
+        }
+      })
+      .catch((error: any) => {
+        logger.warn("oracle-peer", JSON.stringify({
+          msg: "Skipping peer signature", endpointPath, url,
+          durationMs: Date.now() - start, timeoutMs: config.peerRequestTimeoutMs,
+          error: String(error), errorResponse: error?.response?.data ?? error?.response?.body,
+        }));
+      });
+  });
+
+  // Resolve as soon as `enough` fires (threshold met) or all peers settle.
+  await Promise.race([enough, Promise.allSettled(peerDone)]);
+  return [...collected];
 };

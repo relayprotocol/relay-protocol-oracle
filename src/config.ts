@@ -10,6 +10,12 @@ export const config = {
   httpPort: Number(process.env.HTTP_PORT ?? process.env.PORT ?? 3000),
   environment: process.env.ENVIRONMENT!,
   peerRequestTimeoutMs: Number(process.env.PEER_REQUEST_TIMEOUT_MS ?? 10000),
+  // Semicolon-separated multisig signer addresses; unset → wait for all peers.
+  oracleSigners: process.env.ORACLE_SIGNERS
+    ? new Set(process.env.ORACLE_SIGNERS.split(";").map((s) => s.toLowerCase()))
+    : undefined,
+  // How many unique peer sigs to collect before returning early (0 = skip peer fan-out).
+  oracleSignersThreshold: Number(process.env.ORACLE_SIGNERS_THRESHOLD ?? 0),
   unauthenticatedRateLimitMax: positiveNumberFromEnv(
     process.env.UNAUTHENTICATED_RATE_LIMIT_MAX,
     2,
