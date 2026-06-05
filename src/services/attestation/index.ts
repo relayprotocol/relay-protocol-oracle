@@ -35,6 +35,7 @@ import {
   getDepositAddressTriggerHash,
   encodeAddress,
 } from "@relay-protocol/settlement-sdk";
+import axios from "axios";
 import * as bitcoin from "bitcoinjs-lib";
 import TronWeb from "tronweb";
 import {
@@ -52,6 +53,7 @@ import {
 import { getVmAttestor } from "./vm";
 import { EnhancedDepositoryDepositMessage } from "./vm/types";
 import {
+  cartesianProduct,
   extractEcdsaSignature,
   getBitcoinSignerPubkey,
   getDeterministicId,
@@ -391,27 +393,60 @@ export class AttestationService {
     execution?: ExecutionMessage;
   }> {
     const payloadParams = await this._getPayloadParams(data);
-    const withdrawal = await this._getEncodedWithdrawalV2(
+
+    // A single withdrawal can have more than one valid encoding - an allocator
+    // input may have been signed more than once (eg retried NEAR MPC signing),
+    // and the transaction that actually landed on-chain might use any of those
+    // signatures. Each combination yields a distinct (but equivalent) signed
+    // payload, so we check them all and treat the withdrawal as executed if any
+    // of them matches the on-chain spend.
+    const withdrawals = await this._getEncodedWithdrawalV2(
       data.chainId,
       payloadParams,
     );
 
-    if (!withdrawal) {
+    if (!withdrawals.length) {
       return { status: DepositoryWithdrawalStatus.PENDING };
     }
 
-    const result = await this.attestDepositoryWithdrawal({
-      chainId: data.chainId,
-      withdrawal,
-      transactionId: data.transactionId,
-      hints: data.hints,
-      withdrawalAddressRequest: data.withdrawalAddressRequest,
-    });
+    const results = await Promise.all(
+      withdrawals.map((withdrawal) =>
+        this.attestDepositoryWithdrawal({
+          chainId: data.chainId,
+          withdrawal,
+          transactionId: data.transactionId,
+          hints: data.hints,
+          withdrawalAddressRequest: data.withdrawalAddressRequest,
+        }),
+      ),
+    );
 
-    return {
-      status: result.message.result.status,
-      execution: result.execution,
-    };
+    // If any of the withdrawal encodings is executed, then we mark the withdrawal as executed
+    const executedResult = results.find(
+      (r) => r.message.result.status === DepositoryWithdrawalStatus.EXECUTED,
+    );
+    if (executedResult) {
+      return {
+        status: executedResult.message.result.status,
+        execution: executedResult.execution,
+      };
+    }
+
+    // If all of the withdrawal encodings are expired, then we mark the withdrawal as expired
+    if (
+      results.every(
+        (result) =>
+          result.message.result.status === DepositoryWithdrawalStatus.EXPIRED,
+      )
+    ) {
+      return {
+        status: results[0].message.result.status,
+        execution: results[0].execution,
+      };
+    }
+
+    // Otheriwse, the withdrawal is still pending
+    return { status: DepositoryWithdrawalStatus.PENDING };
   }
 
   public async attestDepositoryWithdrawalV3(
@@ -1370,7 +1405,7 @@ export class AttestationService {
   private async _getEncodedWithdrawalV2(
     chainId: string,
     payloadParams: SubmitWithdrawRequest,
-  ): Promise<string | undefined> {
+  ): Promise<string[]> {
     const hubInfo = await getHubInfo();
 
     const allocator = getContract({
@@ -1430,11 +1465,7 @@ export class AttestationService {
           payloadId as Hex,
           hashToSign,
         ]);
-        if (signature === "0x") {
-          return undefined;
-        } else {
-          return payload;
-        }
+        return signature === "0x" ? [] : [payload];
       }
 
       case "solana-vm": {
@@ -1449,11 +1480,7 @@ export class AttestationService {
           payloadId as Hex,
           hashToSign,
         ]);
-        if (signature === "0x") {
-          return undefined;
-        } else {
-          return payload;
-        }
+        return signature === "0x" ? [] : [payload];
       }
 
       case "bitcoin-vm": {
@@ -1491,7 +1518,12 @@ export class AttestationService {
           };
 
         const transactionData = decodeBitcoinTransactionData(payload as Hex);
-        const signatures = await Promise.all(
+
+        // For every input, gather all signatures the allocator produced for it.
+        // An input can legitimately be signed more than once (eg a retried NEAR
+        // MPC signing), each producing a different but valid signature, and the
+        // the transaction that landed on-chain may use any of them.
+        const perInputSignatures = await Promise.all(
           transactionData.inputs.map(async (_, i) => {
             const hashToSign = await payloadBuilder.read.hashToSign([
               BigInt(payloadParams.chainId),
@@ -1499,19 +1531,58 @@ export class AttestationService {
               payload,
               i,
             ]);
-            const signature = await allocator.read.signedPayloads([
+            const storedSignature = await allocator.read.signedPayloads([
               payloadId as Hex,
               hashToSign,
             ]);
-            if (signature === "0x") {
-              return undefined;
-            } else {
-              return extractEcdsaSignature(signature);
+
+            const signatures = new Set<string>();
+            if (storedSignature && storedSignature !== "0x") {
+              signatures.add(extractEcdsaSignature(storedSignature));
             }
+
+            const PAYLOAD_WITHDRAW_SIGNED_TOPIC =
+              "0x0442d576de21d369ae594c20a06e751211e214c91de4b237e5f66edd1900f1f9";
+            const response = await axios.post(hubInfo.auroraHttpRpcUrl, {
+              jsonrpc: "2.0",
+              id: 1,
+              method: "eth_getLogs",
+              params: [
+                {
+                  fromBlock: "earliest",
+                  toBlock: "latest",
+                  address: hubInfo.auroraAllocatorAddress,
+                  topics: [
+                    PAYLOAD_WITHDRAW_SIGNED_TOPIC,
+                    payloadId,
+                    hashToSign,
+                  ],
+                },
+              ],
+            });
+            if (response.data?.error) {
+              throw internalError(
+                `Allocator signature lookup failed: ${JSON.stringify(
+                  response.data.error,
+                )}`,
+              );
+            }
+
+            for (const log of response.data?.result ?? []) {
+              const [signedPayload] = decodeAbiParameters(
+                [{ type: "bytes" }],
+                log.data as Hex,
+              ) as [Hex];
+              signatures.add(extractEcdsaSignature(signedPayload));
+            }
+
+            return [...signatures];
           }),
         );
-        if (signatures.some((signature) => !signature)) {
-          return undefined;
+
+        // If any input has no signature, the payload is not yet fully signed.
+        if (perInputSignatures.some((signatures) => !signatures.length)) {
+          return [];
         }
 
         const fromLittleEndian = (value: Hex): number => {
@@ -1521,70 +1592,78 @@ export class AttestationService {
           return Number(BigInt(`0x${normalized}`));
         };
 
-        const psbt = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin });
-        psbt.setVersion(1);
-
         const signerPublicKey = await getBitcoinSignerPubkey(chainId);
-        for (const input of transactionData.inputs) {
-          const txid = Buffer.from(input.txid.slice(2), "hex")
-            .reverse()
-            .toString("hex");
 
-          psbt.addInput({
-            hash: txid,
-            index: Number(fromLittleEndian(input.index)),
-            sequence: 0xfffffffd,
-            sighashType: bitcoin.Transaction.SIGHASH_ALL,
-            witnessUtxo: {
-              script: Buffer.from(input.script.slice(2), "hex"),
-              value: fromLittleEndian(input.value),
-            },
-            // The allocator pubkey is included so signers can identify inputs by key
-            bip32Derivation: [
-              {
-                masterFingerprint: Buffer.alloc(4),
-                path: "m",
-                pubkey: signerPublicKey,
+        // Build one encoded withdrawal for a specific choice of signature per input.
+        const buildEncodedWithdrawal = (inputSignatures: string[]) => {
+          const psbt = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin });
+          psbt.setVersion(1);
+
+          for (const input of transactionData.inputs) {
+            const txid = Buffer.from(input.txid.slice(2), "hex")
+              .reverse()
+              .toString("hex");
+
+            psbt.addInput({
+              hash: txid,
+              index: Number(fromLittleEndian(input.index)),
+              sequence: 0xfffffffd,
+              sighashType: bitcoin.Transaction.SIGHASH_ALL,
+              witnessUtxo: {
+                script: Buffer.from(input.script.slice(2), "hex"),
+                value: fromLittleEndian(input.value),
               },
-            ],
-          });
-        }
+              // The allocator pubkey is included so signers can identify inputs by key
+              bip32Derivation: [
+                {
+                  masterFingerprint: Buffer.alloc(4),
+                  path: "m",
+                  pubkey: signerPublicKey,
+                },
+              ],
+            });
+          }
 
-        for (const output of transactionData.outputs) {
-          psbt.addOutput({
-            script: Buffer.from(output.script.slice(2), "hex"),
-            value: fromLittleEndian(output.value),
-          });
-        }
+          for (const output of transactionData.outputs) {
+            psbt.addOutput({
+              script: Buffer.from(output.script.slice(2), "hex"),
+              value: fromLittleEndian(output.value),
+            });
+          }
 
-        if (signatures.length !== transactionData.inputs.length) {
+          for (let i = 0; i < inputSignatures.length; i++) {
+            const partialSig = psbt.data.inputs[i].partialSig ?? [];
+            const normalizedSignature = normalizeBitcoinPartialSignature(
+              inputSignatures[i],
+              bitcoin.Transaction.SIGHASH_ALL,
+            );
+
+            psbt.updateInput(i, {
+              partialSig: [
+                ...partialSig,
+                {
+                  pubkey: signerPublicKey,
+                  signature: normalizedSignature,
+                },
+              ],
+            });
+          }
+
+          return encodeWithdrawal({
+            vmType: "bitcoin-vm",
+            withdrawal: { psbt: psbt.toHex() },
+          });
+        };
+
+        // One candidate withdrawal per combination of per-input signatures
+        const combinations = cartesianProduct(perInputSignatures);
+        if (combinations.length > 20) {
           throw internalError(
-            `Invalid bitcoin signature count: expected ${transactionData.inputs.length}, got ${signatures.length}`,
+            "Too many input signature combinations to process",
           );
         }
 
-        for (let i = 0; i < signatures.length; i++) {
-          const partialSig = psbt.data.inputs[i].partialSig ?? [];
-          const normalizedSignature = normalizeBitcoinPartialSignature(
-            signatures[i]!,
-            bitcoin.Transaction.SIGHASH_ALL,
-          );
-
-          psbt.updateInput(i, {
-            partialSig: [
-              ...partialSig,
-              {
-                pubkey: signerPublicKey,
-                signature: normalizedSignature,
-              },
-            ],
-          });
-        }
-
-        return encodeWithdrawal({
-          vmType: "bitcoin-vm",
-          withdrawal: { psbt: psbt.toHex() },
-        });
+        return combinations.map(buildEncodedWithdrawal);
       }
 
       default: {

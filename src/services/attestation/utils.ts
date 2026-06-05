@@ -14,6 +14,13 @@ export const getDeterministicId = (...values: string[]) =>
     .update(values.join(":").toLowerCase())
     .digest("hex");
 
+// Cartesian product of per-slot options. `[[a], [b1, b2]]` becomes `[[a, b1], [a, b2]]`
+export const cartesianProduct = <T>(lists: T[][]): T[][] =>
+  lists.reduce<T[][]>(
+    (acc, list) => acc.flatMap((combo) => list.map((item) => [...combo, item])),
+    [[]],
+  );
+
 export const extractEcdsaSignature = (rawNearSignature: string): string => {
   const parsedSignature = JSON.parse(
     fromHex(rawNearSignature as Hex, "string"),
