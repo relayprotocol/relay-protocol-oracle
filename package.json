@@ -29,7 +29,7 @@
     "@nktkas/hyperliquid": "0.25.1",
     "@relay-protocol/abis": "2.0.0",
     "@relay-protocol/settlement-networks": "3.0.0",
-    "@relay-protocol/settlement-sdk": "0.0.105",
+    "@relay-protocol/settlement-sdk": "0.0.106",
     "@reservoir0x/lighter-ts-sdk": "1.0.7-alpha11",
     "@sinclair/typebox": "0.34.38",
     "@solana/spl-memo": "0.2.5",
