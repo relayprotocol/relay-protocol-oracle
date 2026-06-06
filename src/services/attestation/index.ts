@@ -1657,7 +1657,7 @@ export class AttestationService {
 
         // One candidate withdrawal per combination of per-input signatures
         const combinations = cartesianProduct(perInputSignatures);
-        if (combinations.length > 20) {
+        if (combinations.length > 100) {
           throw internalError(
             "Too many input signature combinations to process",
           );
