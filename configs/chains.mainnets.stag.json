@@ -233,6 +233,13 @@
     "hubChainId": "5031"
   },
   {
+    "id": "arc",
+    "depository": "0x9ddc6a541e8f8b50b0996786a3ec275ab4d3a76c",
+    "vmType": "ethereum-vm",
+    "httpRpcUrl": "$ARC_RPC_URL",
+    "hubChainId": "5042"
+  },
+  {
     "id": "superseed",
     "depository": "0x9ddc6a541e8f8b50b0996786a3ec275ab4d3a76c",
     "vmType": "ethereum-vm",
