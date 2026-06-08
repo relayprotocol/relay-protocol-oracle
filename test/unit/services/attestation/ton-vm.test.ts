@@ -1629,6 +1629,8 @@ describe("TonVmAttestor", () => {
       // For the EXECUTED path: tx returned by client.getTransaction(addr, lt, hash).
       // Build via buildMockTx() with the right outMessages shape.
       executingTx?: ReturnType<typeof buildMockTx> | null
+      // Account state for the processed? error path (uninit → not processed).
+      depositoryState?: "active" | "uninitialized" | "frozen"
     }) => {
       const latestMcSeqno = options.latestMcSeqno ?? 1000
       const latestNow = options.latestNow ?? 1_700_000_000
@@ -1663,6 +1665,10 @@ describe("TonVmAttestor", () => {
         .fn<() => Promise<unknown>>()
         .mockResolvedValue(options.executingTx ?? null)
 
+      const getContractState = jest
+        .fn<() => Promise<unknown>>()
+        .mockResolvedValue({ state: options.depositoryState ?? "active" })
+
       // _ensureTxFinality (EXECUTED path) uses lookupMcBlockSeqnoByUtime to
       // anchor the tx's mc seqno. Mirror setupRpcMock's default: well below
       // latest so finality check passes.
@@ -1682,12 +1688,18 @@ describe("TonVmAttestor", () => {
             getTransactions: jest.fn(),
             getMasterchainInfo,
             runMethodWithError,
+            getContractState,
           },
           chain: { id: "ton-testnet", additionalData: {} },
         }),
       )
 
-      return { getMasterchainInfo, runMethod: runMethodWithError, getTransaction }
+      return {
+        getMasterchainInfo,
+        runMethod: runMethodWithError,
+        getTransaction,
+        getContractState,
+      }
     }
 
     // Helper: build a tx with one outbound matching baseWithdrawal exactly.
@@ -1967,6 +1979,24 @@ describe("TonVmAttestor", () => {
       expect((err as { isExternalError?: boolean }).isExternalError).toBe(
         true,
       );
+    });
+
+    it("returns PENDING when processed? fails because the depository is uninitialized", async () => {
+      // First withdrawal: wallet only received deposits, never deployed → the
+      // get-method fails (exit -13) but the account is not active, so it can't
+      // have processed any queryId.
+      setupWithdrawalRpcMock({
+        processedExitCode: -13,
+        depositoryState: "uninitialized",
+        latestNow: 1_700_001_000, // within timeout window
+      });
+
+      const message = await new TonVmAttestor().getDepositoryWithdrawalMessage(
+        "ton-testnet",
+        encodedFor(baseWithdrawal),
+      );
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.PENDING);
     });
 
     it("rejects when processed? returns a non-int tuple", async () => {

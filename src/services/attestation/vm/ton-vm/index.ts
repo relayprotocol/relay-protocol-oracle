@@ -259,20 +259,29 @@ export class TonVmAttestor extends VmAttestor {
         `Depository ${depository} does not expose the processed? getter — wallet is not Highload V3`,
       );
     }
-    if (processedResult.exit_code !== 0) {
-      throw externalError(
-        `Highload V3 processed? returned exit code ${processedResult.exit_code} on depository ${depository}`,
-      );
-    }
     let isProcessed: boolean;
-    try {
-      // TVM boolean on stack: -1 = true, 0 = false. TupleReader throws if the
-      // top item isn't an int — surface as an external error.
-      isProcessed = processedResult.stack.readBigNumber() === -1n;
-    } catch {
-      throw externalError(
-        `Highload V3 processed? returned unexpected tuple type on depository ${depository}`,
-      );
+    if (processedResult.exit_code !== 0) {
+      // processed? fails on a non-active account (e.g. exit -13). An uninit
+      // depository has consumed no queryId, so it's not processed — verify via
+      // account state rather than trusting a specific exit code.
+      await logRpcUsage(chainId, "getContractState", trackingId);
+      const depositoryState = await client.getContractState(depositoryAddr);
+      if (depositoryState.state === "active") {
+        throw externalError(
+          `Highload V3 processed? returned exit code ${processedResult.exit_code} on depository ${depository}`,
+        );
+      }
+      isProcessed = false;
+    } else {
+      try {
+        // TVM boolean on stack: -1 = true, 0 = false. TupleReader throws if the
+        // top item isn't an int — surface as an external error.
+        isProcessed = processedResult.stack.readBigNumber() === -1n;
+      } catch {
+        throw externalError(
+          `Highload V3 processed? returned unexpected tuple type on depository ${depository}`,
+        );
+      }
     }
 
     if (!isProcessed) {
