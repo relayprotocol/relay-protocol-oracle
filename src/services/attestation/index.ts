@@ -479,13 +479,13 @@ export class AttestationService {
       const withdrawRequestHash = getWithdrawRequestHash(withdrawRequest);
 
       const hubTokenId = generateTokenId({
-        address: withdrawRequest.currency,
+        address: data.currency,
         chainId: withdrawRequest.chainId,
         family: await getChainVmType(withdrawRequest.chainId),
       });
 
       const hubToAddress = generateAddress({
-        address: withdrawRequest.spender,
+        address: data.spender,
         chainId: withdrawRequest.spenderChainId,
         family: await getChainVmType(withdrawRequest.spenderChainId),
       });

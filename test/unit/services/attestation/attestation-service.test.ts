@@ -106,6 +106,7 @@ jest.mock("../../../../src/common/chains", () => {
       if (chainId === "solana") return "solana-vm";
       if (chainId === "hyperliquid-vm") return "hyperliquid-vm";
       if (chainId === "base") return "ethereum-vm";
+      if (chainId === "ton") return "ton-vm";
       throw new Error(`Unknown chain: ${chainId}`);
     }),
     getChainHubChainId: jest.fn().mockImplementation(async (chainId) => {
@@ -623,6 +624,78 @@ describe("AttestationService", () => {
           hubTokenId,
           hubFromAddress: getAddress(withdrawalAddress),
           amount,
+        },
+      });
+    });
+  });
+
+  describe("attestDepositoryWithdrawalV3", () => {
+    // Native TON spender + native sentinel currency (spenderChainId is non-EVM).
+    const tonWithdrawRequest = {
+      chainId: "ton",
+      depository:
+        "0:f37b9f6fd97ece249cb48d9aa5d0202570ad130b7b7d4ce4dd0f4cd551b3d9bd",
+      currency: "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c",
+      amount: "1000",
+      spenderChainId: "ton",
+      spender:
+        "0:5fcddb24292ed63ce6fce30e4f952c248550ae8d524e5d7b558b437d31241156",
+      receiver:
+        "0:5fcddb24292ed63ce6fce30e4f952c248550ae8d524e5d7b558b437d31241156",
+      nonce:
+        "0x0000000000000000000000000000000000000000000000000000000000000001",
+    };
+
+    it("mints an expired ton-vm withdrawal back to the native spender alias", async () => {
+      // _getEncodedWithdrawalV3 reads: payloadBuilders -> family() -> payloads
+      const mockedHubRpc = {
+        readContract: jest
+          .fn<any>()
+          .mockResolvedValueOnce("0x1E501Cb130fac80b3CaD5145AbCbF7393B02C3a5")
+          .mockResolvedValueOnce("ton-vm")
+          .mockResolvedValueOnce("0xdeadbeef"),
+      };
+      jest.mocked(getHubHttpRpc).mockResolvedValue(mockedHubRpc as any);
+
+      const mockAttestor: any = {
+        getDepositoryWithdrawalMessage: jest.fn().mockImplementation(() =>
+          Promise.resolve({
+            data: { chainId: tonWithdrawRequest.chainId, withdrawal: "0xdeadbeef" },
+            result: {
+              withdrawalId: zeroHash,
+              depository: tonWithdrawRequest.depository,
+              status: DepositoryWithdrawalStatus.EXPIRED,
+            },
+          }),
+        ),
+      };
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      const result = await service.attestDepositoryWithdrawalV3(
+        tonWithdrawRequest,
+      );
+
+      expect(result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
+      const [action] = result.execution?.actions || [];
+      // Regression guard for DEC-1086: the mint-back must derive tokenId/alias
+      // from the denormalized (native) currency/spender. Feeding the normalized
+      // 0x-hex throws in encodeAddress (Address.parse) for ton.
+      expect(decodeAction(action)).toEqual({
+        type: ActionType.MINT,
+        data: {
+          hubTokenId: generateTokenId({
+            address: tonWithdrawRequest.currency,
+            chainId: tonWithdrawRequest.chainId,
+            family: "ton-vm",
+          }),
+          hubToAddress: getAddress(
+            generateAddress({
+              address: tonWithdrawRequest.spender,
+              chainId: tonWithdrawRequest.spenderChainId,
+              family: "ton-vm",
+            }),
+          ),
+          amount: tonWithdrawRequest.amount,
         },
       });
     });
