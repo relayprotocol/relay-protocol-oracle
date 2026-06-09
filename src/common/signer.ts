@@ -2,6 +2,7 @@ import {
   ExecutionMessage,
   GenericMappingMessage,
   SubmitWithdrawRequest,
+  WithdrawRequest,
 } from "@relay-protocol/settlement-sdk";
 import { Address, Hex, zeroAddress } from "viem";
 
@@ -209,6 +210,56 @@ export const signWithdrawRequestMessage = async (m: {
   });
 
   return {
+    oracleSigner: wallet.address.toLowerCase(),
+    signature,
+  };
+};
+
+// Signs the allocator `WithdrawRequest` EIP-712 digest with the oracle key so
+// `RelayAllocator.consumeSpenderSignature`'s `ORACLE.isValidSignatureNow`
+// fallback authorizes the submission. Domain/types must match PAYLOAD_TYPEHASH
+// in RelayAllocator.sol and the solver's WITHDRAW_REQUEST_TYPES exactly.
+export const signAllocatorWithdrawRequest = async (request: WithdrawRequest) => {
+  const wallet = await getSigningWallet();
+  const hubInfo = await getHubInfo();
+
+  const signature = await wallet.signTypedData({
+    domain: {
+      chainId: BigInt(hubInfo.evmChainId),
+      name: "RelayAllocator",
+      verifyingContract: hubInfo.allocatorAddress as Address,
+      version: "1",
+    },
+    message: {
+      chainId: request.chainId,
+      depository: request.depository as Hex,
+      currency: request.currency as Hex,
+      amount: BigInt(request.amount),
+      spenderChainId: request.spenderChainId,
+      spender: request.spender as Hex,
+      receiver: request.receiver as Hex,
+      data: request.data as Hex,
+      nonce: request.nonce as Hex,
+    },
+    primaryType: "WithdrawRequest",
+    types: {
+      WithdrawRequest: [
+        { name: "chainId", type: "string" },
+        { name: "depository", type: "bytes" },
+        { name: "currency", type: "bytes" },
+        { name: "amount", type: "uint256" },
+        { name: "spenderChainId", type: "string" },
+        { name: "spender", type: "bytes" },
+        { name: "receiver", type: "bytes" },
+        { name: "data", type: "bytes" },
+        { name: "nonce", type: "bytes32" },
+      ],
+    },
+  });
+
+  return {
+    allocatorChainId: Number(hubInfo.evmChainId),
+    allocatorContract: hubInfo.allocatorAddress,
     oracleSigner: wallet.address.toLowerCase(),
     signature,
   };
