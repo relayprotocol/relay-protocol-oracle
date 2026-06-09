@@ -38,6 +38,8 @@ export type Chain = {
     explorerApiUrl?: string;
     // For "ton-vm" — masterchain finality buffer (mc blocks past tip).
     tonMinFinalityBlocks?: number;
+    // For "ton-vm" — TonConnect signData origin domain (e.g. "app.relay.link").
+    signDataDomain?: string;
   };
 };
 

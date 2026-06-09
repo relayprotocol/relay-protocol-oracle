@@ -3,13 +3,15 @@ import stringify from "json-stable-stringify";
 import bs58 from "bs58";
 import { ed25519 } from "@noble/curves/ed25519";
 import { Verifier as Bip322Verifier } from "bip322-js";
+import { Address as TonAddress } from "@ton/core";
 import { Address, Hex, keccak256, recoverAddress, verifyMessage } from "viem";
 
-import { getChain } from "./chains";
+import { Chain, getChain } from "./chains";
 import { externalError } from "./error";
 import { logger } from "./logger";
 import { toHexAddress } from "../services/attestation/vm/tron-vm";
 import { httpRpc as lighterHttpRpc } from "./vm/lighter-vm/rpc";
+import { httpRpc as tonHttpRpc } from "./vm/ton-vm/rpc";
 
 export type WithdrawalSignatureData = {
   chainId: string;
@@ -49,6 +51,8 @@ export const verifyWithdrawalSignature = async ({
       return verifyLighterPersonalSign(data, signature);
 
     case "ton-vm":
+      return verifyTonSignData(data, signature, ownerChain);
+
     default:
       throw externalError(
         "Signature verification not supported for owner chain",
@@ -196,6 +200,104 @@ const verifySolanaEd25519 = async (
   }
 
   const isValid = ed25519.verify(sigBytes, digestBytes, pubkeyBytes);
+  if (!isValid) {
+    throw externalError("Invalid signature");
+  }
+};
+
+// TON: TonConnect signData (type="text"), spec: ton-connect/docs spec/rpc.md.
+// sha256(0xffff || "ton-connect/sign-data/" || addr(BE) || domainLen(BE32) || domain ||
+//        timestamp(BE64) || "txt" || payloadLen(BE32) || payload)
+// Ed25519 pubkey from get_public_key() on-chain getter.
+// additionalData["ton-vm"].timestamp = Unix seconds from TonConnect signData response.
+// additionalData["ton-vm"].domain = domain from TonConnect signData response.
+export const verifyTonSignData = async (
+  data: WithdrawalSignatureData,
+  signature: string,
+  ownerChain: Chain,
+) => {
+  const tonData = data.additionalData?.["ton-vm"] as
+    | { timestamp?: unknown; domain?: unknown }
+    | undefined;
+
+  const timestamp = tonData?.timestamp;
+  if (typeof timestamp !== "number") {
+    throw externalError("Missing ton-vm timestamp in additionalData");
+  }
+
+  const domain = tonData?.domain;
+  if (typeof domain !== "string") {
+    throw externalError("Missing ton-vm domain in additionalData");
+  }
+
+  const signDataDomain = ownerChain.additionalData?.signDataDomain;
+  if (!signDataDomain) {
+    throw externalError("ton-vm chain missing signDataDomain config");
+  }
+  if (domain !== signDataDomain && !domain.endsWith("." + signDataDomain)) {
+    throw externalError("Invalid signData domain");
+  }
+
+  const { client } = await tonHttpRpc(data.ownerChainId);
+  const result = await client.runMethodWithError(
+    TonAddress.parse(data.owner),
+    "get_public_key",
+  );
+  if (result.exit_code !== 0) {
+    throw externalError(
+      `get_public_key failed for owner ${data.owner} (exit ${result.exit_code})`,
+    );
+  }
+  const pubkeyBigInt = result.stack.readBigNumber();
+  const pubkeyBytes = Buffer.from(
+    pubkeyBigInt.toString(16).padStart(64, "0"),
+    "hex",
+  );
+
+  // ton-vm timestamp is TonKeeper signing metadata, not part of the withdrawal request.
+  const { "ton-vm": _tonMeta, ...otherAdditionalData } = (data.additionalData ?? {}) as Record<string, unknown>;
+  const digest = computeDigest({
+    ...data,
+    additionalData: Object.keys(otherAdditionalData).length ? otherAdditionalData : undefined,
+  });
+  const payloadBytes = Buffer.from(digest, "utf-8");
+
+  const [wcStr, addrHashHex] = data.owner.split(":");
+  const wcBuf = Buffer.alloc(4);
+  wcBuf.writeInt32BE(parseInt(wcStr));
+  const addrHashBuf = Buffer.from(addrHashHex, "hex");
+
+  const domainUtf8 = Buffer.from(domain, "utf-8");
+  const domainLenBuf = Buffer.alloc(4);
+  domainLenBuf.writeUInt32BE(domainUtf8.length);
+
+  const timestampBuf = Buffer.alloc(8);
+  timestampBuf.writeBigInt64BE(BigInt(timestamp));
+
+  const payloadLenBuf = Buffer.alloc(4);
+  payloadLenBuf.writeUInt32BE(payloadBytes.length);
+
+  const message = Buffer.concat([
+    Buffer.from([0xff, 0xff]),
+    Buffer.from("ton-connect/sign-data/"),
+    wcBuf,
+    addrHashBuf,
+    domainLenBuf,
+    domainUtf8,
+    timestampBuf,
+    Buffer.from("txt"),
+    payloadLenBuf,
+    payloadBytes,
+  ]);
+  const messageHash = crypto.createHash("sha256").update(message).digest();
+
+  const sigHex = signature.startsWith("0x") ? signature.slice(2) : signature;
+  const sigBytes = Buffer.from(sigHex, "hex");
+  if (sigBytes.length !== 64) {
+    throw externalError("Invalid signature length");
+  }
+
+  const isValid = ed25519.verify(sigBytes, messageHash, pubkeyBytes);
   if (!isValid) {
     throw externalError("Invalid signature");
   }

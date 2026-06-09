@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeAll } from "@jest/globals";
+import { describe, expect, it, jest, beforeAll, beforeEach } from "@jest/globals";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex, keccak256 } from "viem";
 import crypto from "crypto";
@@ -30,6 +30,26 @@ jest.mock("../../../src/common/chains", () => ({
     }
     return chain;
   },
+}));
+
+// Mock ton-vm RPC — returns a configurable Ed25519 public key for get_public_key().
+let mockTonPublicKey: Buffer | null = null;
+
+jest.mock("../../../src/common/vm/ton-vm/rpc", () => ({
+  httpRpc: async () => ({
+    client: {
+      runMethodWithError: async (_address: unknown, method: string) => {
+        if (method !== "get_public_key" || !mockTonPublicKey) {
+          return { exit_code: -1, stack: { readBigNumber: () => 0n } };
+        }
+        const pubkeyBigInt = BigInt("0x" + mockTonPublicKey.toString("hex"));
+        return {
+          exit_code: 0,
+          stack: { readBigNumber: () => pubkeyBigInt },
+        };
+      },
+    },
+  }),
 }));
 
 // Mock Lighter RPC — maps L2 account index → l1_address.
@@ -390,6 +410,52 @@ const evmToTronAddress = (evmAddress: string): string => {
   return tronweb.utils.address.fromHex("41" + evmAddress.slice(2));
 };
 
+// Helper: TON TonConnect signData (Ed25519 over TonConnect-prefixed message)
+// sha256(0xff ++ 0xff ++ "ton-connect" ++ sha256(domainData) ++ timestamp_i64le ++ sha256(payload))
+const signTonSignData = (
+  data: WithdrawalSignatureData,
+  privateKey: Uint8Array, // 32-byte Ed25519 seed
+  domain: string,
+  timestamp: number,
+): string => {
+  // Strip ton-vm metadata before computing digest (mirrors verifyTonSignData).
+  const { "ton-vm": _tonMeta, ...otherAD } = (data.additionalData ?? {}) as Record<string, unknown>;
+  const digestData = { ...data, additionalData: Object.keys(otherAD).length ? otherAD : undefined };
+  const payloadBytes = Buffer.from(computeDigest(digestData), "utf-8");
+
+  const [wcStr, addrHashHex] = data.owner.split(":");
+  const wcBuf = Buffer.alloc(4);
+  wcBuf.writeInt32BE(parseInt(wcStr));
+  const addrHashBuf = Buffer.from(addrHashHex, "hex");
+
+  const domainUtf8 = Buffer.from(domain, "utf-8");
+  const domainLenBuf = Buffer.alloc(4);
+  domainLenBuf.writeUInt32BE(domainUtf8.length);
+
+  const timestampBuf = Buffer.alloc(8);
+  timestampBuf.writeBigInt64BE(BigInt(timestamp));
+
+  const payloadLenBuf = Buffer.alloc(4);
+  payloadLenBuf.writeUInt32BE(payloadBytes.length);
+
+  const message = Buffer.concat([
+    Buffer.from([0xff, 0xff]),
+    Buffer.from("ton-connect/sign-data/"),
+    wcBuf,
+    addrHashBuf,
+    domainLenBuf,
+    domainUtf8,
+    timestampBuf,
+    Buffer.from("txt"),
+    payloadLenBuf,
+    payloadBytes,
+  ]);
+  const messageHash = crypto.createHash("sha256").update(message).digest();
+
+  const sigBytes = ed25519.sign(messageHash, privateKey);
+  return "0x" + Buffer.from(sigBytes).toString("hex");
+};
+
 beforeAll(() => {
   mockChains["1"] = {
     id: "1",
@@ -425,6 +491,7 @@ beforeAll(() => {
     id: "ton-mainnet",
     vmType: "ton-vm",
     httpRpcUrl: "http://localhost:8080",
+    additionalData: { signDataDomain: "app.relay.link" },
   };
   mockChains["lighter-mainnet"] = {
     id: "lighter-mainnet",
@@ -451,19 +518,8 @@ describe("verifyWithdrawalSignature", () => {
     });
   });
 
-  describe("unsupported VMs", () => {
-    it("should throw unsupported for ton-vm", async () => {
-      await expect(
-        verifyWithdrawalSignature({
-          data: { ...baseData, ownerChainId: "ton-mainnet" },
-          signature: "0x" + "00".repeat(65),
-        }),
-      ).rejects.toThrow("Signature verification not supported for owner chain");
-    });
-
-    it("should pass with valid lighter-vm signature (EVM personal_sign)", async () => {
-      // Lighter owner is the L2 account index; signature is from the L1 EVM
-      // owner of that account, resolved via AccountApi.getAccount.
+  describe("Lighter (EVM personal_sign via L1 address)", () => {
+    it("should pass with valid lighter-vm signature", async () => {
       const lighterOwner = "476952";
       mockLighterAccounts[lighterOwner] = { l1_address: wallet.address };
       const data = {
@@ -475,6 +531,123 @@ describe("verifyWithdrawalSignature", () => {
       await expect(
         verifyWithdrawalSignature({ data, signature }),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe("TON TonConnect signData", () => {
+    const tonPrivKey = ed25519.utils.randomPrivateKey();
+    const tonPubKey = Buffer.from(ed25519.getPublicKey(tonPrivKey));
+    const tonOwner = "0:" + "ab".repeat(32); // raw TON address (workchain:hash)
+    const tonDomain = "app.relay.link";
+    const tonTimestamp = 1748500000;
+
+    const tonData = {
+      ...baseData,
+      ownerChainId: "ton-mainnet",
+      owner: tonOwner,
+      additionalData: { "ton-vm": { timestamp: tonTimestamp, domain: tonDomain } },
+    };
+
+    beforeEach(() => {
+      mockTonPublicKey = tonPubKey;
+    });
+
+    it("should pass with valid TON TonConnect signData signature", async () => {
+      const signature = signTonSignData(tonData, tonPrivKey, tonDomain, tonTimestamp);
+      await expect(
+        verifyWithdrawalSignature({ data: tonData, signature }),
+      ).resolves.toBeUndefined();
+    });
+
+    it("should throw with wrong signer", async () => {
+      const otherPrivKey = ed25519.utils.randomPrivateKey();
+      const signature = signTonSignData(tonData, otherPrivKey, tonDomain, tonTimestamp);
+      await expect(
+        verifyWithdrawalSignature({ data: tonData, signature }),
+      ).rejects.toThrow("Invalid signature");
+    });
+
+    it("should throw with tampered message", async () => {
+      const signature = signTonSignData(tonData, tonPrivKey, tonDomain, tonTimestamp);
+      await expect(
+        verifyWithdrawalSignature({
+          data: { ...tonData, amount: "9999" },
+          signature,
+        }),
+      ).rejects.toThrow("Invalid signature");
+    });
+
+    it("should throw with wrong timestamp in additionalData", async () => {
+      const signature = signTonSignData(tonData, tonPrivKey, tonDomain, tonTimestamp);
+      await expect(
+        verifyWithdrawalSignature({
+          data: {
+            ...tonData,
+            additionalData: { "ton-vm": { timestamp: tonTimestamp + 1, domain: tonDomain } },
+          },
+          signature,
+        }),
+      ).rejects.toThrow("Invalid signature");
+    });
+
+    it("should throw when timestamp is missing from additionalData", async () => {
+      await expect(
+        verifyWithdrawalSignature({
+          data: { ...tonData, additionalData: {} },
+          signature: "0x" + "ab".repeat(64),
+        }),
+      ).rejects.toThrow("Missing ton-vm timestamp");
+    });
+
+    it("should throw when get_public_key fails", async () => {
+      mockTonPublicKey = null;
+      await expect(
+        verifyWithdrawalSignature({ data: tonData, signature: "0x" + "ab".repeat(64) }),
+      ).rejects.toThrow("get_public_key failed");
+    });
+
+    it("should throw when domain is missing from additionalData", async () => {
+      await expect(
+        verifyWithdrawalSignature({
+          data: { ...tonData, additionalData: { "ton-vm": { timestamp: tonTimestamp } } },
+          signature: "0x" + "ab".repeat(64),
+        }),
+      ).rejects.toThrow("Missing ton-vm domain");
+    });
+
+    it("should throw with invalid domain (not a subdomain)", async () => {
+      const signature = signTonSignData(tonData, tonPrivKey, "aaarelay.link", tonTimestamp);
+      await expect(
+        verifyWithdrawalSignature({
+          data: { ...tonData, additionalData: { "ton-vm": { timestamp: tonTimestamp, domain: "aaarelay.link" } } },
+          signature,
+        }),
+      ).rejects.toThrow("Invalid signData domain");
+    });
+
+    it("should pass with valid subdomain", async () => {
+      const subDomain = "app.relay.link";
+      const signature = signTonSignData(tonData, tonPrivKey, subDomain, tonTimestamp);
+      await expect(
+        verifyWithdrawalSignature({
+          data: { ...tonData, additionalData: { "ton-vm": { timestamp: tonTimestamp, domain: subDomain } } },
+          signature,
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it("should throw when chain is missing signDataDomain", async () => {
+      mockChains["ton-nodomain"] = {
+        id: "ton-nodomain",
+        vmType: "ton-vm",
+        httpRpcUrl: "http://localhost:8080",
+      };
+      await expect(
+        verifyWithdrawalSignature({
+          data: { ...tonData, ownerChainId: "ton-nodomain" },
+          signature: "0x" + "ab".repeat(64),
+        }),
+      ).rejects.toThrow("missing signDataDomain");
     });
   });
 
