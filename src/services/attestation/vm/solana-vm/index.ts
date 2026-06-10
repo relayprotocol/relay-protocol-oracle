@@ -75,7 +75,13 @@ export class SolanaVmAttestor extends VmAttestor {
         );
         throw error;
       })
-      .then((b) => b?.blockTime);
+      .then((b) => {
+        logger.info(
+          VM_TYPE,
+          `getBlock chainId=${chainId} transactionId=${transactionId} blockTime=${b?.blockTime}`
+        )
+        return b?.blockTime
+      });
     if (!timestamp) {
       throw externalError("Could not fetch the timestamp of the transaction");
     }
