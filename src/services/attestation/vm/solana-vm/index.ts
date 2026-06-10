@@ -22,6 +22,7 @@ import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
+import { logger } from "../../../../common/logger";
 import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 
@@ -66,6 +67,13 @@ export class SolanaVmAttestor extends VmAttestor {
         maxSupportedTransactionVersion: 0,
         // Ensure the block is finalized
         commitment: "finalized",
+      })
+      .catch((error: any) => {
+        logger.warn(
+          VM_TYPE,
+          `getBlock transient error: chainId=${chainId} transactionId=${transactionId} slot=${transaction.slot} code=${error?.code} message=${error?.message}`,
+        );
+        throw error;
       })
       .then((b) => b?.blockTime);
     if (!timestamp) {
