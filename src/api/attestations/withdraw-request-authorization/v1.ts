@@ -13,9 +13,14 @@ import {
 } from "../../utils";
 import { getChain } from "../../../common/chains";
 import { externalError } from "../../../common/error";
-import { recoverModeSchemaFields } from "../../../common/recover-mode-verification";
+import { logger } from "../../../common/logger";
+import {
+  recoverModeSchemaFields,
+  validateRecoverMode,
+} from "../../../common/recover-mode-verification";
 import { signAllocatorWithdrawRequest } from "../../../common/signer";
 import { verifyWithdrawalSignature } from "../../../common/signature-verification";
+import { AttestationService } from "../../../services/attestation";
 import { config } from "../../../config";
 
 const normalizedWithdrawRequestSchema = Type.Object({
@@ -137,9 +142,38 @@ export default {
     // AUTHORIZE — the only per-branch difference. The shared tail below stays
     // identical so enabling recoverMode later only swaps this branch.
     if (isRecoverMode) {
-      // recoverMode (no owner signature) is not driveable end-to-end yet — the
-      // solver-side invariants are not in place, so reject it here for now.
-      throw externalError("recoverMode not supported yet");
+      // Slow refund: skip user signature, validate the order against the
+      // on-chain deposit + solver's no-fill-or-refund declaration instead.
+      const attestationService = new AttestationService();
+      await validateRecoverMode({
+        attestationService,
+        chainId: req.body.chainId,
+        currency: req.body.currency,
+        amount: req.body.amount,
+        owner: req.body.spender,
+        recipient: req.body.receiver,
+        ownerChainId: req.body.spenderChainId,
+        depositChainId: req.body.depositChainId,
+        depositTransactionId: req.body.depositTransactionId,
+        depositOnchainId: req.body.depositOnchainId,
+        order: req.body.order,
+        orderSignature: req.body.orderSignature,
+      });
+      // Audit log — recoverMode bypasses user signature; every accepted
+      // invocation must be observable.
+      logger.info(
+        "recover-mode-verification",
+        JSON.stringify({
+          msg: "recoverMode attestation accepted",
+          endpoint: "withdraw-request-authorization/v1",
+          depositChainId: req.body.depositChainId,
+          depositTransactionId: req.body.depositTransactionId,
+          depositOnchainId: req.body.depositOnchainId,
+          spender: req.body.spender,
+          receiver: req.body.receiver,
+          chainId: req.body.chainId,
+        }),
+      );
     } else {
       if (!req.body.ownerSignature) {
         throw externalError("ownerSignature is required");
