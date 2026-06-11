@@ -19,7 +19,8 @@ export type Chain = {
   // and for all other chains it is the `keccak256` value of the above user-friendly id
   hubChainId?: string;
   additionalData?: {
-    // For "bitcoin-vm" / "ethereum-vm" / "tron-vm"
+    // For "bitcoin-vm" / "ethereum-vm" / "tron-vm";
+    // for "ton-vm" — masterchain blocks past the tx's mc anchor
     finalizationBlocks?: number;
     // For "ethereum-vm" / "tron-vm" - minimum wall-clock time (in seconds) for finalization
     finalizationTime?: number;
@@ -36,8 +37,6 @@ export type Chain = {
     // For "lighter-vm"
     rpcApiKey?: string;
     explorerApiUrl?: string;
-    // For "ton-vm" — masterchain finality buffer (mc blocks past tip).
-    tonMinFinalityBlocks?: number;
     // For "ton-vm" — TonConnect signData origin domain (e.g. "app.relay.link").
     signDataDomain?: string;
   };

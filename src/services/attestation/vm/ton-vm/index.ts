@@ -237,8 +237,7 @@ export class TonVmAttestor extends VmAttestor {
     await logRpcUsage(chainId, "getMasterchainInfo", trackingId);
     const latest = await client.getMasterchainInfo();
     const minBlocks =
-      chain.additionalData?.tonMinFinalityBlocks ??
-      DEFAULT_MIN_FINALITY_BLOCKS;
+      chain.additionalData?.finalizationBlocks ?? DEFAULT_MIN_FINALITY_BLOCKS;
     if (latest.latestSeqno < minBlocks) {
       throw externalError(
         `Chain not yet at finality depth: latest mc seqno ${latest.latestSeqno} < required ${minBlocks}`,
@@ -601,7 +600,7 @@ export class TonVmAttestor extends VmAttestor {
   ): Promise<void> {
     const chain = await getChain(chainId);
     const minBlocks =
-      chain.additionalData?.tonMinFinalityBlocks ?? DEFAULT_MIN_FINALITY_BLOCKS;
+      chain.additionalData?.finalizationBlocks ?? DEFAULT_MIN_FINALITY_BLOCKS;
 
     await logRpcUsage(chainId, "getMasterchainInfo", trackingId);
     await logRpcUsage(chainId, "lookupBlock", trackingId);
