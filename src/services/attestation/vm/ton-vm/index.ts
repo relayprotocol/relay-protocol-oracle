@@ -1,6 +1,6 @@
 // ABOUTME: TonVmAttestor — verifies ton-vm deposit/fill/refund attestations by parsing
 // ABOUTME: TON wallet inbound (deposit) / outbound (fill) messages. Withdrawal stubbed for later phase.
-import { Address, Cell } from "@ton/core";
+import { Address, Cell, loadMessageRelaxed } from "@ton/core";
 import type { TonClient } from "@ton/ton";
 import {
   decodeAddress,
@@ -222,7 +222,7 @@ export class TonVmAttestor extends VmAttestor {
       chain.vmType,
     ) as DecodedTonVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
-    const { receiver, amount, createdAt, queryId, timeout } =
+    const { receiver, amount, createdAt, queryId, timeout, subwalletId } =
       decodedWithdrawal.withdrawal;
 
     const depositoryAddr = Address.parse(depository);
@@ -339,8 +339,58 @@ export class TonVmAttestor extends VmAttestor {
       throw externalError(`Executing tx ${transactionId} reverted`);
     }
 
+    // Bind EXECUTED to THIS withdrawal's signed Highload V3 command. processed?(Q)
+    // proves only that *some* command with queryId Q ran; a 23-bit queryId collision
+    // (or a buggy MPC signing other bytes for the same id) could otherwise let a
+    // different command's tx pass. Parse the tx's external-in command and require
+    // its identity + payout to be exactly this withdrawal.
+    const inMsg = tx.inMessage;
+    if (!inMsg || inMsg.info.type !== "external-in") {
+      throw externalError(
+        `Executing tx ${transactionId} has no Highload V3 command (external-in) to bind withdrawal ${withdrawalId}`,
+      );
+    }
+    let cmdSubwalletId: bigint;
+    let cmdQueryId: bigint;
+    let cmdCreatedAt: bigint;
+    let cmdTimeout: bigint;
+    let cmdSent: ReturnType<typeof loadMessageRelaxed>["info"];
+    try {
+      // external-in body: signature(512) ‖ ^msg_inner. msg_inner = subwallet_id(32)
+      // ‖ ^message_to_send ‖ send_mode(8) ‖ query_id(23) ‖ created_at(64) ‖ timeout(22).
+      const inner = inMsg.body.beginParse().loadRef().beginParse();
+      cmdSubwalletId = inner.loadUintBig(32);
+      const sentRef = inner.loadRef();
+      inner.skip(8); // send_mode
+      cmdQueryId = inner.loadUintBig(23);
+      cmdCreatedAt = inner.loadUintBig(64);
+      cmdTimeout = inner.loadUintBig(22);
+      cmdSent = loadMessageRelaxed(sentRef.beginParse()).info;
+    } catch {
+      throw externalError(
+        `Failed to parse Highload V3 command of tx ${transactionId} for withdrawal ${withdrawalId}`,
+      );
+    }
+
     const expectedReceiverBuf = Buffer.from(encodeAddress(receiver, VM_TYPE));
     const expectedAmount = BigInt(amount);
+    // createdAt separates two collided-queryId withdrawals (distinct signing times);
+    // the rest pin the wallet config + exact payout to this withdrawal.
+    if (
+      cmdQueryId !== BigInt(queryId) ||
+      cmdCreatedAt !== BigInt(createdAt) ||
+      cmdTimeout !== BigInt(timeout) ||
+      cmdSubwalletId !== BigInt(subwalletId) ||
+      cmdSent.type !== "internal" ||
+      cmdSent.bounce ||
+      cmdSent.dest.workChain !== 0 ||
+      !cmdSent.dest.hash.equals(expectedReceiverBuf) ||
+      cmdSent.value.coins !== expectedAmount
+    ) {
+      throw externalError(
+        `Executing tx ${transactionId} command does not match withdrawal ${withdrawalId} (queryId/createdAt/timeout/subwalletId/receiver/amount)`,
+      );
+    }
     const matched = [...tx.outMessages.values()].some((msg) => {
       if (msg.info.type !== "internal") return false;
       if (msg.info.bounce) return false;

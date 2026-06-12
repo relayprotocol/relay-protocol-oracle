@@ -1,7 +1,15 @@
 // ABOUTME: Unit tests for TonVmAttestor — fill/refund (getSolverPaidAmount) and
 // ABOUTME: deposit (getDepositoryDepositMessages) attestation paths.
 import { describe, expect, it, jest, beforeEach } from "@jest/globals";
-import { Address, beginCell, Cell, TupleItem, TupleReader } from "@ton/core";
+import {
+  Address,
+  beginCell,
+  Cell,
+  internal,
+  storeMessageRelaxed,
+  TupleItem,
+  TupleReader,
+} from "@ton/core";
 import {
   DecodedTonVmWithdrawal,
   DepositoryWithdrawalStatus,
@@ -1702,22 +1710,99 @@ describe("TonVmAttestor", () => {
       }
     }
 
-    // Helper: build a tx with one outbound matching baseWithdrawal exactly.
+    // Build a Highload V3 external-in command body (highload-v3.ts layout):
+    // sig(512) ‖ ^msg_inner{ subwalletId(32) ‖ ^message_to_send ‖ sendMode(8) ‖
+    // queryId(23) ‖ createdAt(64) ‖ timeout(22) }.
+    const buildHighloadCommandBody = (opts: {
+      subwalletId: number;
+      queryId: number;
+      createdAt: number;
+      timeout: number;
+      destRaw: string;
+      amount: bigint;
+    }): Cell => {
+      const [wc, hashHex] = opts.destRaw.split(":");
+      const dest = new Address(parseInt(wc, 10), Buffer.from(hashHex, "hex"));
+      const message = beginCell()
+        .store(
+          storeMessageRelaxed(
+            internal({
+              to: dest,
+              value: opts.amount,
+              bounce: false,
+              body: beginCell().endCell(),
+            }),
+          ),
+        )
+        .endCell();
+      const msgInner = beginCell()
+        .storeUint(opts.subwalletId, 32)
+        .storeRef(message)
+        .storeUint(3, 8)
+        .storeUint(opts.queryId, 23)
+        .storeUint(opts.createdAt, 64)
+        .storeUint(opts.timeout, 22)
+        .endCell();
+      return beginCell().storeBuffer(Buffer.alloc(64, 7)).storeRef(msgInner).endCell();
+    }
+
+    // Build a tx whose external-in command + outbound both match baseWithdrawal.
+    // `command` overrides the signed command body (identity-binding tests);
+    // `command: null` attaches an internal inMessage (no Highload V3 command).
+    // `amount`/`bounce` override only the OUTBOUND message (the defense-in-depth
+    // tx.outMessages check, which runs after the command binding).
     const buildMatchingExecutingTx = (
-      overrides: { hashHex?: string; bounce?: boolean; amount?: bigint } = {},
-    ) =>
-      buildMockTx({
+      overrides: {
+        hashHex?: string;
+        bounce?: boolean;
+        amount?: bigint;
+        command?: {
+          subwalletId?: number;
+          queryId?: number;
+          createdAt?: number;
+          timeout?: number;
+          destRaw?: string;
+          amount?: bigint;
+        } | null;
+      } = {},
+    ) => {
+      const w = baseWithdrawal.withdrawal;
+      const inMessage =
+        overrides.command === null
+          ? buildInboundMessage({
+              srcRaw: RECIPIENT_RAW,
+              destRaw: DEPOSITORY_RAW,
+              amount: 0n,
+              body: beginCell().endCell(),
+            })
+          : buildInboundMessage({
+              srcRaw: RECIPIENT_RAW,
+              destRaw: DEPOSITORY_RAW,
+              amount: 0n,
+              internal: false,
+              body: buildHighloadCommandBody({
+                subwalletId: overrides.command?.subwalletId ?? w.subwalletId,
+                queryId: overrides.command?.queryId ?? w.queryId,
+                createdAt: overrides.command?.createdAt ?? w.createdAt,
+                timeout: overrides.command?.timeout ?? w.timeout,
+                destRaw: overrides.command?.destRaw ?? RECIPIENT_RAW,
+                amount: overrides.command?.amount ?? BigInt(w.amount),
+              }),
+            })
+      return buildMockTx({
         hashHex: overrides.hashHex ?? TX_HASH_HEX,
         now: 1_700_000_000,
+        inMessage,
         outMessages: [
           buildMockMessage({
             destRaw: RECIPIENT_RAW,
-            amount: overrides.amount ?? BigInt(baseWithdrawal.withdrawal.amount),
+            amount: overrides.amount ?? BigInt(w.amount),
             bounce: overrides.bounce ?? false,
             body: beginCell().endCell(),
           }),
         ],
       })
+    }
 
     const encodedFor = (decoded: DecodedTonVmWithdrawal): string =>
       encodeWithdrawal(decoded)
@@ -1839,6 +1924,74 @@ describe("TonVmAttestor", () => {
         )
         .catch((e: unknown) => e);
       expect((err as Error).message).toMatch(/did not match withdrawal/i);
+    });
+
+    it("throws when the executing tx command queryId does not match the withdrawal", async () => {
+      setupWithdrawalRpcMock({
+        processedValue: -1n,
+        executingTx: buildMatchingExecutingTx({ command: { queryId: 99 } }),
+      });
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+          TX_HASH_HEX,
+          { "ton-vm": { lt: "12345" } },
+        )
+        .catch((e: unknown) => e);
+      expect((err as Error).message).toMatch(/command does not match withdrawal/i);
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+    });
+
+    it("throws when the command createdAt differs (defeats a same-queryId collision)", async () => {
+      // The colliding tx shares queryId Q but was signed at a different time.
+      setupWithdrawalRpcMock({
+        processedValue: -1n,
+        executingTx: buildMatchingExecutingTx({
+          command: { createdAt: baseWithdrawal.withdrawal.createdAt + 1 },
+        }),
+      });
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+          TX_HASH_HEX,
+          { "ton-vm": { lt: "12345" } },
+        )
+        .catch((e: unknown) => e);
+      expect((err as Error).message).toMatch(/command does not match withdrawal/i);
+    });
+
+    it("throws when the command pays a different amount than the withdrawal", async () => {
+      setupWithdrawalRpcMock({
+        processedValue: -1n,
+        executingTx: buildMatchingExecutingTx({ command: { amount: 999n } }),
+      });
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+          TX_HASH_HEX,
+          { "ton-vm": { lt: "12345" } },
+        )
+        .catch((e: unknown) => e);
+      expect((err as Error).message).toMatch(/command does not match withdrawal/i);
+    });
+
+    it("throws when the executing tx has no Highload V3 command (internal inMessage)", async () => {
+      setupWithdrawalRpcMock({
+        processedValue: -1n,
+        executingTx: buildMatchingExecutingTx({ command: null }),
+      });
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+          TX_HASH_HEX,
+          { "ton-vm": { lt: "12345" } },
+        )
+        .catch((e: unknown) => e);
+      expect((err as Error).message).toMatch(/no Highload V3 command/i);
     });
 
     it("throws when executing tx is reverted", async () => {
