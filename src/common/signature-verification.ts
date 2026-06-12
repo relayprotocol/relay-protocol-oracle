@@ -13,7 +13,7 @@ import { toHexAddress } from "../services/attestation/vm/tron-vm";
 import { httpRpc as lighterHttpRpc } from "./vm/lighter-vm/rpc";
 import { httpRpc as tonHttpRpc } from "./vm/ton-vm/rpc";
 
-export type WithdrawalSignatureData = {
+export type OwnerSignatureData = {
   chainId: string;
   currency: string;
   amount: string;
@@ -24,11 +24,15 @@ export type WithdrawalSignatureData = {
   additionalData?: Record<string, unknown>;
 };
 
-export const verifyWithdrawalSignature = async ({
+// Verifies that `owner` (on `ownerChainId`) authorized an operation over the
+// given params, using that chain's native signing scheme. Used for any
+// owner-authorized action on the owner's funds/alias (withdrawals, transfers,
+// etc.) — not withdrawals specifically.
+export const verifyOwnerSignature = async ({
   data,
   signature,
 }: {
-  data: WithdrawalSignatureData;
+  data: OwnerSignatureData;
   signature: string;
 }) => {
   const ownerChain = await getChain(data.ownerChainId);
@@ -62,7 +66,7 @@ export const verifyWithdrawalSignature = async ({
 
 // All VMs use the same digest: SHA256(json-stable-stringify(params)).
 // Each VM signs this digest using its native signing method.
-const computeDigest = (data: WithdrawalSignatureData): string =>
+const computeDigest = (data: OwnerSignatureData): string =>
   crypto
     .createHash("sha256")
     .update(
@@ -84,7 +88,7 @@ const computeDigest = (data: WithdrawalSignatureData): string =>
 // `address` defaults to `data.owner`; pass an override when owner is not the
 // signing EVM address (e.g. lighter-vm, where owner is the L2 account index).
 const verifyEvmPersonalSign = async (
-  data: WithdrawalSignatureData,
+  data: OwnerSignatureData,
   signature: string,
   address: string = data.owner,
 ) => {
@@ -106,7 +110,7 @@ const verifyEvmPersonalSign = async (
 // is produced by the L1 EVM owner of that account. Resolve index → l1_address
 // via Lighter API, then delegate to the EVM personal_sign verifier.
 const verifyLighterPersonalSign = async (
-  data: WithdrawalSignatureData,
+  data: OwnerSignatureData,
   signature: string,
 ) => {
   // Lighter's `GET /api/v1/account` returns `{ code, total, accounts: [...] }`
@@ -149,7 +153,7 @@ const hashTronMessage = (message: string): Hex => {
 };
 
 const verifyTronMessage = async (
-  data: WithdrawalSignatureData,
+  data: OwnerSignatureData,
   signature: string,
 ) => {
   const digest = computeDigest(data);
@@ -178,7 +182,7 @@ const verifyTronMessage = async (
 // Raw 32-byte digest triggers Phantom's anti-transaction-signing check,
 // so wallets sign the 64-char hex string instead.
 const verifySolanaEd25519 = async (
-  data: WithdrawalSignatureData,
+  data: OwnerSignatureData,
   signature: string,
 ) => {
   const digestBytes = Buffer.from(computeDigest(data), "utf-8");
@@ -212,7 +216,7 @@ const verifySolanaEd25519 = async (
 // additionalData["ton-vm"].timestamp = Unix seconds from TonConnect signData response.
 // additionalData["ton-vm"].domain = domain from TonConnect signData response.
 export const verifyTonSignData = async (
-  data: WithdrawalSignatureData,
+  data: OwnerSignatureData,
   signature: string,
   ownerChain: Chain,
 ) => {
@@ -308,7 +312,7 @@ export const verifyTonSignData = async (
 // signatures for all address types: P2PKH, P2SH-P2WPKH, P2WPKH, P2TR.
 // This covers wallets returning BIP-137 (Unisat, Xverse) and BIP-322 (OKX, Leather).
 const verifyBitcoinMessage = (
-  data: WithdrawalSignatureData,
+  data: OwnerSignatureData,
   signature: string,
 ) => {
   const digest = computeDigest(data);

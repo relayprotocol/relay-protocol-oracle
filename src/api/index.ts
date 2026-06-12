@@ -14,6 +14,7 @@ import attestationsSignaturesNonceMappingV2 from "./attestations/signatures/nonc
 import attestationsSolverFillV1 from "./attestations/solver-fills/v1";
 import attestationsRecoverV1 from "./attestations/recover/v1";
 import attestationsSolverRefundV1 from "./attestations/solver-refunds/v1";
+import attestationsTransferV1 from "./attestations/transfer/v1";
 import attestationsWithdrawalsInitiationV2 from "./attestations/withdrawal-initiation/v2";
 import attestationsWithdrawalsInitiatedV2 from "./attestations/withdrawal-initiated/v2";
 import chainsV1 from "./chains/v1";
@@ -34,6 +35,7 @@ const endpoints = [
   attestationsSolverFillV1,
   attestationsSolverRefundV1,
   attestationsRecoverV1,
+  attestationsTransferV1,
   chainsV1,
   livesV1,
 ] as Endpoint[];

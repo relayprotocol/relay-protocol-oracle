@@ -18,7 +18,7 @@ import {
   validateRecoverMode,
 } from "../../../common/recover-mode-verification";
 import { signPayloadParams } from "../../../common/signer";
-import { verifyWithdrawalSignature } from "../../../common/signature-verification";
+import { verifyOwnerSignature } from "../../../common/signature-verification";
 import { config } from "../../../config";
 import { AttestationService } from "../../../services/attestation";
 
@@ -161,7 +161,7 @@ export default {
       if (!req.body.ownerSignature) {
         throw externalError("ownerSignature is required");
       }
-      await verifyWithdrawalSignature({
+      await verifyOwnerSignature({
         data: req.body,
         signature: req.body.ownerSignature,
       });

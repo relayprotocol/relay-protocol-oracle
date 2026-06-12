@@ -2,7 +2,7 @@ import { describe, expect, it, jest, beforeEach } from "@jest/globals";
 
 import endpoint from "../../../src/api/attestations/withdraw-request-authorization/v1";
 import { validateRecoverMode } from "../../../src/common/recover-mode-verification";
-import { verifyWithdrawalSignature } from "../../../src/common/signature-verification";
+import { verifyOwnerSignature } from "../../../src/common/signature-verification";
 import { signAllocatorWithdrawRequest } from "../../../src/common/signer";
 
 const NORMALIZED = { normalized: true } as any;
@@ -27,7 +27,7 @@ jest.mock("../../../src/common/recover-mode-verification", () => ({
 }));
 
 jest.mock("../../../src/common/signature-verification", () => ({
-  verifyWithdrawalSignature: jest.fn(async () => undefined),
+  verifyOwnerSignature: jest.fn(async () => undefined),
 }));
 
 jest.mock("../../../src/common/signer", () => ({
@@ -85,7 +85,7 @@ describe("POST /attestations/withdraw-request-authorization/v1 — recoverMode",
 
     // recoverMode path: validateRecoverMode runs, the user-signature check does not.
     expect(validateRecoverMode).toHaveBeenCalledTimes(1);
-    expect(verifyWithdrawalSignature).not.toHaveBeenCalled();
+    expect(verifyOwnerSignature).not.toHaveBeenCalled();
 
     // validateRecoverMode receives the request fields it needs to authorize.
     const args = (validateRecoverMode as jest.Mock).mock.calls[0][0] as any;

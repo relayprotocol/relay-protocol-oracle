@@ -19,7 +19,7 @@ import {
   validateRecoverMode,
 } from "../../../common/recover-mode-verification";
 import { signAllocatorWithdrawRequest } from "../../../common/signer";
-import { verifyWithdrawalSignature } from "../../../common/signature-verification";
+import { verifyOwnerSignature } from "../../../common/signature-verification";
 import { AttestationService } from "../../../services/attestation";
 import { config } from "../../../config";
 
@@ -181,7 +181,7 @@ export default {
       // The user-signed digest keys on owner/recipient/ownerChainId (shared by
       // the other withdrawal endpoints); map the request fields onto it so the
       // digest stays identical across endpoints.
-      await verifyWithdrawalSignature({
+      await verifyOwnerSignature({
         data: {
           chainId: req.body.chainId,
           currency: req.body.currency,

@@ -262,6 +262,61 @@ export class AttestationService {
     };
   }
 
+  public async attestTransfer(data: {
+    chainId: string;
+    currency: string;
+    amount: string;
+    from: string;
+    to: string;
+    nonce: string;
+  }): Promise<{
+    execution: ExecutionMessage;
+  }> {
+    // Ensure the amount is non-zero
+    if (BigInt(data.amount) <= 0) {
+      throw externalError("Transfer amount must be non-zero");
+    }
+
+    // The hub token being transferred
+    const hubTokenId = generateTokenId({
+      address: data.currency,
+      chainId: data.chainId,
+      family: await getChainVmType(data.chainId),
+    });
+
+    // Safety check to ensure the alias has sufficient balance
+    const balance = await getBalanceOnHub(data.from, hubTokenId);
+    if (!balance || BigInt(balance) < BigInt(data.amount)) {
+      throw externalError("Insufficient balance for requested transfer");
+    }
+
+    const hubInfo = await getHubInfo();
+    const execution: ExecutionMessage = {
+      idempotencyKey: getDeterministicId(
+        hubInfo.id,
+        hubTokenId.toString(),
+        data.from,
+        data.to,
+        data.nonce,
+      ),
+      actions: [
+        encodeAction({
+          type: ActionType.TRANSFER,
+          data: {
+            hubTokenId,
+            hubFromAddress: data.from,
+            hubToAddress: data.to,
+            amount: data.amount,
+          },
+        }),
+      ],
+    };
+
+    return {
+      execution,
+    };
+  }
+
   public async attestWithdrawalInitiated(
     data: DenormalizedSubmitWithdrawRequest,
   ): Promise<{
