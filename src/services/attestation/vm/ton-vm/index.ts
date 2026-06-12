@@ -19,6 +19,7 @@ import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../types";
 import { getChain } from "../../../../common/chains";
 import { externalError } from "../../../../common/error";
+import { logger } from "../../../../common/logger";
 import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import {
   getMcBlockUtime,
@@ -51,6 +52,9 @@ const DEPOSITOR_REGEX = /\|depositor=([^|]+)(?=\|)/g;
 
 // Highload V3 getter: returns TVM -1 (true) once the queryId is consumed.
 const PROCESSED_METHOD = "processed?";
+
+// Highload V3 getter: masterchain time of the last query-dict rotation.
+const LAST_CLEAN_TIME_METHOD = "get_last_clean_time";
 
 // TVM exit code for "method id not registered" (older wallet variant).
 const TVM_METHOD_NOT_FOUND_EXIT_CODE = 11;
@@ -232,8 +236,10 @@ export class TonVmAttestor extends VmAttestor {
     // Highload V3 wallet. The wallet sets the replay-protection bit iff a
     // signed command for this queryId was accepted and executed.
     // Finality guard before the read: require the chain itself at finality
-    // depth (latest >= MIN_FINALITY_BLOCKS). runMethod runs at server's latest;
-    // the bit is monotonic once set, so reading at any later seqno is safe.
+    // depth (latest >= MIN_FINALITY_BLOCKS). A `processed?`=true is reliable (the
+    // bit is only ever set by a real execution); a false reading is NOT — the bit
+    // is reusable-after-timeout, so the EXPIRED branch below only trusts a false
+    // reading inside the GC-safe window (see the guard there).
     await logRpcUsage(chainId, "getMasterchainInfo", trackingId);
     const latest = await client.getMasterchainInfo();
     const minBlocks =
@@ -259,6 +265,10 @@ export class TonVmAttestor extends VmAttestor {
       );
     }
     let isProcessed: boolean;
+    // Uninit depositories ran no rotation, so processed?=false is unambiguous and
+    // skips the EXPIRED guard below. Frozen is NOT skipped (may have executed then
+    // frozen) — it falls through and the guard's getter read fails closed.
+    let depositoryUninit = false;
     if (processedResult.exit_code !== 0) {
       // processed? fails on a non-active account (e.g. exit -13). An uninit
       // depository has consumed no queryId, so it's not processed — verify via
@@ -270,6 +280,13 @@ export class TonVmAttestor extends VmAttestor {
           `Highload V3 processed? returned exit code ${processedResult.exit_code} on depository ${depository}`,
         );
       }
+      // Only a NEVER-deployed account (no lastTransaction) is provably
+      // execution-free and safe to skip the guard. A wallet that executed then
+      // froze and was storage-collected also reports "uninitialized" but carries
+      // a lastTransaction — fall through so the guard fails closed on it.
+      depositoryUninit =
+        depositoryState.state === "uninitialized" &&
+        depositoryState.lastTransaction === null;
       isProcessed = false;
     } else {
       try {
@@ -289,13 +306,64 @@ export class TonVmAttestor extends VmAttestor {
       // gen_utime via getBlockHeader against the latest mc seqno we observed.
       await logRpcUsage(chainId, "getBlockHeader", trackingId);
       const latestUtime = await getMcBlockUtime(chain, latest.latestSeqno);
-      const status: DepositoryWithdrawalStatus =
-        latestUtime > createdAt + timeout
-          ? DepositoryWithdrawalStatus.EXPIRED
-          : DepositoryWithdrawalStatus.PENDING;
+
+      // Inside the validity window the command can still land on-chain.
+      if (latestUtime <= createdAt + timeout) {
+        return {
+          data: { chainId, withdrawal },
+          result: {
+            withdrawalId,
+            depository,
+            status: DepositoryWithdrawalStatus.PENDING,
+          },
+        };
+      }
+
+      // Past the window. `processed?` is reusable-after-timeout, not monotonic:
+      // Highload V3 forgets a queryId once its dicts rotate past it. A query set
+      // at Te is retained iff Te >= last_clean_time - timeout, and execution
+      // happens at Te >= createdAt, so processed?=false means "never executed"
+      // only when createdAt >= last_clean_time - timeout. Below that, refuse
+      // EXPIRED to avoid double-refunding a possibly-executed withdrawal.
+      if (!depositoryUninit) {
+        await logRpcUsage(chainId, "runMethod", trackingId);
+        const lastCleanResult = await client.runMethodWithError(
+          depositoryAddr,
+          LAST_CLEAN_TIME_METHOD,
+          [],
+        );
+        if (lastCleanResult.exit_code !== 0) {
+          throw externalError(
+            `Highload V3 ${LAST_CLEAN_TIME_METHOD} returned exit code ${lastCleanResult.exit_code} on depository ${depository}`,
+          );
+        }
+        let lastCleanTime: number;
+        try {
+          lastCleanTime = lastCleanResult.stack.readNumber();
+        } catch {
+          throw externalError(
+            `Highload V3 ${LAST_CLEAN_TIME_METHOD} returned unexpected tuple type on depository ${depository}`,
+          );
+        }
+
+        if (createdAt < lastCleanTime - timeout) {
+          logger.warn(
+            VM_TYPE,
+            `ton-vm-expired-indeterminate: withdrawal ${withdrawalId} chainId=${chainId} queryId=${queryId} createdAt=${createdAt} lastCleanTime=${lastCleanTime} timeout=${timeout} — replay record aged out, refusing EXPIRED`,
+          );
+          throw externalError(
+            `Withdrawal ${withdrawalId} status indeterminate: the Highload V3 replay record for its queryId has aged out (last_clean_time advanced past its validity window). Attest within the timeout window or resolve from on-chain history; refusing to mark EXPIRED to avoid double-refunding a possibly-executed withdrawal.`,
+          );
+        }
+      }
+
       return {
         data: { chainId, withdrawal },
-        result: { withdrawalId, depository, status },
+        result: {
+          withdrawalId,
+          depository,
+          status: DepositoryWithdrawalStatus.EXPIRED,
+        },
       };
     }
 

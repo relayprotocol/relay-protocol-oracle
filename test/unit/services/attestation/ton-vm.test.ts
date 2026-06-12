@@ -1631,6 +1631,10 @@ describe("TonVmAttestor", () => {
       processedExitCode?: number
       processedThrows?: boolean
       processedTupleType?: "int" | "cell" | "slice"
+      // get_last_clean_time getter (EXPIRED guard): masterchain time of the
+      // wallet's last query-dict rotation, and its exit code.
+      lastCleanTime?: number
+      lastCleanExitCode?: number
       latestMcSeqno?: number
       // Masterchain block utime — drives the EXPIRED branch.
       latestNow?: number
@@ -1639,6 +1643,9 @@ describe("TonVmAttestor", () => {
       executingTx?: ReturnType<typeof buildMockTx> | null
       // Account state for the processed? error path (uninit → not processed).
       depositoryState?: "active" | "uninitialized" | "frozen"
+      // lastTransaction on the account: null = never deployed (safe uninit skip);
+      // non-null on an "uninitialized" state = executed-then-storage-collected.
+      depositoryLastTransaction?: { lt: string; hash: string } | null
     }) => {
       const latestMcSeqno = options.latestMcSeqno ?? 1000
       const latestNow = options.latestNow ?? 1_700_000_000
@@ -1659,15 +1666,32 @@ describe("TonVmAttestor", () => {
           : tupleType === "cell"
             ? { type: "cell", cell: beginCell().endCell() }
             : { type: "slice", cell: beginCell().endCell() }
+      const lastCleanTime = options.lastCleanTime ?? 0
+      const lastCleanExitCode = options.lastCleanExitCode ?? 0
+      // Dispatch by method name (processed? vs get_last_clean_time) and build a
+      // fresh TupleReader per call so reads don't exhaust a shared reader.
       const runMethodWithError = options.processedThrows
         ? jest
             .fn<() => Promise<unknown>>()
             .mockRejectedValue(new Error("rpc down"))
-        : jest.fn<() => Promise<unknown>>().mockResolvedValue({
-            gas_used: 0,
-            stack: new TupleReader([stackItem]),
-            exit_code: options.processedExitCode ?? 0,
-          })
+        : jest
+            .fn<(addr: unknown, method: string) => Promise<unknown>>()
+            .mockImplementation((_addr, method) => {
+              if (method === "get_last_clean_time") {
+                return Promise.resolve({
+                  gas_used: 0,
+                  stack: new TupleReader([
+                    { type: "int", value: BigInt(lastCleanTime) },
+                  ]),
+                  exit_code: lastCleanExitCode,
+                })
+              }
+              return Promise.resolve({
+                gas_used: 0,
+                stack: new TupleReader([stackItem]),
+                exit_code: options.processedExitCode ?? 0,
+              })
+            })
 
       const getTransaction = jest
         .fn<() => Promise<unknown>>()
@@ -1675,7 +1699,10 @@ describe("TonVmAttestor", () => {
 
       const getContractState = jest
         .fn<() => Promise<unknown>>()
-        .mockResolvedValue({ state: options.depositoryState ?? "active" })
+        .mockResolvedValue({
+          state: options.depositoryState ?? "active",
+          lastTransaction: options.depositoryLastTransaction ?? null,
+        })
 
       // _ensureTxFinality (EXECUTED path) uses lookupMcBlockSeqnoByUtime to
       // anchor the tx's mc seqno. Mirror setupRpcMock's default: well below
@@ -2186,6 +2213,156 @@ describe("TonVmAttestor", () => {
           { "ton-vm": { lt: "12345" } },
         ),
       ).rejects.toThrow(/finality depth/i);
+    });
+
+    // --- EXPIRED guard against the non-monotonic Highload V3 replay bit ---
+
+    it("returns EXPIRED past the window while the replay record still covers the query (createdAt >= last_clean_time - timeout)", async () => {
+      setupWithdrawalRpcMock({
+        processedValue: 0n,
+        latestNow: 1_700_007_200, // past createdAt + 3600
+        lastCleanTime: 1_700_000_000, // == createdAt → guard satisfied
+      });
+
+      const message = await new TonVmAttestor().getDepositoryWithdrawalMessage(
+        "ton-testnet",
+        encodedFor(baseWithdrawal),
+      );
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
+    });
+
+    it("throws indeterminate (NOT EXPIRED) once the replay record ages out (createdAt < last_clean_time - timeout)", async () => {
+      setupWithdrawalRpcMock({
+        processedValue: 0n,
+        latestNow: 1_700_007_200,
+        lastCleanTime: 1_700_007_200, // createdAt + 7200; createdAt < that - 3600
+      });
+
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+        )
+        .catch((e: unknown) => e);
+
+      expect((err as Error).message).toMatch(/status indeterminate/i);
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+    });
+
+    it("closes the double-spend: an executed-then-GC'd withdrawal (processed?=false after rotation) throws rather than refunding", async () => {
+      // Withdrawal executed on-chain (paid out), but Highload V3 forgot the
+      // queryId after its dicts rotated, so processed? now reads false. With
+      // last_clean_time advanced past the validity window the attestor must NOT
+      // return EXPIRED (which would refund an already-paid withdrawal).
+      setupWithdrawalRpcMock({
+        processedValue: 0n,
+        latestNow: 1_700_018_000,
+        lastCleanTime: 1_700_014_400, // createdAt + 4*timeout → well aged out
+      });
+
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+          // no transactionId: the cheap EXPIRED path a caller would abuse
+        )
+        .catch((e: unknown) => e);
+
+      expect((err as Error).message).toMatch(/status indeterminate/i);
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+    });
+
+    it("fails closed when get_last_clean_time is unavailable (non-zero exit) — never EXPIRED", async () => {
+      setupWithdrawalRpcMock({
+        processedValue: 0n,
+        latestNow: 1_700_007_200,
+        lastCleanExitCode: 11,
+      });
+
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+        )
+        .catch((e: unknown) => e);
+
+      expect((err as Error).message).toMatch(
+        /get_last_clean_time returned exit code 11/i,
+      );
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+    });
+
+    it("returns EXPIRED on an uninitialized depository past the window without consulting the replay record", async () => {
+      // First withdrawal never broadcast → wallet still uninit → nothing could
+      // have executed → processed?=false is unambiguous → EXPIRED (mint-back).
+      const { runMethod } = setupWithdrawalRpcMock({
+        processedExitCode: -13,
+        depositoryState: "uninitialized",
+        latestNow: 1_700_007_200, // past timeout
+      });
+
+      const message = await new TonVmAttestor().getDepositoryWithdrawalMessage(
+        "ton-testnet",
+        encodedFor(baseWithdrawal),
+      );
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
+      const calledMethods = runMethod.mock.calls.map(
+        (c) => (c as unknown[])[1],
+      );
+      expect(calledMethods).not.toContain("get_last_clean_time");
+    });
+
+    it("does NOT skip the guard for an uninitialized account that has a lastTransaction (executed then storage-collected)", async () => {
+      // "uninitialized" with a non-null lastTransaction means the wallet was
+      // active (could have paid out) then deleted on storage debt — not safe to
+      // treat as never-executed. It must fall through to the guard, where the
+      // getter read fails closed rather than returning EXPIRED.
+      setupWithdrawalRpcMock({
+        processedExitCode: -13,
+        depositoryState: "uninitialized",
+        depositoryLastTransaction: { lt: "42", hash: "deadbeef" },
+        lastCleanExitCode: -13, // get-methods fail on a non-active account
+        latestNow: 1_700_007_200, // past timeout
+      });
+
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+        )
+        .catch((e: unknown) => e);
+
+      expect((err as Error).message).toMatch(
+        /get_last_clean_time returned exit code -13/i,
+      );
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+    });
+
+    it("fails closed (NOT EXPIRED) for a frozen depository past the window — it may have executed then frozen", async () => {
+      // A frozen wallet was previously active and may have paid out before
+      // freezing, so processed?=false is NOT unambiguous. It must not skip the
+      // guard like uninit; the get_last_clean_time read fails on the frozen
+      // account → throw rather than refund.
+      setupWithdrawalRpcMock({
+        processedExitCode: -13,
+        depositoryState: "frozen",
+        lastCleanExitCode: -13, // get-methods fail on a frozen account
+        latestNow: 1_700_007_200, // past timeout
+      });
+
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+        )
+        .catch((e: unknown) => e);
+
+      expect((err as Error).message).toMatch(
+        /get_last_clean_time returned exit code -13/i,
+      );
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
     });
   });
 });
