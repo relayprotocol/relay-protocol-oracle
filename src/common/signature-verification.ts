@@ -22,6 +22,10 @@ export type OwnerSignatureData = {
   recipient: string;
   nonce: string;
   additionalData?: Record<string, unknown>;
+  // ton-vm TonConnect signData envelope params; verify the signature, not hashed into the digest.
+  signatureMetadata?: {
+    "ton-vm"?: { timestamp: number; domain: string };
+  };
 };
 
 // Verifies that `owner` (on `ownerChainId`) authorized an operation over the
@@ -213,25 +217,23 @@ const verifySolanaEd25519 = async (
 // sha256(0xffff || "ton-connect/sign-data/" || addr(BE) || domainLen(BE32) || domain ||
 //        timestamp(BE64) || "txt" || payloadLen(BE32) || payload)
 // Ed25519 pubkey from get_public_key() on-chain getter.
-// additionalData["ton-vm"].timestamp = Unix seconds from TonConnect signData response.
-// additionalData["ton-vm"].domain = domain from TonConnect signData response.
+// signatureMetadata["ton-vm"].timestamp = Unix seconds from TonConnect signData response.
+// signatureMetadata["ton-vm"].domain = domain from TonConnect signData response.
 export const verifyTonSignData = async (
   data: OwnerSignatureData,
   signature: string,
   ownerChain: Chain,
 ) => {
-  const tonData = data.additionalData?.["ton-vm"] as
-    | { timestamp?: unknown; domain?: unknown }
-    | undefined;
+  const tonData = data.signatureMetadata?.["ton-vm"];
 
   const timestamp = tonData?.timestamp;
   if (typeof timestamp !== "number") {
-    throw externalError("Missing ton-vm timestamp in additionalData");
+    throw externalError("Missing ton-vm timestamp in signatureMetadata");
   }
 
   const domain = tonData?.domain;
   if (typeof domain !== "string") {
-    throw externalError("Missing ton-vm domain in additionalData");
+    throw externalError("Missing ton-vm domain in signatureMetadata");
   }
 
   const signDataDomain = ownerChain.additionalData?.signDataDomain;
@@ -258,12 +260,8 @@ export const verifyTonSignData = async (
     "hex",
   );
 
-  // ton-vm timestamp is TonKeeper signing metadata, not part of the withdrawal request.
-  const { "ton-vm": _tonMeta, ...otherAdditionalData } = (data.additionalData ?? {}) as Record<string, unknown>;
-  const digest = computeDigest({
-    ...data,
-    additionalData: Object.keys(otherAdditionalData).length ? otherAdditionalData : undefined,
-  });
+  // Payload = the canonical withdrawal digest the user signed.
+  const digest = computeDigest(data);
   const payloadBytes = Buffer.from(digest, "utf-8");
 
   const [wcStr, addrHashHex] = data.owner.split(":");

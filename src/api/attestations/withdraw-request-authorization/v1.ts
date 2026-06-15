@@ -84,6 +84,22 @@ const Schema = {
       description: "Nonce for replay protection",
       pattern: "^0x[0-9a-fA-F]{64}$",
     }),
+    // ton-vm owners sign via TonConnect signData; echo back the wallet's
+    // timestamp + domain so the oracle can reconstruct the signature.
+    signatureMetadata: Type.Optional(
+      Type.Object({
+        "ton-vm": Type.Optional(
+          Type.Object({
+            timestamp: Type.Number({
+              description: "Unix seconds from the TonConnect signData response",
+            }),
+            domain: Type.String({
+              description: "Domain from the TonConnect signData response",
+            }),
+          }),
+        ),
+      }),
+    ),
     ...recoverModeSchemaFields,
     requestPeerSignatures: Type.Optional(
       Type.Boolean({
@@ -190,6 +206,7 @@ export default {
           owner: req.body.spender,
           recipient: req.body.receiver,
           nonce: req.body.nonce,
+          signatureMetadata: req.body.signatureMetadata,
         },
         signature: req.body.ownerSignature,
       });

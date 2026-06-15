@@ -418,10 +418,8 @@ const signTonSignData = (
   domain: string,
   timestamp: number,
 ): string => {
-  // Strip ton-vm metadata before computing digest (mirrors verifyTonSignData).
-  const { "ton-vm": _tonMeta, ...otherAD } = (data.additionalData ?? {}) as Record<string, unknown>;
-  const digestData = { ...data, additionalData: Object.keys(otherAD).length ? otherAD : undefined };
-  const payloadBytes = Buffer.from(computeDigest(digestData), "utf-8");
+  // Payload = the canonical withdrawal digest (mirrors verifyTonSignData).
+  const payloadBytes = Buffer.from(computeDigest(data), "utf-8");
 
   const [wcStr, addrHashHex] = data.owner.split(":");
   const wcBuf = Buffer.alloc(4);
@@ -545,7 +543,7 @@ describe("verifyOwnerSignature", () => {
       ...baseData,
       ownerChainId: "ton-mainnet",
       owner: tonOwner,
-      additionalData: { "ton-vm": { timestamp: tonTimestamp, domain: tonDomain } },
+      signatureMetadata: { "ton-vm": { timestamp: tonTimestamp, domain: tonDomain } },
     };
 
     beforeEach(() => {
@@ -577,23 +575,23 @@ describe("verifyOwnerSignature", () => {
       ).rejects.toThrow("Invalid signature");
     });
 
-    it("should throw with wrong timestamp in additionalData", async () => {
+    it("should throw with wrong timestamp in signatureMetadata", async () => {
       const signature = signTonSignData(tonData, tonPrivKey, tonDomain, tonTimestamp);
       await expect(
         verifyOwnerSignature({
           data: {
             ...tonData,
-            additionalData: { "ton-vm": { timestamp: tonTimestamp + 1, domain: tonDomain } },
+            signatureMetadata: { "ton-vm": { timestamp: tonTimestamp + 1, domain: tonDomain } },
           },
           signature,
         }),
       ).rejects.toThrow("Invalid signature");
     });
 
-    it("should throw when timestamp is missing from additionalData", async () => {
+    it("should throw when timestamp is missing from signatureMetadata", async () => {
       await expect(
         verifyOwnerSignature({
-          data: { ...tonData, additionalData: {} },
+          data: { ...tonData, signatureMetadata: {} },
           signature: "0x" + "ab".repeat(64),
         }),
       ).rejects.toThrow("Missing ton-vm timestamp");
@@ -606,10 +604,10 @@ describe("verifyOwnerSignature", () => {
       ).rejects.toThrow("get_public_key failed");
     });
 
-    it("should throw when domain is missing from additionalData", async () => {
+    it("should throw when domain is missing from signatureMetadata", async () => {
       await expect(
         verifyOwnerSignature({
-          data: { ...tonData, additionalData: { "ton-vm": { timestamp: tonTimestamp } } },
+          data: { ...tonData, signatureMetadata: { "ton-vm": { timestamp: tonTimestamp } } } as unknown as OwnerSignatureData,
           signature: "0x" + "ab".repeat(64),
         }),
       ).rejects.toThrow("Missing ton-vm domain");
@@ -619,7 +617,7 @@ describe("verifyOwnerSignature", () => {
       const signature = signTonSignData(tonData, tonPrivKey, "aaarelay.link", tonTimestamp);
       await expect(
         verifyOwnerSignature({
-          data: { ...tonData, additionalData: { "ton-vm": { timestamp: tonTimestamp, domain: "aaarelay.link" } } },
+          data: { ...tonData, signatureMetadata: { "ton-vm": { timestamp: tonTimestamp, domain: "aaarelay.link" } } },
           signature,
         }),
       ).rejects.toThrow("Invalid signData domain");
@@ -630,7 +628,7 @@ describe("verifyOwnerSignature", () => {
       const signature = signTonSignData(tonData, tonPrivKey, subDomain, tonTimestamp);
       await expect(
         verifyOwnerSignature({
-          data: { ...tonData, additionalData: { "ton-vm": { timestamp: tonTimestamp, domain: subDomain } } },
+          data: { ...tonData, signatureMetadata: { "ton-vm": { timestamp: tonTimestamp, domain: subDomain } } },
           signature,
         }),
       ).resolves.toBeUndefined();
