@@ -566,5 +566,16 @@
     "vmType": "tron-vm",
     "httpRpcUrl": "$TRON_RPC_URL",
     "hubChainId": "728126428"
+  },
+  {
+    "id": "ton",
+    "vmType": "ton-vm",
+    "httpRpcUrl": "$TON_RPC_URL",
+    "depository": "0:ab746b034ea036b7ac5147837a57827bd3917bc3f5506d47479e87ec87ef2554",
+    "hubChainId": "96726042969034697820304784127401521667430272869945506471754334812043295105826",
+    "additionalData": {
+      "finalizationBlocks": 5,
+      "signDataDomain": "relay.link"
+    }
   }
 ]

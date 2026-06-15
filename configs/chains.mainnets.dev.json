@@ -86,5 +86,16 @@
       "rpcApiKey": "$LIGHTER_RPC_API_KEY",
       "explorerApiUrl": "https://explorer.elliot.ai/api"
     }
+  },
+  {
+    "id": "ton",
+    "vmType": "ton-vm",
+    "httpRpcUrl": "$TON_RPC_URL",
+    "depository": "0:f37b9f6fd97ece249cb48d9aa5d0202570ad130b7b7d4ce4dd0f4cd551b3d9bd",
+    "hubChainId": "96726042969034697820304784127401521667430272869945506471754334812043295105826",
+    "additionalData": {
+      "finalizationBlocks": 5,
+      "signDataDomain": "relay.link"
+    }
   }
 ]
