@@ -280,13 +280,13 @@ export class TonVmAttestor extends VmAttestor {
           `Highload V3 processed? returned exit code ${processedResult.exit_code} on depository ${depository}`,
         );
       }
-      // Only a NEVER-deployed account (no lastTransaction) is provably
-      // execution-free and safe to skip the guard. A wallet that executed then
-      // froze and was storage-collected also reports "uninitialized" but carries
-      // a lastTransaction — fall through so the guard fails closed on it.
-      depositoryUninit =
-        depositoryState.state === "uninitialized" &&
-        depositoryState.lastTransaction === null;
+      // Uninitialized = no code = ran no command, so processed?=false is
+      // unambiguous and EXPIRED is safe; deposits don't deploy the wallet, so a
+      // deposit-bearing depository is still uninitialized and execution-free.
+      // The replay-dict guard below only disambiguates an active wallet whose
+      // query dict rotated, so skipping it here is sound. "frozen" stays out
+      // (may have executed then frozen) and falls through to fail closed.
+      depositoryUninit = depositoryState.state === "uninitialized";
       isProcessed = false;
     } else {
       try {

@@ -1643,8 +1643,9 @@ describe("TonVmAttestor", () => {
       executingTx?: ReturnType<typeof buildMockTx> | null
       // Account state for the processed? error path (uninit → not processed).
       depositoryState?: "active" | "uninitialized" | "frozen"
-      // lastTransaction on the account: null = never deployed (safe uninit skip);
-      // non-null on an "uninitialized" state = executed-then-storage-collected.
+      // lastTransaction on the account: null = never received anything; non-null
+      // on an "uninitialized" state = received deposits (still never deployed —
+      // a deposit doesn't deploy the wallet). Either way it's never-executed.
       depositoryLastTransaction?: { lt: string; hash: string } | null
     }) => {
       const latestMcSeqno = options.latestMcSeqno ?? 1000
@@ -2314,30 +2315,28 @@ describe("TonVmAttestor", () => {
       expect(calledMethods).not.toContain("get_last_clean_time");
     });
 
-    it("does NOT skip the guard for an uninitialized account that has a lastTransaction (executed then storage-collected)", async () => {
-      // "uninitialized" with a non-null lastTransaction means the wallet was
-      // active (could have paid out) then deleted on storage debt — not safe to
-      // treat as never-executed. It must fall through to the guard, where the
-      // getter read fails closed rather than returning EXPIRED.
-      setupWithdrawalRpcMock({
+    it("returns EXPIRED for an uninitialized depository that only received deposits (lastTransaction present, never deployed)", async () => {
+      // The pre-first-withdrawal state: the depository received deposits (so it
+      // carries a lastTransaction) but was never deployed, so it executed
+      // nothing. "uninitialized" is treated as never-deployed regardless of
+      // deposit history → EXPIRED without the get_last_clean_time read.
+      const { runMethod } = setupWithdrawalRpcMock({
         processedExitCode: -13,
         depositoryState: "uninitialized",
         depositoryLastTransaction: { lt: "42", hash: "deadbeef" },
-        lastCleanExitCode: -13, // get-methods fail on a non-active account
         latestNow: 1_700_007_200, // past timeout
       });
 
-      const err = await new TonVmAttestor()
-        .getDepositoryWithdrawalMessage(
-          "ton-testnet",
-          encodedFor(baseWithdrawal),
-        )
-        .catch((e: unknown) => e);
-
-      expect((err as Error).message).toMatch(
-        /get_last_clean_time returned exit code -13/i,
+      const message = await new TonVmAttestor().getDepositoryWithdrawalMessage(
+        "ton-testnet",
+        encodedFor(baseWithdrawal),
       );
-      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
+      const calledMethods = runMethod.mock.calls.map(
+        (c) => (c as unknown[])[1],
+      );
+      expect(calledMethods).not.toContain("get_last_clean_time");
     });
 
     it("fails closed (NOT EXPIRED) for a frozen depository past the window — it may have executed then frozen", async () => {
