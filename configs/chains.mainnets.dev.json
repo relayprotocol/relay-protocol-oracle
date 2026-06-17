@@ -97,5 +97,12 @@
       "finalizationBlocks": 5,
       "signDataDomain": "relay.link"
     }
+  },
+  {
+    "id": "tron",
+    "depository": "TQ3iRBjav8EBpfSVih8pPUP4ES9hk1pwD9",
+    "vmType": "tron-vm",
+    "httpRpcUrl": "$TRON_RPC_URL",
+    "hubChainId": "728126428"
   }
 ]
