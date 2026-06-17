@@ -1767,7 +1767,8 @@ export class AttestationService {
     switch (family) {
       case "ethereum-vm":
       case "solana-vm":
-      case "ton-vm": {
+      case "ton-vm":
+      case "tron-vm": {
         return payload;
       }
 
