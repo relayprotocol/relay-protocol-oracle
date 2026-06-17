@@ -14,6 +14,6 @@ jobs:
   docs-draft-pr:
     uses: unevenlabs/agents-config/.github/workflows/reusable-docs-draft-pr.yml@main
     with:
-      runner: blacksmith-4vcpu-ubuntu-2404
+      runner: ubuntu-latest
       is_public_repo: false
     secrets: inherit
