@@ -146,13 +146,6 @@
     "hubChainId": "1329"
   },
   {
-    "id": "perennial",
-    "depository": "0x9ddc6a541e8f8b50b0996786a3ec275ab4d3a76c",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$PERENNIAL_RPC_URL",
-    "hubChainId": "1424"
-  },
-  {
     "id": "story",
     "depository": "0x9ddc6a541e8f8b50b0996786a3ec275ab4d3a76c",
     "vmType": "ethereum-vm",
@@ -493,13 +486,6 @@
     "vmType": "solana-vm",
     "httpRpcUrl": "$ECLIPSE_RPC_URL",
     "hubChainId": "64090895945001603038992093854505754448788867346671798212401362354189266349171"
-  },
-  {
-    "id": "soon",
-    "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
-    "vmType": "solana-vm",
-    "httpRpcUrl": "$SOON_RPC_URL",
-    "hubChainId": "47666768346798787887243539464098327979042864045901211358526436336861836132973"
   },
   {
     "id": "hyperliquid",

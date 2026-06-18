@@ -107,13 +107,6 @@
     "hubChainId": "480"
   },
   {
-    "id": "eden",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$EDEN_RPC_URL",
-    "hubChainId": "714"
-  },
-  {
     "id": "flow",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
@@ -154,13 +147,6 @@
     "vmType": "ethereum-vm",
     "httpRpcUrl": "$SEI_RPC_URL",
     "hubChainId": "1329"
-  },
-  {
-    "id": "perennial",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$PERENNIAL_RPC_URL",
-    "hubChainId": "1424"
   },
   {
     "id": "story",
@@ -517,13 +503,6 @@
     "vmType": "solana-vm",
     "httpRpcUrl": "$ECLIPSE_RPC_URL",
     "hubChainId": "64090895945001603038992093854505754448788867346671798212401362354189266349171"
-  },
-  {
-    "id": "soon",
-    "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
-    "vmType": "solana-vm",
-    "httpRpcUrl": "$SOON_RPC_URL",
-    "hubChainId": "47666768346798787887243539464098327979042864045901211358526436336861836132973"
   },
   {
     "id": "hyperliquid",
