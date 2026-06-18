@@ -17,6 +17,8 @@ import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals"
 
 // Test Bitcoin addresses and private keys
 const testDepositoryAddress = "bc1qq2mvrp4g3ugd424dw4xv53rgsf8szkrv853jrc";
+const testAdditionalDepositoryAddress =
+  "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
 const testUserAddress = "bc1qq2mvrp4g3ugd424dw4xv53rgsf8szkrv853jrc";
 
 jest.mock("../../../../src/common/chains", () => {
@@ -26,6 +28,7 @@ jest.mock("../../../../src/common/chains", () => {
       vmType: "bitcoin-vm",
       httpRpcUrl: "http://127.0.0.1:8332",
       depository: "bc1qq2mvrp4g3ugd424dw4xv53rgsf8szkrv853jrc",
+      additionalDepositories: ["bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"],
       hubChainId: "1",
       additionalData: {
         esploraCompatibleApiUrl: "http://localhost:3000",
@@ -335,6 +338,112 @@ describe("BitcoinVmAttestor", () => {
       expect(messages[0].result.currency).toBe(
         "bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8",
       );
+    });
+
+    it("should sum multiple outputs to the same depository", async () => {
+      const transactionId = randomHex(32);
+      const depositId = randomHex(32);
+      const depositTx = createDepositTransaction(transactionId, depositId);
+      depositTx.vout.push({
+        ...depositTx.vout[0],
+        value: 25000000,
+        n: 2,
+      });
+      const inputTxid = depositTx.vin[0].txid;
+      const inputTx = createInputTransaction(inputTxid);
+
+      setupRpcMock({
+        getTransaction: async (txid: string) => {
+          if (txid === transactionId) {
+            return depositTx;
+          } else if (txid === inputTxid) {
+            return inputTx;
+          }
+          return null;
+        },
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depository).toBe(testDepositoryAddress);
+      expect(messages[0].result.amount).toBe("125000000");
+    });
+
+    it("should attribute deposits to the single funded additional depository", async () => {
+      const transactionId = randomHex(32);
+      const depositId = randomHex(32);
+      const depositTx = createDepositTransaction(transactionId, depositId);
+      depositTx.vout[0].scriptPubKey.address = testAdditionalDepositoryAddress;
+      depositTx.vout[0].scriptPubKey.desc = `addr(${testAdditionalDepositoryAddress})`;
+      const inputTxid = depositTx.vin[0].txid;
+      const inputTx = createInputTransaction(inputTxid);
+
+      setupRpcMock({
+        getTransaction: async (txid: string) => {
+          if (txid === transactionId) {
+            return depositTx;
+          } else if (txid === inputTxid) {
+            return inputTx;
+          }
+          return null;
+        },
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depository).toBe(
+        testAdditionalDepositoryAddress,
+      );
+      expect(messages[0].result.amount).toBe("100000000");
+    });
+
+    it("should throw when multiple depositories receive funds", async () => {
+      const transactionId = randomHex(32);
+      const depositId = randomHex(32);
+      const depositTx = createDepositTransaction(transactionId, depositId);
+      depositTx.vout.push({
+        ...depositTx.vout[0],
+        value: 25000000,
+        n: 2,
+        scriptPubKey: {
+          ...depositTx.vout[0].scriptPubKey,
+          address: testAdditionalDepositoryAddress,
+          desc: `addr(${testAdditionalDepositoryAddress})`,
+        },
+      });
+      const inputTxid = depositTx.vin[0].txid;
+      const inputTx = createInputTransaction(inputTxid);
+
+      setupRpcMock({
+        getTransaction: async (txid: string) => {
+          if (txid === transactionId) {
+            return depositTx;
+          } else if (txid === inputTxid) {
+            return inputTx;
+          }
+          return null;
+        },
+        getBlock: async () => generateBitcoinBlock(depositTx.blockhash),
+      });
+
+      await expect(
+        new AttestationService().attestDepositoryDeposits({
+          chainId: "bitcoin",
+          transactionId,
+        }),
+      ).rejects.toThrow("Multiple depositories received funds");
     });
 
     it("should use explicit depositor from deposit OP_RETURN metadata", async () => {

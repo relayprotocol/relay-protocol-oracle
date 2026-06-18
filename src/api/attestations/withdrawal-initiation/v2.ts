@@ -26,6 +26,12 @@ const Schema = {
     chainId: Type.String({
       description: "The chain id to withdraw on",
     }),
+    depository: Type.Optional(
+      Type.String({
+        description:
+          "The depository to withdraw from (defaults to the chain's primary depository)",
+      }),
+    ),
     currency: Type.String({
       description: "The currency to withdraw",
     }),
@@ -140,11 +146,12 @@ export default {
     }
 
     const chain = await getChain(req.body.chainId);
+    const depository = req.body.depository ?? chain.depository!;
 
     const { withdrawalAddress, execution } =
       await attestationService.attestWithdrawalInitiation({
         chainId: req.body.chainId,
-        depository: chain.depository!,
+        depository,
         currency: req.body.currency,
         amount: req.body.amount,
         spender: generateAddress({

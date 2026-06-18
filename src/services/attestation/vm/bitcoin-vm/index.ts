@@ -46,6 +46,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     // Get chain configuration
     const chain = await getChain(chainId);
     const depository = chain.depository;
+    const additionalDepositories = chain.additionalDepositories ?? [];
     if (!depository) {
       throw externalError("Chain has no depository configured");
     }
@@ -87,16 +88,35 @@ export class BitcoinVmAttestor extends VmAttestor {
       throw externalError("Could not determine depositor");
     }
 
-    // Get the total amount sent to the depository
-    const amount = transaction.vout.reduce((acc, output) => {
-      if (output.scriptPubKey?.address === depository) {
-        return acc + BigInt(output.value);
+    // Get the total amount sent to each depository
+    const amountsByDepository = new Map(
+      [depository, ...additionalDepositories].map((address) => [address, 0n]),
+    );
+    for (const output of transaction.vout) {
+      const outputAddress = output.scriptPubKey.address;
+      if (!outputAddress) {
+        continue;
       }
-      return acc;
-    }, 0n);
-    if (amount === 0n) {
+
+      const currentAmount = amountsByDepository.get(outputAddress);
+      if (currentAmount !== undefined) {
+        amountsByDepository.set(
+          outputAddress,
+          currentAmount + BigInt(output.value),
+        );
+      }
+    }
+
+    const fundedDepositories = [...amountsByDepository.entries()].filter(
+      ([, amount]) => amount > 0n,
+    );
+    if (fundedDepositories.length === 0) {
       throw externalError("No value sent to the depository");
     }
+    if (fundedDepositories.length > 1) {
+      throw externalError("Multiple depositories received funds");
+    }
+    const [[fundedDepository, amount]] = fundedDepositories;
 
     return [
       {
@@ -110,7 +130,7 @@ export class BitcoinVmAttestor extends VmAttestor {
             transactionId,
             (depositIdIndex ?? 0).toString(),
           ),
-          depository,
+          depository: fundedDepository,
           depositId: depositId ?? zeroHash,
           depositor,
           currency: getVmTypeNativeCurrency(VM_TYPE),
@@ -138,6 +158,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     const chain = await getChain(chainId);
 
     const depository = chain.depository;
+    const additionalDepositories = chain.additionalDepositories ?? [];
     if (!depository) {
       throw externalError("Chain has no depository configured");
     }
@@ -149,9 +170,11 @@ export class BitcoinVmAttestor extends VmAttestor {
 
     const psbt = bitcoin.Psbt.fromHex(decodedWithdrawal.withdrawal.psbt);
 
-    const allocatorScript = bitcoin.address
-      .toOutputScript(depository, bitcoin.networks.bitcoin)
-      .toString("hex");
+    const allocatorScripts = [depository, ...additionalDepositories].map((d) =>
+      bitcoin.address
+        .toOutputScript(d, bitcoin.networks.bitcoin)
+        .toString("hex"),
+    );
 
     const psbtInputs = psbt.data.inputs.map((input, i) => {
       const txid = Buffer.from(psbt.txInputs[i].hash).reverse().toString("hex");
@@ -162,7 +185,8 @@ export class BitcoinVmAttestor extends VmAttestor {
         input,
       );
 
-      const ownedByAllocator = allocatorScript === prevoutScriptHex;
+      const ownedByAllocator =
+        prevoutScriptHex && allocatorScripts.includes(prevoutScriptHex);
       return {
         ownedByAllocator,
         txid,

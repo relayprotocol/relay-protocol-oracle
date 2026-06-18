@@ -88,11 +88,19 @@ jest.mock("../../../../src/common/chains", () => {
       hubChainId:
         "50176979118388105370421134508366610418687875236156196470082648173271157915018",
     },
-    "hyperliquid-vm": {
-      id: "hyperliquid-vm",
+    hyperliquid: {
+      id: "hyperliquid",
       vmType: "hyperliquid-vm",
       httpRpcUrl: "http://127.0.0.1:8545",
       depository: "0x0987654321098765432109876543210987654321",
+      hubChainId: "1",
+    },
+    ton: {
+      id: "ton",
+      vmType: "ton-vm",
+      httpRpcUrl: "http://127.0.0.1:8545",
+      depository:
+        "0:f37b9f6fd97ece249cb48d9aa5d0202570ad130b7b7d4ce4dd0f4cd551b3d9bd",
       hubChainId: "1",
     },
   };
@@ -660,7 +668,10 @@ describe("AttestationService", () => {
       const mockAttestor: any = {
         getDepositoryWithdrawalMessage: jest.fn().mockImplementation(() =>
           Promise.resolve({
-            data: { chainId: tonWithdrawRequest.chainId, withdrawal: "0xdeadbeef" },
+            data: {
+              chainId: tonWithdrawRequest.chainId,
+              withdrawal: "0xdeadbeef",
+            },
             result: {
               withdrawalId: zeroHash,
               depository: tonWithdrawRequest.depository,
@@ -671,9 +682,8 @@ describe("AttestationService", () => {
       };
       mockGetVmAttestor.mockResolvedValue(mockAttestor);
 
-      const result = await service.attestDepositoryWithdrawalV3(
-        tonWithdrawRequest,
-      );
+      const result =
+        await service.attestDepositoryWithdrawalV3(tonWithdrawRequest);
 
       expect(result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
       const [action] = result.execution?.actions || [];
@@ -707,7 +717,7 @@ describe("AttestationService", () => {
     const nonce = "1";
     const id = keccak256("0x1234" as Hex);
     const signatureChainId = "ethereum";
-    const walletChainId = "hyperliquid-vm";
+    const walletChainId = "hyperliquid";
     const mockSignature = "0x" + "ab".repeat(65);
 
     it("returns a generic mapping that includes the depositor", async () => {
@@ -723,7 +733,7 @@ describe("AttestationService", () => {
 
       const expectedUser = generateAddress({
         family: "hyperliquid-vm",
-        chainId: "hyperliquid-vm",
+        chainId: "hyperliquid",
         address: wallet,
       });
 

@@ -60,6 +60,7 @@ import {
   normalizeBitcoinPartialSignature,
 } from "./utils";
 import {
+  Chain,
   getChain,
   getChainVmType,
   getHubInfo,
@@ -79,6 +80,7 @@ type ExecutionMetadata = Omit<
 
 type WithdrawalAddressRequest = {
   chainId: string;
+  depository?: string;
   currency: string;
   withdrawer: string;
   withdrawerChainId: string;
@@ -226,10 +228,11 @@ export class AttestationService {
 
     // Compute withdrawal address
     const chain = await getChain(data.chainId);
+    const depository = this._getConfiguredDepository(chain, data.depository);
     const withdrawalAddress = getWithdrawalAddress({
       vmType: chain.vmType,
       chainId: data.chainId,
-      depository: chain.depository!,
+      depository,
       currency: data.currency,
       recipient: data.recipient,
       ownerAlias: data.spender,
@@ -336,10 +339,11 @@ export class AttestationService {
 
     // Compute withdrawal address
     const chain = await getChain(data.chainId);
+    const depository = this._getConfiguredDepository(chain, data.depository);
     const withdrawalAddress = getWithdrawalAddress({
       vmType: chain.vmType,
       chainId: data.chainId,
-      depository: chain.depository!,
+      depository,
       currency: data.currency,
       recipient: data.recipient,
       ownerAlias: data.spender,
@@ -513,8 +517,10 @@ export class AttestationService {
     status: DepositoryWithdrawalStatus;
     execution?: ExecutionMessage;
   }> {
+    const chain = await getChain(data.chainId);
     const withdrawRequest = normalizeWithdrawRequest({
       ...data,
+      depository: this._getConfiguredDepository(chain, data.depository),
       vmType: await getChainVmType(data.chainId),
       spenderVmType: await getChainVmType(data.spenderChainId),
     });
@@ -1407,6 +1413,28 @@ export class AttestationService {
     });
   }
 
+  private _getConfiguredDepository(
+    chain: Chain,
+    requestedDepository?: string,
+  ) {
+    const depository = requestedDepository ?? chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
+    if (
+      requestedDepository &&
+      requestedDepository !== chain.depository &&
+      !chain.additionalDepositories?.includes(requestedDepository)
+    ) {
+      throw externalError(
+        `Depository ${requestedDepository} is not configured for chain ${chain.id}`,
+      );
+    }
+
+    return depository;
+  }
+
   private async _getWithdrawalAddress(data: WithdrawalAddressRequest) {
     const chain = await getChain(data.chainId);
 
@@ -1425,8 +1453,9 @@ export class AttestationService {
     });
 
     // Compute address
+    const depository = this._getConfiguredDepository(chain, data.depository);
     const withdrawalAddress = getWithdrawalAddress({
-      depository: chain.depository!,
+      depository,
       chainId: data.chainId,
       vmType: await getChainVmType(data.chainId),
       recipient: data.recipient,
@@ -1450,6 +1479,7 @@ export class AttestationService {
 
     const payloadParams = normalizePayloadParams({
       ...data,
+      depository: this._getConfiguredDepository(chain, data.depository),
       chainId: chain.hubChainId!,
       vmType: chain.vmType,
     });

@@ -65,6 +65,7 @@
   {
     "id": "bitcoin",
     "depository": "1MviEDGCTgEKEJ6cmfL9pBQa5GG4hujXnF",
+    "additionalDepositories": ["bc1q82jn90vgkwvknrhxpla797tu050fj0jaaaznne"],
     "vmType": "bitcoin-vm",
     "httpRpcUrl": "$BITCOIN_RPC_URL",
     "hubChainId": "56960375584792109628315999883526364004747792730920852649053369508622489636429",

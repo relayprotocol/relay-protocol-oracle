@@ -26,6 +26,12 @@ const MessageData = Type.Object({
   chainId: Type.String({
     description: "The chain id to withdraw on",
   }),
+  depository: Type.Optional(
+    Type.String({
+      description:
+        "The depository to withdraw from (defaults to the chain's primary depository)",
+    }),
+  ),
   currency: Type.String({
     description: "The currency to withdraw",
   }),
@@ -165,11 +171,12 @@ export default {
     }
 
     const chain = await getChain(req.body.chainId);
+    const depository = req.body.depository ?? chain.depository!;
 
     const { status, execution } =
       await attestationService.attestDepositoryWithdrawalV2({
         chainId: req.body.chainId,
-        depository: chain.depository!,
+        depository,
         currency: req.body.currency,
         amount: req.body.amount,
         spender: generateAddress({
@@ -186,6 +193,7 @@ export default {
         hints: req.body.hints,
         withdrawalAddressRequest: {
           chainId: req.body.chainId,
+          depository,
           currency: req.body.currency,
           recipient: req.body.recipient,
           withdrawerChainId: req.body.ownerChainId,
