@@ -1,6 +1,6 @@
 {
-  "id": "arbitrum-sepolia",
-  "httpRpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
-  "evmChainId": "421614",
-  "oracleAddress": "0xf73642494a7Ad3529630997Faf8f9f6057319345"
+  "id": "relay-testnet",
+  "httpRpcUrl": "$RELAY_RPC_URL",
+  "evmChainId": "537724",
+  "oracleAddress": "0x259813B665C8f6074391028ef782e27B65840d89"
 }
