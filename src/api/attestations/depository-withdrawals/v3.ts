@@ -8,6 +8,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
   getPeerResponses,
+  withdrawRequestAdditionalDataSchema,
 } from "../../utils";
 import { getChain } from "../../../common/chains";
 import { signExecutionMessage } from "../../../common/signer";
@@ -42,6 +43,7 @@ const MessageData = Type.Object({
   nonce: Type.String({
     description: "Nonce for replay protection",
   }),
+  additionalData: Type.Optional(withdrawRequestAdditionalDataSchema),
   requestPeerSignatures: Type.Optional(
     Type.Boolean({
       description:
@@ -107,6 +109,7 @@ export default {
         spender: req.body.spender,
         receiver: req.body.receiver,
         nonce: req.body.nonce,
+        additionalData: req.body.additionalData,
         transactionId: req.body.transactionId,
         hints: req.body.hints,
       });

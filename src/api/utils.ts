@@ -61,7 +61,7 @@ export const errorWrapper = (
   return async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       await handler(req, reply);
-    } catch (error) {
+    } catch (error: any) {
       // External errors can be passed-through externally
       if (isExternalError(error)) {
         return reply.status(400).send({ message: error.message });
@@ -216,6 +216,33 @@ export const executionMessageSignatureSchema = Type.Object({
   }),
 });
 
+export const withdrawRequestAdditionalDataSchema = Type.Object(
+  {
+    "bitcoin-vm": Type.Optional(
+      Type.Object({
+        allocatorUtxos: Type.Array(
+          Type.Object({
+            txid: Type.String(),
+            vout: Type.Number(),
+            value: Type.String(),
+          }),
+        ),
+        feeUtxos: Type.Array(
+          Type.Object({
+            txid: Type.String(),
+            vout: Type.Number(),
+            value: Type.String(),
+            address: Type.String(),
+          }),
+        ),
+        feeRate: Type.Number(),
+        feeChangeAddress: Type.String(),
+      }),
+    ),
+  },
+  { description: "Additional data for normalizing a withdraw request" },
+);
+
 export const executionSchema = Type.Optional(
   Type.Object(
     {
@@ -338,7 +365,9 @@ export const getPeerResponses = async ({
   const record = (sigs: any[]) => {
     for (const s of sigs) {
       const signer =
-        typeof s?.oracleSigner === "string" ? s.oracleSigner.toLowerCase() : undefined;
+        typeof s?.oracleSigner === "string"
+          ? s.oracleSigner.toLowerCase()
+          : undefined;
       if (signers && signer) {
         if (seen.has(signer)) continue;
         seen.add(signer);
@@ -356,31 +385,53 @@ export const getPeerResponses = async ({
         `${url}${endpointPath}`,
         { ...requestBody, requestPeerSignatures: false },
         {
-          headers: { "x-api-key": apiKey === "pass-through" ? requestApiKey : apiKey },
+          headers: {
+            "x-api-key": apiKey === "pass-through" ? requestApiKey : apiKey,
+          },
           timeout: config.peerRequestTimeoutMs,
         },
       )
       .then((response) => {
         const durationMs = Date.now() - start;
-        logger[durationMs > 5000 ? "warn" : "info"]("oracle-peer", JSON.stringify({
-          msg: "Peer request completed", endpointPath, url, durationMs,
-          data: response.data, status: response.status,
-        }));
+        logger[durationMs > 5000 ? "warn" : "info"](
+          "oracle-peer",
+          JSON.stringify({
+            msg: "Peer request completed",
+            endpointPath,
+            url,
+            durationMs,
+            data: response.data,
+            status: response.status,
+          }),
+        );
         try {
           record(validateAndExtractResponse(response.data));
         } catch (error: any) {
-          logger.warn("oracle-peer", JSON.stringify({
-            msg: "Skipping peer signature (validator error)",
-            endpointPath, url, durationMs: Date.now() - start, error: String(error),
-          }));
+          logger.warn(
+            "oracle-peer",
+            JSON.stringify({
+              msg: "Skipping peer signature (validator error)",
+              endpointPath,
+              url,
+              durationMs: Date.now() - start,
+              error: String(error),
+            }),
+          );
         }
       })
       .catch((error: any) => {
-        logger.warn("oracle-peer", JSON.stringify({
-          msg: "Skipping peer signature", endpointPath, url,
-          durationMs: Date.now() - start, timeoutMs: config.peerRequestTimeoutMs,
-          error: String(error), errorResponse: error?.response?.data ?? error?.response?.body,
-        }));
+        logger.warn(
+          "oracle-peer",
+          JSON.stringify({
+            msg: "Skipping peer signature",
+            endpointPath,
+            url,
+            durationMs: Date.now() - start,
+            timeoutMs: config.peerRequestTimeoutMs,
+            error: String(error),
+            errorResponse: error?.response?.data ?? error?.response?.body,
+          }),
+        );
       });
   });
 

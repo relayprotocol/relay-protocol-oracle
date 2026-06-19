@@ -10,6 +10,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
   getPeerResponses,
+  withdrawRequestAdditionalDataSchema,
 } from "../../utils";
 import { getChain } from "../../../common/chains";
 import { externalError } from "../../../common/error";
@@ -37,7 +38,13 @@ const normalizedWithdrawRequestSchema = Type.Object({
 
 // normalizeWithdrawRequest (settlement-sdk) only implements these withdraw-chain
 // vm types; anything else throws there, so reject up front with a clean 4xx.
-const SUPPORTED_WITHDRAW_VM_TYPES = ["ethereum-vm", "solana-vm", "ton-vm"];
+const SUPPORTED_WITHDRAW_VM_TYPES = [
+  "bitcoin-vm",
+  "ethereum-vm",
+  "solana-vm",
+  "ton-vm",
+  "tron-vm",
+];
 
 const normalizedWithdrawRequestsEqual = (
   msg1?: WithdrawRequest,
@@ -84,6 +91,7 @@ const Schema = {
       description: "Nonce for replay protection",
       pattern: "^0x[0-9a-fA-F]{64}$",
     }),
+    additionalData: Type.Optional(withdrawRequestAdditionalDataSchema),
     // ton-vm owners sign via TonConnect signData; echo back the wallet's
     // timestamp + domain so the oracle can reconstruct the signature.
     signatureMetadata: Type.Optional(
@@ -206,6 +214,7 @@ export default {
           owner: req.body.spender,
           recipient: req.body.receiver,
           nonce: req.body.nonce,
+          additionalData: req.body.additionalData,
           signatureMetadata: req.body.signatureMetadata,
         },
         signature: req.body.ownerSignature,
@@ -227,6 +236,7 @@ export default {
       spender: req.body.spender,
       receiver: req.body.receiver,
       nonce: req.body.nonce,
+      additionalData: req.body.additionalData,
     });
 
     const { allocatorChainId, allocatorContract, oracleSigner, signature } =

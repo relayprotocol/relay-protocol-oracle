@@ -6,6 +6,7 @@ import {
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
   getPeerResponses,
+  withdrawRequestAdditionalDataSchema,
 } from "../../utils";
 import { getChain } from "../../../common/chains";
 import { signWithdrawRequestMessage } from "../../../common/signer";
@@ -35,6 +36,7 @@ const Schema = {
     nonce: Type.String({
       description: "Nonce for replay protection",
     }),
+    additionalData: Type.Optional(withdrawRequestAdditionalDataSchema),
     hashIndexes: Type.Array(Type.Integer({ minimum: 0 }), {
       minItems: 1,
       description:
@@ -129,6 +131,7 @@ export default {
         spender: req.body.spender,
         receiver: req.body.receiver,
         nonce: req.body.nonce,
+        additionalData: req.body.additionalData,
         hashIndexes: req.body.hashIndexes,
       });
 

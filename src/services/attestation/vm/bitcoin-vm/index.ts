@@ -51,6 +51,38 @@ export class BitcoinVmAttestor extends VmAttestor {
       throw externalError("Chain has no depository configured");
     }
 
+    const depositories = [depository, ...additionalDepositories];
+
+    const inputPrevoutAddresses: string[] = [];
+    for (const input of transaction.vin) {
+      await logRpcUsage(chainId, "getTransaction", trackingId);
+      const inputTransaction = await rpc.getTransaction(input.txid);
+      if (!inputTransaction) {
+        throw externalError(`Missing input transaction ${input.txid}`);
+      }
+
+      const inputPrevout = inputTransaction.vout[input.vout];
+      if (!inputPrevout) {
+        throw externalError(
+          `Missing input prevout ${input.txid}:${input.vout}`,
+        );
+      }
+
+      // Transactions that spend a depository UTXO are depository withdrawals
+      // (possibly with change back to the depository). Do not attest their
+      // outputs as user deposits.
+      if (
+        inputPrevout.scriptPubKey.address &&
+        depositories.includes(inputPrevout.scriptPubKey.address)
+      ) {
+        return [];
+      }
+
+      if (inputPrevout.scriptPubKey.address) {
+        inputPrevoutAddresses.push(inputPrevout.scriptPubKey.address);
+      }
+    }
+
     // Get all OP_RETURN messages
     const decodedVouts = this._decodeTxOpReturnVouts(transaction.vout);
 
@@ -74,15 +106,7 @@ export class BitcoinVmAttestor extends VmAttestor {
     // Get the depositor from OP_RETURN metadata, or fall back to the first transaction input
     let depositor = this._extractExplicitDepositor(decodedVouts);
     if (!depositor) {
-      for (const input of transaction.vin) {
-        await logRpcUsage(chainId, "getTransaction", trackingId);
-        const inputTransaction = await rpc.getTransaction(input.txid);
-        const vout = inputTransaction.vout[input.vout];
-        if (vout && vout.scriptPubKey && vout.scriptPubKey.address) {
-          depositor = vout.scriptPubKey.address;
-          break;
-        }
-      }
+      depositor = inputPrevoutAddresses[0];
     }
     if (!depositor) {
       throw externalError("Could not determine depositor");
@@ -90,7 +114,7 @@ export class BitcoinVmAttestor extends VmAttestor {
 
     // Get the total amount sent to each depository
     const amountsByDepository = new Map(
-      [depository, ...additionalDepositories].map((address) => [address, 0n]),
+      depositories.map((address) => [address, 0n]),
     );
     for (const output of transaction.vout) {
       const outputAddress = output.scriptPubKey.address;
@@ -249,7 +273,7 @@ export class BitcoinVmAttestor extends VmAttestor {
       await logRpcUsage(chainId, "getRawTransaction", trackingId);
       const tx = bitcoin.Transaction.fromHex(
         await rpc.getRawTransaction(
-          txidsSpendingPsbtInputs.values().next().value,
+          txidsSpendingPsbtInputs.values().next().value!,
         ),
       );
       const psbtMatchesSpendingTx = psbtInputs.every((input, i) => {
