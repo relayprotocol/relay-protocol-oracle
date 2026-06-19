@@ -10,8 +10,20 @@ import {
 } from "@relay-protocol/settlement-sdk";
 import { MEMO_PROGRAM_ID } from "@solana/spl-memo";
 import {
+  TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+  TokenInstruction,
+  decodeTransferInstruction,
+  decodeTransferCheckedInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
+import {
   PublicKey,
   Connection,
+  SystemProgram,
+  SystemInstruction,
+  ComputeBudgetProgram,
+  TransactionInstruction,
   VersionedTransactionResponse,
   MessageCompiledInstruction,
 } from "@solana/web3.js";
@@ -27,6 +39,9 @@ import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import { httpRpc } from "../../../../common/vm/solana-vm/rpc";
 
 const VM_TYPE = "solana-vm";
+
+// Direct transfers do not carry a deposit id, so we use the zero hash
+const ZERO_DEPOSIT_ID = "0x" + "0".repeat(64);
 
 export class SolanaVmAttestor extends VmAttestor {
   private readonly instructionCoder: BorshInstructionCoder;
@@ -187,6 +202,176 @@ export class SolanaVmAttestor extends VmAttestor {
               timestamp: String(timestamp),
             },
           });
+        }
+      }
+    }
+
+    // If no deposits were made through the depository program, check for a direct
+    // transfer (SOL or SPL) to the depository vault. For safety, this only recognizes
+    // a deposit when the whole transaction contains a single instruction and that
+    // instruction is a transfer (a System `transfer`, or an SPL token `transfer` /
+    // `transferChecked`) targeting the vault. Direct transfers do not carry a deposit
+    // id, so the zero hash is used.
+    // Ignore ComputeBudget instructions (e.g. priority-fee settings) when determining
+    // whether the transaction is a single direct transfer; none of them move funds
+    const relevantInstructions = instructions.filter(
+      (compiledInstruction) =>
+        accountKeys[compiledInstruction.programIdIndex].toBase58() !==
+        ComputeBudgetProgram.programId.toBase58(),
+    );
+
+    if (!messages.length && relevantInstructions.length === 1) {
+      const compiledInstruction = relevantInstructions[0];
+      const programId = accountKeys[compiledInstruction.programIdIndex];
+
+      // Reconstruct a `TransactionInstruction` so we can use the standard decoders
+      const instruction = new TransactionInstruction({
+        programId,
+        keys: compiledInstruction.accountKeyIndexes.map((index) => ({
+          pubkey: accountKeys[index],
+          isSigner: false,
+          isWritable: false,
+        })),
+        data: Buffer.from(compiledInstruction.data),
+      });
+
+      const onchainId = getDeterministicId(chainId, transactionId, "0");
+
+      const [depositoryVault] = PublicKey.findProgramAddressSync(
+        [Buffer.from("vault")],
+        new PublicKey(depository),
+      );
+
+      // Handle the single instruction if it is a transfer to the vault (the
+      // transaction is already known to have succeeded, so a transfer instruction
+      // is guaranteed to be well-formed and decodable)
+      if (
+        programId.equals(SystemProgram.programId) &&
+        SystemInstruction.decodeInstructionType(instruction) === "Transfer"
+      ) {
+        // Native SOL transfer: the destination must be the vault PDA
+        const { fromPubkey, toPubkey, lamports } =
+          SystemInstruction.decodeTransfer(instruction);
+        if (toPubkey.equals(depositoryVault)) {
+          messages.push({
+            data: {
+              chainId,
+              transactionId,
+            },
+            result: {
+              onchainId,
+              depositId: ZERO_DEPOSIT_ID,
+              depository,
+              depositor: fromPubkey.toBase58(),
+              currency: getVmTypeNativeCurrency(VM_TYPE),
+              amount: lamports.toString(),
+            },
+            extraData: {
+              timestamp: String(timestamp),
+            },
+          });
+        }
+      } else if (
+        programId.equals(TOKEN_PROGRAM_ID) ||
+        programId.equals(TOKEN_2022_PROGRAM_ID)
+      ) {
+        // SPL token `transfer` / `transferChecked`
+        const type =
+          instruction.data.length >= 1 ? instruction.data.readUInt8(0) : -1;
+
+        let destination: PublicKey | undefined;
+        let authority: PublicKey | undefined;
+        let mint: PublicKey | undefined;
+        let amount: bigint | undefined;
+        if (type === TokenInstruction.Transfer) {
+          const { keys, data } = decodeTransferInstruction(
+            instruction,
+            programId,
+          );
+          destination = keys.destination.pubkey;
+          authority = keys.owner.pubkey;
+          amount = data.amount;
+        } else if (type === TokenInstruction.TransferChecked) {
+          const { keys, data } = decodeTransferCheckedInstruction(
+            instruction,
+            programId,
+          );
+          destination = keys.destination.pubkey;
+          authority = keys.owner.pubkey;
+          mint = keys.mint.pubkey;
+          amount = data.amount;
+        }
+
+        if (destination && authority && amount) {
+          // A legacy `transfer` does not include the mint, so fetch it from the
+          // destination token account
+          if (!mint) {
+            await logRpcUsage(chainId, "getParsedAccountInfo", trackingId);
+            const accountData = await rpc
+              .getParsedAccountInfo(destination)
+              .then((res) => res.value?.data);
+            if (accountData && !Buffer.isBuffer(accountData)) {
+              const parsedMint = accountData.parsed?.info?.mint;
+              if (parsedMint) {
+                mint = new PublicKey(parsedMint);
+              }
+            }
+          }
+
+          // The destination must be the vault's associated token account (the ATA
+          // address commits to the vault being the token account owner)
+          if (
+            mint &&
+            destination.equals(
+              getAssociatedTokenAddressSync(
+                mint,
+                depositoryVault,
+                true,
+                programId,
+              ),
+            )
+          ) {
+            // Token-2022 supports fee-on-transfer, so the vault token account may
+            // receive less than the instruction amount; credit the actual balance
+            // increase if it is lower (the legacy SPL token program has no such fee)
+            if (programId.equals(TOKEN_2022_PROGRAM_ID)) {
+              const destinationKey = destination.toBase58();
+              const destIndex = accountKeys.findIndex(
+                (key) => key.toBase58() === destinationKey,
+              );
+              const preAmount = transaction.meta?.preTokenBalances?.find(
+                (b) => b.accountIndex === destIndex,
+              )?.uiTokenAmount.amount;
+              const postAmount = transaction.meta?.postTokenBalances?.find(
+                (b) => b.accountIndex === destIndex,
+              )?.uiTokenAmount.amount;
+              if (postAmount !== undefined) {
+                const balanceDiff =
+                  BigInt(postAmount) - BigInt(preAmount ?? "0");
+                if (balanceDiff < amount) {
+                  amount = balanceDiff;
+                }
+              }
+            }
+
+            messages.push({
+              data: {
+                chainId,
+                transactionId,
+              },
+              result: {
+                onchainId,
+                depositId: ZERO_DEPOSIT_ID,
+                depository,
+                depositor: authority.toBase58(),
+                currency: mint.toBase58(),
+                amount: amount.toString(),
+              },
+              extraData: {
+                timestamp: String(timestamp),
+              },
+            });
+          }
         }
       }
     }

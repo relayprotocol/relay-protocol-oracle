@@ -1216,6 +1216,467 @@ describe("SolanaVmAttestor", () => {
     ).rejects.toThrow(`Transaction failed: ${transactionId}`);
   });
 
+  it("attestDepositoryDeposits - should attest a direct native (SOL) transfer to the vault", async () => {
+    const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
+    const [vault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault")],
+      new PublicKey(depository)
+    );
+
+    const depositor = new PublicKey(randomBase58(32));
+    const amount = randomNumber(1e9) + 1;
+
+    // System `transfer`: u32 LE type (=2) + u64 LE lamports
+    const data = Buffer.alloc(12);
+    data.writeUInt32LE(2, 0);
+    data.writeBigUInt64LE(BigInt(amount), 4);
+
+    const accountKeys = [
+      depositor,
+      vault,
+      new PublicKey("11111111111111111111111111111111"),
+    ];
+
+    const mockTransaction = {
+      meta: {
+        logMessages: [],
+        innerInstructions: [],
+        preTokenBalances: [],
+        postTokenBalances: [],
+        loadedAddresses: { writable: [], readonly: [] },
+      },
+      transaction: {
+        message: {
+          compiledInstructions: [
+            { programIdIndex: 2, accountKeyIndexes: [0, 1], data },
+          ],
+          addressTableLookups: [],
+          getAccountKeys: () => ({ staticAccountKeys: accountKeys }),
+        },
+      },
+    };
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: async () => mockTransaction,
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
+    }));
+
+    const { messages } = await new AttestationService().attestDepositoryDeposits(
+      {
+        chainId: "solana",
+        transactionId: randomBase58(32),
+      }
+    );
+
+    expect(messages.length).toBe(1);
+    expect(messages[0].result.currency).toBe(
+      "11111111111111111111111111111111"
+    );
+    expect(messages[0].result.depository).toBe(depository);
+    expect(messages[0].result.depositor).toBe(depositor.toBase58());
+    expect(messages[0].result.amount).toBe(amount.toString());
+    expect(messages[0].result.depositId).toBe("0x" + "0".repeat(64));
+  });
+
+  it("attestDepositoryDeposits - should ignore compute budget instructions for a direct transfer", async () => {
+    const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
+    const [vault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault")],
+      new PublicKey(depository)
+    );
+
+    const depositor = new PublicKey(randomBase58(32));
+    const amount = randomNumber(1e9) + 1;
+
+    // System `transfer`: u32 LE type (=2) + u64 LE lamports
+    const transferData = Buffer.alloc(12);
+    transferData.writeUInt32LE(2, 0);
+    transferData.writeBigUInt64LE(BigInt(amount), 4);
+
+    // ComputeBudget `SetComputeUnitLimit` (type 2) + `SetComputeUnitPrice` (type 3)
+    const setLimitData = Buffer.alloc(5);
+    setLimitData.writeUInt8(2, 0);
+    setLimitData.writeUInt32LE(200000, 1);
+    const setPriceData = Buffer.alloc(9);
+    setPriceData.writeUInt8(3, 0);
+    setPriceData.writeBigUInt64LE(1n, 1);
+
+    const accountKeys = [
+      depositor,
+      vault,
+      new PublicKey("11111111111111111111111111111111"),
+      new PublicKey("ComputeBudget111111111111111111111111111111"),
+    ];
+
+    const mockTransaction = {
+      meta: {
+        logMessages: [],
+        innerInstructions: [],
+        preTokenBalances: [],
+        postTokenBalances: [],
+        loadedAddresses: { writable: [], readonly: [] },
+      },
+      transaction: {
+        message: {
+          compiledInstructions: [
+            // Priority-fee instructions that must be ignored
+            { programIdIndex: 3, accountKeyIndexes: [], data: setLimitData },
+            { programIdIndex: 3, accountKeyIndexes: [], data: setPriceData },
+            // The actual direct transfer
+            {
+              programIdIndex: 2,
+              accountKeyIndexes: [0, 1],
+              data: transferData,
+            },
+          ],
+          addressTableLookups: [],
+          getAccountKeys: () => ({ staticAccountKeys: accountKeys }),
+        },
+      },
+    };
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: async () => mockTransaction,
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
+    }));
+
+    const { messages } = await new AttestationService().attestDepositoryDeposits(
+      {
+        chainId: "solana",
+        transactionId: randomBase58(32),
+      }
+    );
+
+    expect(messages.length).toBe(1);
+    expect(messages[0].result.currency).toBe(
+      "11111111111111111111111111111111"
+    );
+    expect(messages[0].result.depository).toBe(depository);
+    expect(messages[0].result.depositor).toBe(depositor.toBase58());
+    expect(messages[0].result.amount).toBe(amount.toString());
+    expect(messages[0].result.depositId).toBe("0x" + "0".repeat(64));
+  });
+
+  it("attestDepositoryDeposits - should attest a direct SPL token transfer (legacy `transfer`) to the vault", async () => {
+    const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
+    const [vault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault")],
+      new PublicKey(depository)
+    );
+
+    const tokenProgramId = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+    const associatedTokenProgramId =
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+
+    const mint = new PublicKey(randomBase58(32));
+    const depositor = new PublicKey(randomBase58(32));
+    const source = new PublicKey(randomBase58(32));
+    const amount = randomNumber(1e9) + 1;
+
+    // Vault's associated token account (the destination of the transfer)
+    const [vaultAta] = PublicKey.findProgramAddressSync(
+      [
+        vault.toBuffer(),
+        new PublicKey(tokenProgramId).toBuffer(),
+        mint.toBuffer(),
+      ],
+      new PublicKey(associatedTokenProgramId)
+    );
+
+    // SPL `transfer`: u8 type (=3) + u64 LE amount
+    const data = Buffer.alloc(9);
+    data.writeUInt8(3, 0);
+    data.writeBigUInt64LE(BigInt(amount), 1);
+
+    // accounts: [source, destination, authority], programId: token program
+    const accountKeys = [
+      source,
+      vaultAta,
+      depositor,
+      new PublicKey(tokenProgramId),
+    ];
+
+    const mockTransaction = {
+      meta: {
+        logMessages: [],
+        innerInstructions: [],
+        loadedAddresses: { writable: [], readonly: [] },
+      },
+      transaction: {
+        message: {
+          compiledInstructions: [
+            { programIdIndex: 3, accountKeyIndexes: [0, 1, 2], data },
+          ],
+          addressTableLookups: [],
+          getAccountKeys: () => ({ staticAccountKeys: accountKeys }),
+        },
+      },
+    };
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: async () => mockTransaction,
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
+      // The legacy `transfer` instruction does not carry the mint, so it is
+      // resolved from the destination token account
+      getParsedAccountInfo: async () => ({
+        value: { data: { parsed: { info: { mint: mint.toBase58() } } } },
+      }),
+    }));
+
+    const { messages } = await new AttestationService().attestDepositoryDeposits(
+      {
+        chainId: "solana",
+        transactionId: randomBase58(32),
+      }
+    );
+
+    expect(messages.length).toBe(1);
+    expect(messages[0].result.currency).toBe(mint.toBase58());
+    expect(messages[0].result.depository).toBe(depository);
+    expect(messages[0].result.depositor).toBe(depositor.toBase58());
+    expect(messages[0].result.amount).toBe(amount.toString());
+    expect(messages[0].result.depositId).toBe("0x" + "0".repeat(64));
+  });
+
+  it("attestDepositoryDeposits - should attest a direct SPL token transfer (`transferChecked`) to the vault", async () => {
+    const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
+    const [vault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault")],
+      new PublicKey(depository)
+    );
+
+    const tokenProgramId = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+    const associatedTokenProgramId =
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+
+    const mint = new PublicKey(randomBase58(32));
+    const depositor = new PublicKey(randomBase58(32));
+    const source = new PublicKey(randomBase58(32));
+    const amount = randomNumber(1e9) + 1;
+
+    // Vault's associated token account (the destination of the transfer)
+    const [vaultAta] = PublicKey.findProgramAddressSync(
+      [
+        vault.toBuffer(),
+        new PublicKey(tokenProgramId).toBuffer(),
+        mint.toBuffer(),
+      ],
+      new PublicKey(associatedTokenProgramId)
+    );
+
+    // SPL `transferChecked`: u8 type (=12) + u64 LE amount + u8 decimals
+    const data = Buffer.alloc(10);
+    data.writeUInt8(12, 0);
+    data.writeBigUInt64LE(BigInt(amount), 1);
+    data.writeUInt8(9, 9);
+
+    // accounts: [source, mint, destination, authority], programId: token program
+    const accountKeys = [
+      source,
+      mint,
+      vaultAta,
+      depositor,
+      new PublicKey(tokenProgramId),
+    ];
+
+    const mockTransaction = {
+      meta: {
+        logMessages: [],
+        innerInstructions: [],
+        loadedAddresses: { writable: [], readonly: [] },
+      },
+      transaction: {
+        message: {
+          compiledInstructions: [
+            { programIdIndex: 4, accountKeyIndexes: [0, 1, 2, 3], data },
+          ],
+          addressTableLookups: [],
+          getAccountKeys: () => ({ staticAccountKeys: accountKeys }),
+        },
+      },
+    };
+
+    // No `getParsedAccountInfo` mock: `transferChecked` carries the mint inline
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: async () => mockTransaction,
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
+    }));
+
+    const { messages } = await new AttestationService().attestDepositoryDeposits(
+      {
+        chainId: "solana",
+        transactionId: randomBase58(32),
+      }
+    );
+
+    expect(messages.length).toBe(1);
+    expect(messages[0].result.currency).toBe(mint.toBase58());
+    expect(messages[0].result.depository).toBe(depository);
+    expect(messages[0].result.depositor).toBe(depositor.toBase58());
+    expect(messages[0].result.amount).toBe(amount.toString());
+    expect(messages[0].result.depositId).toBe("0x" + "0".repeat(64));
+  });
+
+  it("attestDepositoryDeposits - should use the vault token balance diff for a direct Token-2022 transfer when it is lower than the instruction amount", async () => {
+    const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
+    const [vault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault")],
+      new PublicKey(depository)
+    );
+
+    const tokenProgramId = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+    const associatedTokenProgramId =
+      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+
+    const mint = new PublicKey(randomBase58(32));
+    const depositor = new PublicKey(randomBase58(32));
+    const source = new PublicKey(randomBase58(32));
+    const instructionAmount = 1000;
+    const balanceDiff = 600;
+
+    const [vaultAta] = PublicKey.findProgramAddressSync(
+      [
+        vault.toBuffer(),
+        new PublicKey(tokenProgramId).toBuffer(),
+        mint.toBuffer(),
+      ],
+      new PublicKey(associatedTokenProgramId)
+    );
+
+    // SPL `transferChecked`: u8 type (=12) + u64 LE amount + u8 decimals
+    const data = Buffer.alloc(10);
+    data.writeUInt8(12, 0);
+    data.writeBigUInt64LE(BigInt(instructionAmount), 1);
+    data.writeUInt8(9, 9);
+
+    // accounts: [source, mint, destination, authority], programId: token program
+    const accountKeys = [
+      source,
+      mint,
+      vaultAta,
+      depositor,
+      new PublicKey(tokenProgramId),
+    ];
+
+    // Destination (vault ATA) is at index 2; it gains less than the instruction amount
+    const mockTransaction = {
+      meta: {
+        logMessages: [],
+        innerInstructions: [],
+        preTokenBalances: [
+          {
+            accountIndex: 2,
+            mint: mint.toBase58(),
+            owner: vault.toBase58(),
+            uiTokenAmount: {
+              amount: "100",
+              decimals: 9,
+              uiAmount: null,
+              uiAmountString: "100",
+            },
+          },
+        ],
+        postTokenBalances: [
+          {
+            accountIndex: 2,
+            mint: mint.toBase58(),
+            owner: vault.toBase58(),
+            uiTokenAmount: {
+              amount: (100 + balanceDiff).toString(),
+              decimals: 9,
+              uiAmount: null,
+              uiAmountString: (100 + balanceDiff).toString(),
+            },
+          },
+        ],
+        loadedAddresses: { writable: [], readonly: [] },
+      },
+      transaction: {
+        message: {
+          compiledInstructions: [
+            { programIdIndex: 4, accountKeyIndexes: [0, 1, 2, 3], data },
+          ],
+          addressTableLookups: [],
+          getAccountKeys: () => ({ staticAccountKeys: accountKeys }),
+        },
+      },
+    };
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: async () => mockTransaction,
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
+    }));
+
+    const { messages } = await new AttestationService().attestDepositoryDeposits(
+      {
+        chainId: "solana",
+        transactionId: randomBase58(32),
+      }
+    );
+
+    expect(messages.length).toBe(1);
+    expect(messages[0].result.currency).toBe(mint.toBase58());
+    expect(messages[0].result.amount).toBe(balanceDiff.toString());
+  });
+
+  it("attestDepositoryDeposits - should ignore direct transfers when the transaction has multiple instructions", async () => {
+    const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
+    const [vault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault")],
+      new PublicKey(depository)
+    );
+
+    const systemProgram = new PublicKey("11111111111111111111111111111111");
+    const depositor = new PublicKey(randomBase58(32));
+    const other = new PublicKey(randomBase58(32));
+
+    const transferTo = (lamports: number) => {
+      const data = Buffer.alloc(12);
+      data.writeUInt32LE(2, 0);
+      data.writeBigUInt64LE(BigInt(lamports), 4);
+      return data;
+    };
+
+    // accountKeys: [depositor, vault, other, systemProgram]
+    const accountKeys = [depositor, vault, other, systemProgram];
+
+    const mockTransaction = {
+      meta: {
+        logMessages: [],
+        innerInstructions: [],
+        preTokenBalances: [],
+        postTokenBalances: [],
+        loadedAddresses: { writable: [], readonly: [] },
+      },
+      transaction: {
+        message: {
+          compiledInstructions: [
+            // One transfer to the vault
+            { programIdIndex: 3, accountKeyIndexes: [0, 1], data: transferTo(1) },
+            // A second, unrelated instruction (here another transfer)
+            { programIdIndex: 3, accountKeyIndexes: [0, 2], data: transferTo(2) },
+          ],
+          addressTableLookups: [],
+          getAccountKeys: () => ({ staticAccountKeys: accountKeys }),
+        },
+      },
+    };
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getTransaction: async () => mockTransaction,
+      getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
+    }));
+
+    const { messages } = await new AttestationService().attestDepositoryDeposits(
+      {
+        chainId: "solana",
+        transactionId: randomBase58(32),
+      }
+    );
+
+    expect(messages.length).toBe(0);
+  });
+
   it("attestSolverFill - validates solver fill correctly", async () => {
     await testAttestSolverFill({});
   });
