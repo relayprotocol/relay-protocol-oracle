@@ -1,0 +1,33 @@
+# ABOUTME: Generated Codex MCP config — do not edit by hand.
+# ABOUTME: Regenerate with `node scripts/gen-configs.mjs` (CI enforces this).
+
+# Codex needs the rmcp client to talk to Streamable HTTP MCP servers on some
+# versions. Harmless if already default; remove if your Codex rejects it.
+experimental_use_rmcp_client = true
+
+[mcp_servers.datadog]
+url = "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
+
+[mcp_servers.hex]
+url = "https://app.hex.tech/mcp"
+
+[mcp_servers.github]
+url = "https://api.githubcopilot.com/mcp/"
+bearer_token_env_var = "GITHUB_MCP_TOKEN"
+
+[mcp_servers.linear]
+url = "https://mcp.linear.app/mcp"
+
+[mcp_servers.notion]
+url = "https://mcp.notion.com/mcp"
+
+[mcp_servers.slack]
+url = "https://mcp.slack.com/mcp"
+bearer_token_env_var = "SLACK_MCP_TOKEN"
+
+[mcp_servers.pagerduty]
+url = "https://mcp.pagerduty.com/mcp"
+bearer_token_env_var = "PAGERDUTY_MCP_TOKEN"
+
+[mcp_servers.pylon]
+url = "https://mcp.usepylon.com"
