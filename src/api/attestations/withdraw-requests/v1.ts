@@ -18,6 +18,12 @@ const Schema = {
     chainId: Type.String({
       description: "The chain id to withdraw on",
     }),
+    depository: Type.Optional(
+      Type.String({
+        description:
+          "The depository to withdraw from (defaults to the chain's primary depository)",
+      }),
+    ),
     currency: Type.String({
       description: "The currency to withdraw",
     }),
@@ -121,10 +127,12 @@ export default {
     reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
     const chain = await getChain(req.body.chainId);
+    const depository = req.body.depository ?? chain.depository!;
+
     const withdrawRequest =
       await new AttestationService().attestWithdrawRequest({
         chainId: req.body.chainId,
-        depository: chain.depository!,
+        depository,
         currency: req.body.currency,
         amount: req.body.amount,
         spenderChainId: req.body.spenderChainId,

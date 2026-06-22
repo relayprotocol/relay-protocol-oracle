@@ -234,7 +234,7 @@ export class BitcoinVmAttestor extends VmAttestor {
       chain.additionalData,
     );
 
-    // For every PSBT input, get the transaction that spent it
+    // For every PSBT input, get the transaction that spent it.
     const txidsSpendingPsbtInputs = new Set<string>();
     for (const input of psbtInputs) {
       await logRpcUsage(chainId, "outspend", trackingId);
@@ -262,13 +262,13 @@ export class BitcoinVmAttestor extends VmAttestor {
     let status: DepositoryWithdrawalStatus;
 
     if (!txidsSpendingPsbtInputs.size) {
-      // If we have no tx spending the allocator inputs, the PSBT is considered as pending
+      // If we have no tx spending the PSBT inputs, the PSBT is considered as pending
       status = DepositoryWithdrawalStatus.PENDING;
     } else if (txidsSpendingPsbtInputs.size > 1) {
-      // If we have more than one tx spending the allocator inputs, the PSBT was never included onchain
+      // If we have more than one tx spending the PSBT inputs, the PSBT was never included onchain
       status = DepositoryWithdrawalStatus.EXPIRED;
     } else {
-      // If we have exactly one tx spending the allocator inputs, confirm whether the PSBT matches that unique tx
+      // If we have exactly one tx spending the PSBT inputs, confirm whether the PSBT matches that unique tx
 
       await logRpcUsage(chainId, "getRawTransaction", trackingId);
       const tx = bitcoin.Transaction.fromHex(
@@ -276,50 +276,19 @@ export class BitcoinVmAttestor extends VmAttestor {
           txidsSpendingPsbtInputs.values().next().value!,
         ),
       );
-      const psbtMatchesSpendingTx = psbtInputs.every((input, i) => {
-        if (input.ownedByAllocator) {
-          const signature = psbt.data.inputs[i].partialSig?.[0];
-          if (!signature) {
-            throw externalError(
-              `Unsupported allocator input format: missing partial signature at input ${i}`,
-            );
-          }
+      const allocatorInputIndexes = psbtInputs
+        .map((input, i) => ({ ...input, i }))
+        .filter((input) => input.ownedByAllocator)
+        .map((input) => input.i);
 
-          // PSBT values
-          const psbtSignatureHex = Buffer.from(signature.signature).toString(
-            "hex",
-          );
-          const psbtPubkeyHex = Buffer.from(signature.pubkey).toString("hex");
+      const psbtHasAllocatorSignatures = allocatorInputIndexes.every(
+        (i) => psbt.data.inputs[i].partialSig?.[0],
+      );
 
-          // Onchain values
-          const onchainInput = tx.ins[i];
-          if (!onchainInput) {
-            throw externalError(
-              `Unsupported allocator input format: missing onchain input ${i}`,
-            );
-          }
-          const onchainSignature = this._extractOnchainSignature(
-            onchainInput,
-            i,
-          );
-          if (!onchainSignature) {
-            throw externalError(
-              `Unsupported allocator input format at input ${i}`,
-            );
-          }
+      const psbtMatchesSpendingTx = psbtHasAllocatorSignatures
+        ? this._psbtSignaturesMatchSpendingTx(psbt, tx, allocatorInputIndexes)
+        : this._psbtOpReturnMatchesSpendingTx(psbt, tx);
 
-          if (
-            psbtSignatureHex === onchainSignature.signatureHex &&
-            psbtPubkeyHex === onchainSignature.pubkeyHex
-          ) {
-            return true;
-          }
-
-          return false;
-        }
-
-        return true;
-      });
       if (psbtMatchesSpendingTx) {
         status = DepositoryWithdrawalStatus.EXECUTED;
       } else {
@@ -532,6 +501,68 @@ export class BitcoinVmAttestor extends VmAttestor {
     }
 
     return undefined;
+  }
+
+  private _psbtSignaturesMatchSpendingTx(
+    psbt: bitcoin.Psbt,
+    tx: bitcoin.Transaction,
+    allocatorInputIndexes: number[],
+  ): boolean {
+    return allocatorInputIndexes.every((i) => {
+      const signature = psbt.data.inputs[i].partialSig?.[0];
+      if (!signature) {
+        throw externalError(
+          `Unsupported allocator input format: missing partial signature at input ${i}`,
+        );
+      }
+
+      // PSBT values
+      const psbtSignatureHex = Buffer.from(signature.signature).toString("hex");
+      const psbtPubkeyHex = Buffer.from(signature.pubkey).toString("hex");
+
+      // Onchain values
+      const onchainInput = tx.ins[i];
+      if (!onchainInput) {
+        throw externalError(
+          `Unsupported allocator input format: missing onchain input ${i}`,
+        );
+      }
+      const onchainSignature = this._extractOnchainSignature(onchainInput, i);
+      if (!onchainSignature) {
+        throw externalError(`Unsupported allocator input format at input ${i}`);
+      }
+
+      return (
+        psbtSignatureHex === onchainSignature.signatureHex &&
+        psbtPubkeyHex === onchainSignature.pubkeyHex
+      );
+    });
+  }
+
+  private _psbtOpReturnMatchesSpendingTx(
+    psbt: bitcoin.Psbt,
+    tx: bitcoin.Transaction,
+  ): boolean {
+    const psbtOpReturnScripts = this._getPsbtOpReturnScriptsHex(psbt);
+    if (!psbtOpReturnScripts.length) {
+      throw externalError(
+        "Unsupported allocator input format: missing partial signatures and OP_RETURN identifier",
+      );
+    }
+
+    const onchainOutputScripts = new Set(
+      tx.outs
+        .filter((output) => output.script[0] === bitcoin.opcodes.OP_RETURN)
+        .map((output) => output.script.toString("hex")),
+    );
+
+    return psbtOpReturnScripts.some((script) => onchainOutputScripts.has(script));
+  }
+
+  private _getPsbtOpReturnScriptsHex(psbt: bitcoin.Psbt): string[] {
+    return psbt.txOutputs
+      .filter((output) => output.script[0] === bitcoin.opcodes.OP_RETURN)
+      .map((output) => output.script.toString("hex"));
   }
 
   private _extractOnchainSignature(

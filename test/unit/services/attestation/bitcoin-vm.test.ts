@@ -798,6 +798,8 @@ describe("BitcoinVmAttestor", () => {
         multipleSpendingTxs?: boolean;
         noAllocatorUtxos?: boolean;
         allocatorScriptHex?: string;
+        secondInputAllocator?: boolean;
+        secondInputSpentByDifferentTx?: boolean;
         legacyOnchainInput?: boolean;
         unsupportedAllocatorInput?: boolean;
       } = {},
@@ -808,6 +810,8 @@ describe("BitcoinVmAttestor", () => {
         multipleSpendingTxs = false,
         noAllocatorUtxos = false,
         allocatorScriptHex = "00147751e76e8199196d454941c45d1b3a323f1433bd6",
+        secondInputAllocator = true,
+        secondInputSpentByDifferentTx = false,
         legacyOnchainInput = false,
         unsupportedAllocatorInput = false,
       } = options;
@@ -862,12 +866,13 @@ describe("BitcoinVmAttestor", () => {
             // Add a second input for multiple spending tx test
             {
               witnessUtxo: {
-                script: noAllocatorUtxos
-                  ? Buffer.from(
-                      "00140000000000000000000000000000000000000000",
-                      "hex",
-                    ) // Different script
-                  : Buffer.from(allocatorScriptHex, "hex"),
+                script:
+                  noAllocatorUtxos || !secondInputAllocator
+                    ? Buffer.from(
+                        "00140000000000000000000000000000000000000000",
+                        "hex",
+                      ) // Different script
+                    : Buffer.from(allocatorScriptHex, "hex"),
               },
               partialSig: [
                 {
@@ -899,22 +904,24 @@ describe("BitcoinVmAttestor", () => {
       });
 
       // Mock Esplora API response
-      if (multipleSpendingTxs) {
-        // For multiple spending transactions case, we need to return different txids
-        // for different inputs to simulate multiple transactions spending the same UTXO
+      if (multipleSpendingTxs || secondInputSpentByDifferentTx) {
+        // Return different spending txids based on which input we're checking.
         (axios.get as jest.Mock).mockImplementation((url: unknown) => {
-          // Extract txid and vout from URL to determine which input we're checking
           const match = (url as string).match(
             /\/tx\/([a-f0-9]+)\/outspend\/(\d+)$/,
           );
           if (match) {
             const [, , vout] = match;
-            // Return different spending txids based on which input we're checking
+            const spent = multipleSpendingTxs || isSpent;
             return Promise.resolve({
               data: {
-                spent: true,
-                txid: vout === "0" ? spendingTxId : secondSpendingTxId,
-                status: { confirmed: true },
+                spent,
+                txid: spent
+                  ? vout === "0"
+                    ? spendingTxId
+                    : secondSpendingTxId
+                  : undefined,
+                status: spent ? { confirmed: true } : undefined,
               },
             });
           }
@@ -1091,6 +1098,23 @@ describe("BitcoinVmAttestor", () => {
       expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
     });
 
+    it("should return EXPIRED when any PSBT input is spent by another tx", async () => {
+      const { withdrawalHex } = setupWithdrawalTest({
+        isSpent: true,
+        secondInputAllocator: false,
+        secondInputSpentByDifferentTx: true,
+      });
+
+      const { message } =
+        await new AttestationService().attestDepositoryWithdrawal({
+          chainId: "bitcoin",
+          withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
+        });
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
+    });
+
     it("should throw error when no allocator UTXOs are detected", async () => {
       // Setup test with no allocator UTXOs
       const { withdrawalHex } = setupWithdrawalTest({
@@ -1142,6 +1166,105 @@ describe("BitcoinVmAttestor", () => {
           withdrawalAddressRequest,
         }),
       ).rejects.toThrow("Unsupported allocator input format");
+    });
+
+    const setupUnsignedWithdrawalWithOpReturn = (opReturnMatches: boolean) => {
+      jest.restoreAllMocks();
+      jest.clearAllMocks();
+
+      const allocatorScript = bitcoin.address.toOutputScript(
+        testDepositoryAddress,
+        bitcoin.networks.bitcoin,
+      );
+      const receiverScript = bitcoin.address.toOutputScript(
+        testUserAddress,
+        bitcoin.networks.bitcoin,
+      );
+      const identifier = Buffer.from("11".repeat(32), "hex");
+      const psbtOpReturnScript = bitcoin.script.compile([
+        bitcoin.opcodes.OP_RETURN,
+        identifier,
+      ]);
+      const onchainOpReturnScript = opReturnMatches
+        ? psbtOpReturnScript
+        : bitcoin.script.compile([
+            bitcoin.opcodes.OP_RETURN,
+            Buffer.from("22".repeat(32), "hex"),
+          ]);
+
+      const psbt = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin });
+      psbt.setVersion(1);
+      psbt.addInput({
+        hash: "aa".repeat(32),
+        index: 0,
+        sequence: 0xfffffffd,
+        sighashType: bitcoin.Transaction.SIGHASH_ALL,
+        witnessUtxo: {
+          script: allocatorScript,
+          value: 10_000,
+        },
+      });
+      psbt.addOutput({ script: receiverScript, value: 9_000 });
+      psbt.addOutput({ script: psbtOpReturnScript, value: 0 });
+
+      const withdrawalHex = "0x1234";
+      (decodeWithdrawal as jest.Mock).mockImplementation(() => ({
+        vmType: "bitcoin-vm",
+        withdrawal: { psbt: psbt.toHex() },
+      }));
+      (getDecodedWithdrawalId as jest.Mock).mockImplementation(
+        () => "0x1234567890",
+      );
+
+      (axios.get as jest.Mock).mockImplementation(() =>
+        Promise.resolve({
+          data: {
+            spent: true,
+            txid: "bb".repeat(32),
+            status: { confirmed: true },
+          },
+        }),
+      );
+      jest.spyOn(bitcoin.Transaction, "fromHex").mockImplementation(
+        () =>
+          ({
+            ins: [{ witness: [], script: Buffer.alloc(0) }],
+            outs: [{ script: onchainOpReturnScript }],
+          }) as any,
+      );
+      (httpRpc as jest.Mock).mockImplementation(() =>
+        Promise.resolve({
+          getRawTransaction: jest.fn(async () => "0200000000"),
+        }),
+      );
+
+      return { withdrawalHex };
+    };
+
+    it("should return EXECUTED for unsigned PSBTs with a matching OP_RETURN identifier", async () => {
+      const { withdrawalHex } = setupUnsignedWithdrawalWithOpReturn(true);
+
+      const { message } =
+        await new AttestationService().attestDepositoryWithdrawal({
+          chainId: "bitcoin",
+          withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
+        });
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXECUTED);
+    });
+
+    it("should return EXPIRED for unsigned PSBTs with a mismatched OP_RETURN identifier", async () => {
+      const { withdrawalHex } = setupUnsignedWithdrawalWithOpReturn(false);
+
+      const { message } =
+        await new AttestationService().attestDepositoryWithdrawal({
+          chainId: "bitcoin",
+          withdrawal: withdrawalHex,
+          withdrawalAddressRequest,
+        });
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
     });
   });
 });

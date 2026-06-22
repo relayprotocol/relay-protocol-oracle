@@ -72,6 +72,12 @@ const Schema = {
     chainId: Type.String({
       description: "The chain id to withdraw on",
     }),
+    depository: Type.Optional(
+      Type.String({
+        description:
+          "The depository to withdraw from (defaults to the chain's primary depository)",
+      }),
+    ),
     currency: Type.String({
       description: "The currency to withdraw",
     }),
@@ -225,11 +231,12 @@ export default {
     // user-signed params and sign its allocator digest with the oracle key.
     const spenderChain = await getChain(req.body.spenderChainId);
 
+    const depository = req.body.depository ?? chain.depository!;
     const normalizedWithdrawRequest = normalizeWithdrawRequest({
       vmType: chain.vmType,
       spenderVmType: spenderChain.vmType,
       chainId: req.body.chainId,
-      depository: chain.depository!,
+      depository,
       currency: req.body.currency,
       amount: req.body.amount,
       spenderChainId: req.body.spenderChainId,
