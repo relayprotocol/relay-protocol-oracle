@@ -1,6 +1,6 @@
 {
   "id": "relay",
-  "httpRpcUrl": "https://relay-integrations.sovereign-labs.xyz/rpc/relay_yGMHSrnj5HZcPprSACp7DBoci9E8J9No",
+  "httpRpcUrl": "$RELAY_RPC_URL",
   "evmChainId": "537713",
   "hubAddress": "0xddd361727c22a01eb137880678a20b0beae69318",
   "oracleAddress": "0xd4b9fdb83c723c096d7fbe72da252aa23f1387aa",

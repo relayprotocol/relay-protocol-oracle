@@ -1,6 +1,6 @@
 {
   "id": "relay",
-  "httpRpcUrl": "http://proxy-relay.nodes.svc.cluster.local:8545/relay",
+  "httpRpcUrl": "$RELAY_RPC_URL",
   "evmChainId": "537713",
   "hubAddress": "0x3c0be5a7f32a7dfb70c156b81eb747d0e5287f30",
   "oracleAddress": "0x1b5fadada97ecc6b882c5e87e90415bc899f0f15",

@@ -52,11 +52,14 @@ At minimum, a raw-key deployment needs:
 ```sh
 ENVIRONMENT=mainnets.prod
 ECDSA_PRIVATE_KEY=0x...
+RELAY_RPC_URL=https://rpc.chain.relay.link/rpc
 ```
 
 Notes:
 
 - `ENVIRONMENT` selects the chain config files the service loads.
+- `RELAY_RPC_URL` is the RPC endpoint for the Relay hub chain. It is required for
+  the `mainnets.prod` / `mainnets.stag` configs.
 - `ECDSA_PRIVATE_KEY` is required for the default signing path.
 - `SIGNING_MODULE=raw-private-key` is optional because raw-key signing is the default path, but setting it explicitly is fine.
 - The service currently supports `raw-private-key` and `aws-kms`.
