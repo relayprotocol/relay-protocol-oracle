@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 
 import endpoint from "../../../src/api/attestations/depository-withdrawals/v3";
+import { getChain } from "../../../src/common/chains";
 import { signExecutionMessage } from "../../../src/common/signer";
 
 const EXECUTION = {
@@ -106,6 +107,53 @@ describe("POST /attestations/depository-withdrawals/v3", () => {
     expect(reply.send).toHaveBeenCalledWith({
       status: 2,
       execution: { ...EXECUTION, signatures: [SIGN_RESULT] },
+    });
+  });
+
+  it("passes hyperliquid-vm additionalData and an explicit depository through", async () => {
+    (getChain as jest.Mock).mockResolvedValueOnce({
+      id: "hyperliquid",
+      vmType: "hyperliquid-vm",
+      depository: "0xprimary",
+      additionalDepositories: ["0xadditional"],
+    } as never);
+
+    const hyperliquidAdditionalData = {
+      "hyperliquid-vm": {
+        nonce: "1761563890150",
+      },
+    };
+    const hyperliquidBody = {
+      chainId: "hyperliquid",
+      depository: "0xadditional",
+      currency: "usdc",
+      amount: "1000",
+      spenderChainId: "ethereum",
+      spender: "0xOwner000000000000000000000000000000000abcd",
+      receiver: "0xreceiver000000000000000000000000000000abcd",
+      nonce: "0x" + "00".repeat(31) + "08",
+      additionalData: hyperliquidAdditionalData,
+      transactionId: "0x" + "ab".repeat(32),
+    };
+
+    const reply = makeReply();
+    await (endpoint as any).handler(
+      { body: hyperliquidBody, headers: {}, originalUrl: endpoint.url } as any,
+      reply,
+    );
+
+    expect(mockAttestDepositoryWithdrawalV3).toHaveBeenCalledWith({
+      chainId: "hyperliquid",
+      depository: "0xadditional",
+      currency: "usdc",
+      amount: "1000",
+      spenderChainId: "ethereum",
+      spender: "0xOwner000000000000000000000000000000000abcd",
+      receiver: "0xreceiver000000000000000000000000000000abcd",
+      nonce: hyperliquidBody.nonce,
+      additionalData: hyperliquidAdditionalData,
+      transactionId: hyperliquidBody.transactionId,
+      hints: undefined,
     });
   });
 });

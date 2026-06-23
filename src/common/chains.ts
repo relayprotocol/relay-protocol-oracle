@@ -15,7 +15,7 @@ export type Chain = {
   vmType: VmType;
   httpRpcUrl: string;
   depository?: string;
-  // During migration periods, chains can have extra depositories (currently only supported for "bitcoin-vm")
+  // During migration periods, chains can have extra depositories (currently only supported for "bitcoin-vm" and "hyperliquid-vm")
   additionalDepositories?: string[];
   // The numeric id of the chain on the Hub - for "ethereum-vm" chains this is the EVM chain id,
   // and for all other chains it is the `keccak256` value of the above user-friendly id

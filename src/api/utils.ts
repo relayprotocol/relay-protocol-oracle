@@ -239,6 +239,14 @@ export const withdrawRequestAdditionalDataSchema = Type.Object(
         feeChangeAddress: Type.String(),
       }),
     ),
+    "hyperliquid-vm": Type.Optional(
+      Type.Object({
+        nonce: Type.String({
+          description:
+            "The nonce of the withdrawal transaction on Hyperliquid",
+        }),
+      }),
+    ),
   },
   { description: "Additional data for normalizing a withdraw request" },
 );

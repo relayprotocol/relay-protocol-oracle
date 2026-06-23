@@ -174,9 +174,14 @@ export class HyperliquidVmAttestor extends VmAttestor {
 
     const chain = await getChain(chainId);
     const depository = chain.depository;
+    const additionalDepositories = chain.additionalDepositories ?? [];
     if (!depository) {
       throw externalError("Chain has no depository configured");
     }
+
+    const depositories = [depository, ...additionalDepositories].map((d) =>
+      d.toLowerCase(),
+    );
 
     const messages: EnhancedDepositoryDepositMessage[] = [];
     const timestamp = Math.floor(txDetails.time / 1000).toString();
@@ -187,8 +192,11 @@ export class HyperliquidVmAttestor extends VmAttestor {
           time: number;
         };
 
-        // Check if this is a deposit to the depository
-        if (action.destination.toLowerCase() === depository.toLowerCase()) {
+        // Check if this is a deposit to one of the configured depositories
+        const fundedDepository = depositories.find(
+          (d) => d === action.destination.toLowerCase(),
+        );
+        if (fundedDepository) {
           const sender = txDetails.user.toLowerCase();
           const nonceMapping = await this._lookupDepositId(
             chainId,
@@ -204,7 +212,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
             },
             result: {
               onchainId: getDeterministicId(chainId, transactionId, "0"),
-              depository,
+              depository: fundedDepository,
               depositId: nonceMapping?.id ?? zeroHash,
               depositor: nonceMapping?.depositor ?? sender,
               currency: getVmTypeNativeCurrency(VM_TYPE),
@@ -227,8 +235,11 @@ export class HyperliquidVmAttestor extends VmAttestor {
           nonce: number;
         };
 
-        // Check if this is a deposit to the depository
-        if (action.destination.toLowerCase() === depository.toLowerCase()) {
+        // Check if this is a deposit to one of the configured depositories
+        const fundedDepository = depositories.find(
+          (d) => d === action.destination.toLowerCase(),
+        );
+        if (fundedDepository) {
           const sender = txDetails.user.toLowerCase();
           const tokenAddress = action.token.split(":")[1];
           const tokenDex = action.destinationDex;
@@ -275,7 +286,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
             },
             result: {
               onchainId: getDeterministicId(chainId, transactionId, "0"),
-              depository,
+              depository: fundedDepository,
               depositId: nonceMapping?.id ?? zeroHash,
               depositor: nonceMapping?.depositor ?? sender,
               currency,
@@ -310,9 +321,12 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const chain = await getChain(chainId);
 
     const depository = chain.depository;
+    const additionalDepositories = chain.additionalDepositories ?? [];
     if (!depository) {
       throw externalError("Chain has no depository configured");
     }
+
+    const depositories = [depository, ...additionalDepositories];
 
     const decodedWithdrawal = decodeWithdrawal(
       withdrawal,
@@ -321,27 +335,36 @@ export class HyperliquidVmAttestor extends VmAttestor {
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
 
     let status: DepositoryWithdrawalStatus = DepositoryWithdrawalStatus.PENDING;
+    // The depository that executed the withdrawal (defaults to the primary one)
+    let withdrawalDepository = depository;
 
-    // Get recent transactions for checking both execution and expiry
     const rpc = await httpRpc(chainId);
-    await logRpcUsage(chainId, "userDetails", trackingId);
-    const userDetails = await rpc.userDetails({
-      user: depository as any,
-    });
 
-    // First check if the withdrawal exists in recent transactions
-    const recentTxs = userDetails.txs;
-    for (const tx of recentTxs) {
-      if (tx.user.toLowerCase() === depository.toLowerCase()) {
-        const txMessageHash = this._getMessageHash(tx.action);
-        if (txMessageHash && withdrawalId === txMessageHash) {
-          if (!tx.error) {
-            status = DepositoryWithdrawalStatus.EXECUTED;
-          } else {
-            status = DepositoryWithdrawalStatus.EXPIRED;
+    // First check if the withdrawal exists in any configured depository's recent transactions
+    for (const currentDepository of depositories) {
+      await logRpcUsage(chainId, "userDetails", trackingId);
+      const userDetails = await rpc.userDetails({
+        user: currentDepository as any,
+      });
+
+      const recentTxs = userDetails.txs;
+      for (const tx of recentTxs) {
+        if (tx.user.toLowerCase() === currentDepository.toLowerCase()) {
+          const txMessageHash = this._getMessageHash(tx.action);
+          if (txMessageHash && withdrawalId === txMessageHash) {
+            if (!tx.error) {
+              status = DepositoryWithdrawalStatus.EXECUTED;
+            } else {
+              status = DepositoryWithdrawalStatus.EXPIRED;
+            }
+            withdrawalDepository = currentDepository;
+            break;
           }
-          break;
         }
+      }
+
+      if (status !== DepositoryWithdrawalStatus.PENDING) {
+        break;
       }
     }
 
@@ -358,8 +381,11 @@ export class HyperliquidVmAttestor extends VmAttestor {
         );
       }
 
-      // Verify transaction is from depository
-      if (txDetails.user.toLowerCase() === depository.toLowerCase()) {
+      // Verify transaction is from one of the configured depositories
+      const matchedDepository = depositories.find(
+        (d) => d.toLowerCase() === txDetails.user.toLowerCase(),
+      );
+      if (matchedDepository) {
         // Verify the transaction's message hash matches the withdrawal id
         const txMessageHash = this._getMessageHash(txDetails.action);
         if (txMessageHash && withdrawalId === txMessageHash) {
@@ -368,6 +394,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
           } else {
             status = DepositoryWithdrawalStatus.EXPIRED;
           }
+          withdrawalDepository = matchedDepository;
         }
       }
     }
@@ -395,7 +422,7 @@ export class HyperliquidVmAttestor extends VmAttestor {
       },
       result: {
         withdrawalId,
-        depository,
+        depository: withdrawalDepository,
         status,
       },
     };

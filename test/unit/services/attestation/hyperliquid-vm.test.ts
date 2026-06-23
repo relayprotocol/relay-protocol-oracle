@@ -16,6 +16,8 @@ import { randomHex } from "../../../common/utils";
 import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
 
 const testDepositoryAddress = "0x1234567890abcdef1234567890abcdef12345678";
+const testAdditionalDepositoryAddress =
+  "0x9876543210fedcba9876543210fedcba98765432";
 const testUserAddress = "0xabcdef1234567890abcdef1234567890abcdef12";
 const testSolverAddress = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
 const testRecipientAddress = "0xfeedfacefeedfacefeedfacefeedfacefeedface";
@@ -27,6 +29,7 @@ jest.mock("../../../../src/common/chains", () => {
       vmType: "hyperliquid-vm",
       httpRpcUrl: "https://api.hyperliquid.xyz",
       depository: "0x1234567890abcdef1234567890abcdef12345678",
+      additionalDepositories: ["0x9876543210fedcba9876543210fedcba98765432"],
       hubChainId: "1",
     },
   };
@@ -311,6 +314,48 @@ describe("HyperliquidVmAttestor", () => {
         });
 
       expect(messages).toHaveLength(0);
+    });
+
+    it("should attest a deposit to an additional depository", async () => {
+      const transactionId = randomHex(32);
+      const expectedDepositId = randomHex(32);
+
+      const depositTx = {
+        time: Date.now(),
+        user: testUserAddress,
+        action: {
+          type: "usdSend",
+          signatureChainId: "0x1",
+          hyperliquidChain: "Mainnet",
+          destination: testAdditionalDepositoryAddress,
+          amount: "100.0",
+          time: 1761563890702,
+        },
+        block: 776752679,
+        hash: transactionId,
+        error: null,
+      };
+
+      setupHubRpcMock({ id: expectedDepositId });
+
+      setupRpcMock({
+        txDetails: async () => ({
+          tx: depositTx,
+        }),
+      });
+
+      const { messages } =
+        await new AttestationService().attestDepositoryDeposits({
+          chainId: "hyperliquid",
+          transactionId,
+        });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depository).toBe(
+        testAdditionalDepositoryAddress,
+      );
+      expect(messages[0].result.depositor).toBe(testUserAddress);
+      expect(messages[0].result.depositId).toBe(expectedDepositId);
     });
 
     it("should return empty array for unsupported transaction types", async () => {
@@ -707,6 +752,67 @@ describe("HyperliquidVmAttestor", () => {
         });
 
       expect(message.result.depository).toBe(testDepositoryAddress);
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXECUTED);
+    });
+
+    it("should return EXECUTED status when withdrawal executed by an additional depository", async () => {
+      const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
+        vmType: "hyperliquid-vm",
+        withdrawal: {
+          txType: 1,
+          parameters: {
+            type: "SendAsset",
+            hyperliquidChain: "Mainnet",
+            destination: testUserAddress,
+            sourceDex: "",
+            destinationDex: "spot",
+            token: "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
+            amount: "10.04",
+            fromSubAccount: "",
+            nonce: "1761563890150",
+          },
+        },
+      };
+
+      const matchingTx = {
+        time: Date.now(),
+        user: testAdditionalDepositoryAddress,
+        action: {
+          type: "sendAsset",
+          signatureChainId: "0x1",
+          hyperliquidChain: "Mainnet",
+          destination: testUserAddress,
+          sourceDex: "",
+          destinationDex: "spot",
+          token: "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
+          amount: "10.04",
+          fromSubAccount: "",
+          nonce: 1761563890150,
+        },
+        block: 776752679,
+        hash: "0xabc123",
+        error: null,
+      };
+
+      // Only the additional depository has the matching transaction
+      setupRpcMock({
+        userDetails: async (params: any) => ({
+          txs:
+            params.user.toLowerCase() ===
+            testAdditionalDepositoryAddress.toLowerCase()
+              ? [matchingTx]
+              : [],
+        }),
+      });
+
+      const { message } =
+        await new AttestationService().attestDepositoryWithdrawal({
+          chainId: "hyperliquid",
+          withdrawal: encodeWithdrawal(decodedWithdrawal),
+          withdrawalAddressRequest,
+        });
+
+      expect(message.result.depository).toBe(testAdditionalDepositoryAddress);
       expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXECUTED);
     });
 

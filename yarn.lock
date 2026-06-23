@@ -1421,10 +1421,10 @@
   resolved "https://registry.yarnpkg.com/@relay-protocol/settlement-networks/-/settlement-networks-3.0.0.tgz#3fbaaf48b6874bfce6ed6c07ac5ff05bb9238cc7"
   integrity sha512-MpIShZKVLhqrAEHmPw1Osa41ewENwa8FNT3tq62ZyoZzt4K3wRvisquf9aNimKnHo0jxLs0JHhU6BDmiEVhVNQ==
 
-"@relay-protocol/settlement-sdk@0.0.112":
-  version "0.0.112"
-  resolved "https://registry.yarnpkg.com/@relay-protocol/settlement-sdk/-/settlement-sdk-0.0.112.tgz#61a06687e46e8624c767dcf7f123229c123c4b36"
-  integrity sha512-IjhAO+AWwDQaxlsxbHFrh1AMSOLRu8gq8NsvaD2OYcMjXkMIm7Ufh6qzdUI5t3s8i+vfdgt6u5PzGUfu322lcA==
+"@relay-protocol/settlement-sdk@0.0.113":
+  version "0.0.113"
+  resolved "https://registry.yarnpkg.com/@relay-protocol/settlement-sdk/-/settlement-sdk-0.0.113.tgz#3aaac32676b43dc13acd98bb7521cace1d21d760"
+  integrity sha512-obqtakRGdj2IGQcVVQRBns9XCUeCfOQfFk5IINTucoPg+HxzDoX4p9qkxVJ+9Tn+u4xsS2cUL7LQFzo71GeyWg==
   dependencies:
     "@coral-xyz/anchor" "^0.31.1"
     "@solana/web3.js" "1.98.4"

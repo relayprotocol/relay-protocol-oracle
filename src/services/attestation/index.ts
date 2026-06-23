@@ -1705,6 +1705,7 @@ export class AttestationService {
 
     switch (family) {
       case "ethereum-vm":
+      case "hyperliquid-vm":
       case "solana-vm":
       case "ton-vm":
       case "tron-vm": {

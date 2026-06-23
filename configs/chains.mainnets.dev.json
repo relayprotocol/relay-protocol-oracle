@@ -56,6 +56,7 @@
     "vmType": "hyperliquid-vm",
     "httpRpcUrl": "$HYPERLIQUID_RPC_URL",
     "depository": "0x85594c5d28ac8bf20e6ef0b9620f648f3737607f",
+    "additionalDepositories": ["0xd47c34b9b589c4709d257a9ac55ae69a2812bad5"],
     "hubChainId": "111378472430415857054556056192544272316610524417112732947551032542507639335976",
     "additionalData": {
       "proxyApiUrl": "$HYPERLIQUID_PROXY_API_URL",
