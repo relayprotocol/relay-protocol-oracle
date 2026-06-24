@@ -156,4 +156,53 @@ describe("POST /attestations/depository-withdrawals/v3", () => {
       hints: undefined,
     });
   });
+
+  it("passes lighter-vm additionalData and an explicit depository through", async () => {
+    (getChain as jest.Mock).mockResolvedValueOnce({
+      id: "lighter",
+      vmType: "lighter-vm",
+      depository: "460491",
+      additionalDepositories: ["460492"],
+    } as never);
+
+    const lighterAdditionalData = {
+      "lighter-vm": {
+        nonce: "123",
+        apiKeyIndex: 5,
+        usdcFee: "10",
+      },
+    };
+    const lighterBody = {
+      chainId: "lighter",
+      depository: "460492",
+      currency: "3",
+      amount: "1000",
+      spenderChainId: "ethereum",
+      spender: "0xOwner000000000000000000000000000000000abcd",
+      receiver: "99",
+      nonce: "0x" + "00".repeat(31) + "09",
+      additionalData: lighterAdditionalData,
+      transactionId: "0x" + "cd".repeat(32),
+    };
+
+    const reply = makeReply();
+    await (endpoint as any).handler(
+      { body: lighterBody, headers: {}, originalUrl: endpoint.url } as any,
+      reply,
+    );
+
+    expect(mockAttestDepositoryWithdrawalV3).toHaveBeenCalledWith({
+      chainId: "lighter",
+      depository: "460492",
+      currency: "3",
+      amount: "1000",
+      spenderChainId: "ethereum",
+      spender: "0xOwner000000000000000000000000000000000abcd",
+      receiver: "99",
+      nonce: lighterBody.nonce,
+      additionalData: lighterAdditionalData,
+      transactionId: lighterBody.transactionId,
+      hints: undefined,
+    });
+  });
 });

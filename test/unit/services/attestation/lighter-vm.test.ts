@@ -17,6 +17,7 @@ import { LighterVmAttestor } from "../../../../src/services/attestation/vm/light
 import { randomHex } from "../../../common/utils";
 
 const testDepositoryAddress = "460491";
+const testAdditionalDepositoryAddress = "460492";
 const testRecipientAddress = "462196";
 
 jest.mock("../../../../src/common/chains", () => {
@@ -27,6 +28,7 @@ jest.mock("../../../../src/common/chains", () => {
       httpRpcUrl: "https://api.lighter.xyz",
       hubChainId: "1",
       depository: "460491",
+      additionalDepositories: ["460492"],
       additionalData: {
         explorerApiUrl: "https://explorer.elliot.ai/api",
       },
@@ -406,6 +408,43 @@ describe("LighterVmAttestor", () => {
       );
     });
 
+    it("should return deposit message for Transfer TO an additional depository", async () => {
+      const transactionId = randomHex(32);
+      const depositorAccount = "123456";
+
+      const transferInfo = createTransferTxInfo({
+        FromAccountIndex: Number(depositorAccount),
+        ToAccountIndex: Number(testAdditionalDepositoryAddress),
+        Amount: 5000000,
+      });
+
+      setupRpcMock({
+        transactionApi: {
+          getTransaction: jest.fn(() =>
+            Promise.resolve({
+              hash: transactionId,
+              type: TransactionType.TRANSFER,
+              status: TransactionStatus.EXECUTED,
+              queued_at: 1763298993375,
+              info: JSON.stringify(transferInfo),
+            }),
+          ),
+        },
+      });
+
+      const attestor = new LighterVmAttestor();
+      const messages = await attestor.getDepositoryDepositMessages(
+        "lighter",
+        transactionId,
+      );
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].result.depository).toBe(
+        testAdditionalDepositoryAddress,
+      );
+      expect(messages[0].result.depositor).toBe(depositorAccount);
+    });
+
     it("should return deposit message for Transfer TO depository (USDC spot)", async () => {
       const transactionId = randomHex(32);
 
@@ -767,6 +806,68 @@ describe("LighterVmAttestor", () => {
       expect(result.result.withdrawalId).toBe(withdrawalId);
       expect(result.result.status).toBe(DepositoryWithdrawalStatus.EXECUTED);
       expect(result.result.depository).toBe(testDepositoryAddress);
+    });
+
+    it("should scan and return the additional depository encoded in the withdrawal", async () => {
+      const transferInfo = createTransferTxInfo({
+        FromAccountIndex: Number(testAdditionalDepositoryAddress),
+      });
+      const decoded = createMatchingWithdrawal(transferInfo);
+      const encodedWithdrawal = encodeWithdrawal(decoded);
+
+      mockedAxios.get.mockResolvedValueOnce({
+        data: [
+          {
+            hash: "matching-tx-hash",
+            status: "executed",
+            pubdata: {
+              l2_transfer_pubdata_v2: {
+                from_account_index: testAdditionalDepositoryAddress,
+                to_account_index: testRecipientAddress,
+              },
+            },
+          },
+        ],
+      });
+
+      setupRpcMock({
+        transactionApi: {
+          getTransaction: jest.fn(() =>
+            Promise.resolve({
+              type: TransactionType.TRANSFER,
+              info: JSON.stringify(transferInfo),
+            }),
+          ),
+        },
+      });
+
+      const attestor = new LighterVmAttestor();
+      const result = await attestor.getDepositoryWithdrawalMessage(
+        "lighter",
+        encodedWithdrawal,
+      );
+
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `/accounts/${testAdditionalDepositoryAddress}/logs`,
+        ),
+        expect.anything(),
+      );
+      expect(result.result.status).toBe(DepositoryWithdrawalStatus.EXECUTED);
+      expect(result.result.depository).toBe(testAdditionalDepositoryAddress);
+    });
+
+    it("should reject withdrawals from an unconfigured depository", async () => {
+      const transferInfo = createTransferTxInfo({
+        FromAccountIndex: 999999,
+      });
+      const decoded = createMatchingWithdrawal(transferInfo);
+      const encodedWithdrawal = encodeWithdrawal(decoded);
+
+      const attestor = new LighterVmAttestor();
+      await expect(
+        attestor.getDepositoryWithdrawalMessage("lighter", encodedWithdrawal),
+      ).rejects.toThrow("Depository 999999 is not configured for chain lighter");
     });
 
     it("should return EXPIRED when matching tx has non-executed status", async () => {

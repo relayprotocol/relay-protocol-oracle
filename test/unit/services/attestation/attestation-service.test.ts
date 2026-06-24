@@ -103,6 +103,14 @@ jest.mock("../../../../src/common/chains", () => {
         "0:f37b9f6fd97ece249cb48d9aa5d0202570ad130b7b7d4ce4dd0f4cd551b3d9bd",
       hubChainId: "1",
     },
+    lighter: {
+      id: "lighter",
+      vmType: "lighter-vm",
+      httpRpcUrl: "http://127.0.0.1:8545",
+      depository: "460491",
+      additionalDepositories: ["460492"],
+      hubChainId: "1",
+    },
   };
   return {
     HUB_VM_TYPE: "hub-vm",
@@ -115,6 +123,7 @@ jest.mock("../../../../src/common/chains", () => {
       if (chainId === "hyperliquid-vm") return "hyperliquid-vm";
       if (chainId === "base") return "ethereum-vm";
       if (chainId === "ton") return "ton-vm";
+      if (chainId === "lighter") return "lighter-vm";
       throw new Error(`Unknown chain: ${chainId}`);
     }),
     getChainHubChainId: jest.fn().mockImplementation(async (chainId) => {
@@ -122,6 +131,7 @@ jest.mock("../../../../src/common/chains", () => {
       if (chainId === "solana") return 101;
       if (chainId === "hyperliquid-vm") return 1;
       if (chainId === "base") return 8543;
+      if (chainId === "lighter") return 1;
       throw new Error(`Unknown chain: ${chainId}`);
     }),
     getHubInfo: jest.fn().mockImplementation(async () => ({
@@ -708,6 +718,81 @@ describe("AttestationService", () => {
           amount: tonWithdrawRequest.amount,
         },
       });
+    });
+
+    it("attests a lighter-vm v3 withdrawal from an additional depository", async () => {
+      const payload = encodeWithdrawal({
+        vmType: "lighter-vm",
+        withdrawal: {
+          actionType: 0,
+          parameters: {
+            type: "Transfer",
+            nonce: "123",
+            fromAccountIndex: "460492",
+            fromRouteType: "0",
+            apiKeyIndex: "5",
+            toAccountIndex: "99",
+            toRouteType: "0",
+            assetIndex: "3",
+            amount: "1000",
+            usdcFee: "10",
+            lighterChainId: "304",
+            memo: zeroHash.slice(2),
+          },
+        },
+      });
+      const mockedHubRpc = {
+        readContract: jest
+          .fn<any>()
+          .mockResolvedValueOnce("0x1E501Cb130fac80b3CaD5145AbCbF7393B02C3a5")
+          .mockResolvedValueOnce("lighter-vm")
+          .mockResolvedValueOnce(payload),
+      };
+      jest.mocked(getHubHttpRpc).mockResolvedValue(mockedHubRpc as any);
+
+      const mockAttestor: any = {
+        getDepositoryWithdrawalMessage: jest.fn().mockImplementation(() =>
+          Promise.resolve({
+            data: {
+              chainId: "lighter",
+              withdrawal: payload,
+            },
+            result: {
+              withdrawalId: zeroHash,
+              depository: "460492",
+              status: DepositoryWithdrawalStatus.EXECUTED,
+            },
+          }),
+        ),
+      };
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      const result = await service.attestDepositoryWithdrawalV3({
+        chainId: "lighter",
+        depository: "460492",
+        currency: "3",
+        amount: "1000",
+        spenderChainId: "ethereum",
+        spender: owner,
+        receiver: "99",
+        nonce: zeroHash,
+        additionalData: {
+          "lighter-vm": {
+            nonce: "123",
+            apiKeyIndex: "5",
+            usdcFee: "10",
+          },
+        },
+      });
+
+      expect(result.status).toBe(DepositoryWithdrawalStatus.EXECUTED);
+      expect(result.execution).toBeUndefined();
+      expect(mockAttestor.getDepositoryWithdrawalMessage).toHaveBeenCalledWith(
+        "lighter",
+        payload,
+        undefined,
+        undefined,
+      );
     });
   });
 

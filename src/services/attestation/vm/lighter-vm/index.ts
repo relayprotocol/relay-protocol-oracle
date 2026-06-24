@@ -16,7 +16,7 @@ import { keccak256, stringToHex, zeroHash } from "viem";
 
 import { getDeterministicId } from "../../utils";
 import { EnhancedDepositoryDepositMessage, VmAttestor } from "../types";
-import { getChain } from "../../../../common/chains";
+import { Chain, getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
 import { httpRpc } from "../../../../common/vm/lighter-vm/rpc";
@@ -66,10 +66,7 @@ export class LighterVmAttestor extends VmAttestor {
     const trackingId = getTrackingId();
 
     const chain = await getChain(chainId);
-    const depository = chain.depository;
-    if (!depository) {
-      throw externalError("Chain has no depository configured");
-    }
+    const depositories = this._getConfiguredDepositories(chain);
 
     const { transactionApi } = await httpRpc(chainId);
 
@@ -104,15 +101,17 @@ export class LighterVmAttestor extends VmAttestor {
 
     const transferInfo: TransferTxInfo = JSON.parse(txDetail.info);
 
-    // Check direction — deposit = Transfer TO depository, not from depository itself
-    const depositoryAccountIndex = parseInt(depository);
-    if (isNaN(depositoryAccountIndex)) {
-      throw externalError(`Invalid depository account index: ${depository}`);
-    }
-    if (transferInfo.ToAccountIndex !== depositoryAccountIndex) {
+    // Check direction — deposit = Transfer TO a configured depository,
+    // not from the same depository itself.
+    const fundedDepository = depositories.find(
+      (d) => BigInt(transferInfo.ToAccountIndex) === d.accountIndex,
+    );
+    if (!fundedDepository) {
       return [];
     }
-    if (transferInfo.FromAccountIndex === depositoryAccountIndex) {
+    if (
+      BigInt(transferInfo.FromAccountIndex) === fundedDepository.accountIndex
+    ) {
       return [];
     }
 
@@ -135,7 +134,7 @@ export class LighterVmAttestor extends VmAttestor {
         },
         result: {
           onchainId: getDeterministicId(chainId, transactionId, "0"),
-          depository,
+          depository: fundedDepository.address,
           depositId: this._getDepositId(transferInfo.Memo),
           depositor: transferInfo.FromAccountIndex.toString(),
           currency: transferCurrency,
@@ -156,10 +155,6 @@ export class LighterVmAttestor extends VmAttestor {
     const trackingId = getTrackingId();
 
     const chain = await getChain(chainId);
-    const depository = chain.depository;
-    if (!depository) {
-      throw externalError("Chain has no depository configured");
-    }
 
     const decodedWithdrawal = decodeWithdrawal(
       withdrawal,
@@ -167,6 +162,10 @@ export class LighterVmAttestor extends VmAttestor {
     ) as DecodedLighterVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
     const { parameters } = decodedWithdrawal.withdrawal;
+    const depository = this._getConfiguredDepository(
+      chain,
+      parameters.fromAccountIndex,
+    ).address;
 
     let status: DepositoryWithdrawalStatus = DepositoryWithdrawalStatus.PENDING;
 
@@ -407,6 +406,42 @@ export class LighterVmAttestor extends VmAttestor {
     _extraData: string,
   ): Promise<boolean> {
     throw internalError("Not implemented (verifySolverCalls)");
+  }
+
+  private _getConfiguredDepositories(chain: Chain) {
+    const depository = chain.depository;
+    if (!depository) {
+      throw externalError("Chain has no depository configured");
+    }
+
+    return [depository, ...(chain.additionalDepositories ?? [])].map(
+      (address) => ({
+        address,
+        accountIndex: this._parseDepositoryAccountIndex(address),
+      }),
+    );
+  }
+
+  private _getConfiguredDepository(chain: Chain, accountIndex: string) {
+    const parsedAccountIndex = this._parseDepositoryAccountIndex(accountIndex);
+    const depository = this._getConfiguredDepositories(chain).find(
+      (d) => d.accountIndex === parsedAccountIndex,
+    );
+    if (!depository) {
+      throw externalError(
+        `Depository ${accountIndex} is not configured for chain ${chain.id}`,
+      );
+    }
+
+    return depository;
+  }
+
+  private _parseDepositoryAccountIndex(accountIndex: string): bigint {
+    if (!/^\d+$/.test(accountIndex)) {
+      throw externalError(`Invalid depository account index: ${accountIndex}`);
+    }
+
+    return BigInt(accountIndex);
   }
 
   /**

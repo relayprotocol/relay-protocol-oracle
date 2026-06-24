@@ -247,6 +247,19 @@ export const withdrawRequestAdditionalDataSchema = Type.Object(
         }),
       }),
     ),
+    "lighter-vm": Type.Optional(
+      Type.Object({
+        nonce: Type.Union([Type.String(), Type.Number()], {
+          description: "The nonce of the transfer transaction on Lighter",
+        }),
+        apiKeyIndex: Type.Union([Type.String(), Type.Number()], {
+          description: "The Lighter API key index used for signing",
+        }),
+        usdcFee: Type.Union([Type.String(), Type.Number()], {
+          description: "The USDC fee for the Lighter transfer",
+        }),
+      }),
+    ),
   },
   { description: "Additional data for normalizing a withdraw request" },
 );

@@ -36,11 +36,12 @@ const normalizedWithdrawRequestSchema = Type.Object({
   nonce: Type.String({ description: "Nonce for replay protection" }),
 });
 
-// normalizeWithdrawRequest (settlement-sdk) only implements these withdraw-chain
-// vm types; anything else throws there, so reject up front with a clean 4xx.
+// Withdraw-chain vm types supported by this endpoint; reject anything else
+// up front with a clean 4xx before owner-signature verification.
 const SUPPORTED_WITHDRAW_VM_TYPES = [
   "bitcoin-vm",
   "ethereum-vm",
+  "lighter-vm",
   "solana-vm",
   "ton-vm",
   "tron-vm",

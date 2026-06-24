@@ -4,6 +4,8 @@ import endpoint from "../../../src/api/attestations/withdraw-request-authorizati
 import { validateRecoverMode } from "../../../src/common/recover-mode-verification";
 import { verifyOwnerSignature } from "../../../src/common/signature-verification";
 import { signAllocatorWithdrawRequest } from "../../../src/common/signer";
+import { getChain } from "../../../src/common/chains";
+import { normalizeWithdrawRequest } from "@relay-protocol/settlement-sdk";
 
 const NORMALIZED = { normalized: true } as any;
 const SIGN_RESULT = {
@@ -122,5 +124,65 @@ describe("POST /attestations/withdraw-request-authorization/v1 — recoverMode",
     await expect(call(rest)).rejects.toThrow(/ownerSignature is required/);
     expect(validateRecoverMode).not.toHaveBeenCalled();
     expect(signAllocatorWithdrawRequest).not.toHaveBeenCalled();
+  });
+
+  it("supports lighter-vm withdraw request authorization", async () => {
+    (getChain as jest.Mock)
+      .mockResolvedValueOnce({
+        id: "lighter",
+        vmType: "lighter-vm",
+        depository: "460491",
+        additionalDepositories: ["460492"],
+      } as never)
+      .mockResolvedValueOnce({
+        id: "ethereum",
+        vmType: "ethereum-vm",
+        depository: "0xDep0000000000000000000000000000000000abcd",
+      } as never);
+
+    const lighterAdditionalData = {
+      "lighter-vm": {
+        nonce: "123",
+        apiKeyIndex: "5",
+        usdcFee: "10",
+      },
+    };
+    const body = {
+      chainId: "lighter",
+      depository: "460492",
+      currency: "3",
+      amount: "1000",
+      spenderChainId: "ethereum",
+      spender: "0xOwner000000000000000000000000000000000abcd",
+      receiver: "99",
+      nonce: "0x" + "00".repeat(31) + "08",
+      ownerSignature: "0x" + "ef".repeat(65),
+      additionalData: lighterAdditionalData,
+    };
+
+    const reply = makeReply();
+    await (endpoint as any).handler({ body, headers: {} } as any, reply);
+
+    expect(verifyOwnerSignature).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        chainId: "lighter",
+        additionalData: lighterAdditionalData,
+      }),
+      signature: body.ownerSignature,
+    });
+    expect(normalizeWithdrawRequest).toHaveBeenCalledWith({
+      vmType: "lighter-vm",
+      spenderVmType: "ethereum-vm",
+      chainId: "lighter",
+      depository: "460492",
+      currency: "3",
+      amount: "1000",
+      spenderChainId: "ethereum",
+      spender: body.spender,
+      receiver: "99",
+      nonce: body.nonce,
+      additionalData: lighterAdditionalData,
+    });
+    expect(signAllocatorWithdrawRequest).toHaveBeenCalledWith(NORMALIZED);
   });
 });
