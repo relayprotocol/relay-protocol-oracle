@@ -1,0 +1,270 @@
+name: Publish public release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Private release tag to publish. Must start with pub-v."
+        required: true
+        type: string
+      dry_run:
+        description: "Validate and build locally without pushing code, tags, releases, or images."
+        required: true
+        type: boolean
+        default: true
+      force_public_main:
+        description: "Force-reset public main. Use only for the first public snapshot."
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  actions: read
+  contents: read
+  packages: write
+
+env:
+  PUBLIC_REPOSITORY: relayprotocol/relay-protocol-oracle
+
+jobs:
+  publish:
+    name: Publish public snapshot
+    if: >-
+      ${{
+        (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'pub-v')) ||
+        (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.tag, 'pub-v'))
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      dry_run: ${{ steps.meta.outputs.dry_run }}
+      public_tree_artifact: ${{ steps.meta.outputs.public_tree_artifact }}
+      public_version: ${{ steps.meta.outputs.public_version }}
+    steps:
+      - name: Resolve release metadata
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          INPUT_FORCE_PUBLIC_MAIN: ${{ github.event.inputs.force_public_main }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "release" ]; then
+            private_tag="$RELEASE_TAG"
+            dry_run="false"
+            force_public_main="false"
+          else
+            private_tag="$INPUT_TAG"
+            dry_run="${INPUT_DRY_RUN:-true}"
+            force_public_main="${INPUT_FORCE_PUBLIC_MAIN:-false}"
+          fi
+
+          public_version="${private_tag#pub-}"
+          if ! [[ "$public_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?$ ]]; then
+            echo "::error::Private public-release tags must look like pub-v1.2.3"
+            exit 1
+          fi
+
+          {
+            echo "private_tag=$private_tag"
+            echo "public_version=$public_version"
+            echo "dry_run=$dry_run"
+            echo "force_public_main=$force_public_main"
+            echo "public_tree=$RUNNER_TEMP/public-tree"
+            echo "public_tree_archive=$RUNNER_TEMP/public-tree.tar"
+            echo "public_tree_artifact=public-release-tree"
+            echo "public_repo_dir=$RUNNER_TEMP/public-repo"
+            echo "release_notes=$RUNNER_TEMP/public-release-notes.md"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout private release tag
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ steps.meta.outputs.private_tag }}
+          fetch-depth: 0
+
+      - name: Export release tree and notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRIVATE_TAG: ${{ steps.meta.outputs.private_tag }}
+          PUBLIC_TREE: ${{ steps.meta.outputs.public_tree }}
+          RELEASE_NOTES: ${{ steps.meta.outputs.release_notes }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$PUBLIC_TREE"
+          git archive --format=tar "$PRIVATE_TAG" | tar -x -C "$PUBLIC_TREE"
+
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${PRIVATE_TAG}" \
+            --jq '.body // ""' > "$RELEASE_NOTES"
+
+      - name: Sanitize public release tree
+        env:
+          PUBLIC_TREE: ${{ steps.meta.outputs.public_tree }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/sanitize_public_release.py --root "$PUBLIC_TREE"
+
+      - name: Run public release leak gate
+        env:
+          PUBLIC_TREE: ${{ steps.meta.outputs.public_tree }}
+          RELEASE_NOTES: ${{ steps.meta.outputs.release_notes }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/check_public_release.py \
+            --root "$PUBLIC_TREE" \
+            --release-notes "$RELEASE_NOTES"
+
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=8.30.1
+          curl -sSL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" version
+
+      - name: Run gitleaks on public tree
+        env:
+          PUBLIC_TREE: ${{ steps.meta.outputs.public_tree }}
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/gitleaks" dir "$PUBLIC_TREE" \
+            --config "$PUBLIC_TREE/.gitleaks.toml" \
+            --no-banner \
+            --redact \
+            --exit-code 1
+
+      - name: Archive sanitized public tree
+        env:
+          PUBLIC_TREE: ${{ steps.meta.outputs.public_tree }}
+          PUBLIC_TREE_ARCHIVE: ${{ steps.meta.outputs.public_tree_archive }}
+        run: |
+          set -euo pipefail
+          tar -C "$PUBLIC_TREE" -cf "$PUBLIC_TREE_ARCHIVE" .
+
+      - name: Upload sanitized public tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.public_tree_artifact }}
+          path: ${{ steps.meta.outputs.public_tree_archive }}
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Create public repository token
+        id: public_app_token
+        if: steps.meta.outputs.dry_run != 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.PUBLIC_RELEASE_APP_ID }}
+          private-key: ${{ secrets.PUBLIC_RELEASE_APP_PRIVATE_KEY }}
+          owner: relayprotocol
+          repositories: relay-protocol-oracle
+          permission-contents: write
+          permission-packages: write
+
+      - name: Publish public snapshot
+        id: publish_snapshot
+        if: steps.meta.outputs.dry_run != 'true'
+        env:
+          PUBLIC_TOKEN: ${{ steps.public_app_token.outputs.token }}
+          PUBLIC_TREE: ${{ steps.meta.outputs.public_tree }}
+          PUBLIC_REPO_DIR: ${{ steps.meta.outputs.public_repo_dir }}
+          PRIVATE_TAG: ${{ steps.meta.outputs.private_tag }}
+          PUBLIC_VERSION: ${{ steps.meta.outputs.public_version }}
+          FORCE_PUBLIC_MAIN: ${{ steps.meta.outputs.force_public_main }}
+        run: |
+          set -euo pipefail
+
+          git init "$PUBLIC_REPO_DIR"
+          cd "$PUBLIC_REPO_DIR"
+          git config user.name "relay-public-release-bot"
+          git config user.email "relay-public-release-bot@users.noreply.github.com"
+          git config commit.gpgsign false
+          git remote add origin "https://x-access-token:${PUBLIC_TOKEN}@github.com/${PUBLIC_REPOSITORY}.git"
+
+          if [ "$FORCE_PUBLIC_MAIN" = "true" ]; then
+            git checkout --orphan main
+          else
+            git fetch --depth=1 origin main
+            git checkout -B main FETCH_HEAD
+          fi
+
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          tar -C "$PUBLIC_TREE" -cf - . | tar -xf -
+
+          git add -A
+          if git diff --cached --quiet; then
+            public_sha="$(git rev-parse HEAD)"
+            echo "No public snapshot changes; reusing ${public_sha}."
+          else
+            git commit \
+              -m "chore: publish ${PUBLIC_VERSION} [skip ci]" \
+              -m "Published from private release tag ${PRIVATE_TAG}."
+            public_sha="$(git rev-parse HEAD)"
+          fi
+
+          if [ "$FORCE_PUBLIC_MAIN" = "true" ]; then
+            git push origin HEAD:main --force
+          else
+            git push origin HEAD:main
+          fi
+
+          git tag -f "$PUBLIC_VERSION" "$public_sha"
+          git push origin "refs/tags/${PUBLIC_VERSION}" --force
+          echo "public_sha=$public_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Publish public GitHub Release
+        if: steps.meta.outputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ steps.public_app_token.outputs.token }}
+          PUBLIC_VERSION: ${{ steps.meta.outputs.public_version }}
+          PUBLIC_SHA: ${{ steps.publish_snapshot.outputs.public_sha }}
+          RELEASE_NOTES: ${{ steps.meta.outputs.release_notes }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "$PUBLIC_VERSION" --repo "$PUBLIC_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$PUBLIC_VERSION" \
+              --repo "$PUBLIC_REPOSITORY" \
+              --title "$PUBLIC_VERSION" \
+              --notes-file "$RELEASE_NOTES" \
+              --target "$PUBLIC_SHA"
+          else
+            gh release create "$PUBLIC_VERSION" \
+              --repo "$PUBLIC_REPOSITORY" \
+              --title "$PUBLIC_VERSION" \
+              --notes-file "$RELEASE_NOTES" \
+              --target "$PUBLIC_SHA"
+          fi
+
+      - name: Dry-run summary
+        if: steps.meta.outputs.dry_run == 'true'
+        env:
+          PRIVATE_TAG: ${{ steps.meta.outputs.private_tag }}
+          PUBLIC_VERSION: ${{ steps.meta.outputs.public_version }}
+        run: |
+          {
+            echo "### Public release dry-run"
+            echo ""
+            echo "- Private tag: \`${PRIVATE_TAG}\`"
+            echo "- Public version: \`${PUBLIC_VERSION}\`"
+            echo "- Snapshot push: skipped"
+            echo "- Public release: skipped"
+            echo "- Image push: skipped"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-oracle-image:
+    name: Publish public oracle image
+    needs: publish
+    uses: ./.github/workflows/publish-public-oracle-image.yml
+    with:
+      dry_run: ${{ needs.publish.outputs.dry_run == 'true' }}
+      public_tree_artifact: ${{ needs.publish.outputs.public_tree_artifact }}
+      public_version: ${{ needs.publish.outputs.public_version }}
+    secrets: inherit
