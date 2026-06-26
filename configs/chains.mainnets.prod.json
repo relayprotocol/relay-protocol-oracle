@@ -208,10 +208,10 @@
     "hubChainId": "4326"
   },
   {
-    "id": "zorro",
+    "id": "robinhood",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
-    "httpRpcUrl": "$ZORRO_RPC_URL",
+    "httpRpcUrl": "$ROBINHOOD_RPC_URL",
     "hubChainId": "4663"
   },
   {

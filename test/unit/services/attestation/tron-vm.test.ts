@@ -26,7 +26,7 @@ import {
   getChains,
   getSdkChainsConfig,
 } from "../../../../src/common/chains";
-import { httpRpc } from "../../../../src/common/vm/tron-vm/rpc";
+import { httpRpc, httpTronRpc } from "../../../../src/common/vm/tron-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
 import { ABI } from "../../../../src/services/attestation/vm/ethereum-vm";
 import {
@@ -83,6 +83,7 @@ jest.mock("../../../../src/common/chains", () => {
 jest.mock("../../../../src/common/vm/tron-vm/rpc", () => {
   return {
     httpRpc: jest.fn(),
+    httpTronRpc: jest.fn(),
   };
 });
 jest.mock("viem", () => {
@@ -470,7 +471,7 @@ function setupRpcMock(mockData: any) {
   (httpRpc as jest.Mock).mockImplementation(() => ({
     getTransaction: async ({ hash }: { hash: string }) => {
       const txData = mockData.transactions[hash];
-      return { input: txData.input };
+      return { input: txData.input, to: txData.to, value: txData.value };
     },
     getTransactionReceipt: async ({ hash }: { hash: string }) => {
       const txData = mockData.transactions[hash];
@@ -1235,6 +1236,21 @@ describe("TronVmAttestor", () => {
     });
   });
 
+  it("attestSolverFill - validates direct native transfer (amount from tx value)", async () => {
+    await testAttestSolverFill({ directNativeTransfer: true });
+  });
+
+  it("attestSolverFill - validates fill with order id referenced via transaction memo", async () => {
+    await testAttestSolverFill({ orderIdInMemo: true });
+  });
+
+  it("attestSolverFill - fails when order id is not referenced in input or memo", async () => {
+    await testAttestSolverFill({
+      missingOrderIdReference: true,
+      expectError: "does not reference order id",
+    });
+  });
+
   it("attestSolverRefund - validates solver refund correctly", async () => {
     await testAttestSolverRefund({});
   });
@@ -1313,6 +1329,9 @@ const setupTestEnvironment = async (
     duplicateOnchainIds?: boolean;
     customPaymentAmount?: string;
     actionType?: "fill" | "refund";
+    directNativeTransfer?: boolean;
+    orderIdInMemo?: boolean;
+    missingOrderIdReference?: boolean;
   } = {}
 ) => {
   const chains = Object.values(await getChains());
@@ -1395,6 +1414,19 @@ const setupTestEnvironment = async (
     });
   }
 
+  // For direct native transfers, the amount is taken from the transaction value
+  // (no `SolverNativeTransfer` event is emitted)
+  if (options.directNativeTransfer) {
+    actionTxReceipt = generateTransactionReceipt(actionTxHash, []);
+  }
+
+  // Determine how the action transaction references the order id:
+  // - by default it is appended to the transaction calldata (`input`)
+  // - for native `TransferContract` transfers there is no calldata, so the order id
+  //   lives in the transaction memo (`raw_data.data`), exposed only via the native API
+  const actionInput =
+    options.orderIdInMemo || options.missingOrderIdReference ? "0x" : orderId;
+
   // Setup RPC mock
   setupRpcMock({
     transactions: {
@@ -1403,11 +1435,33 @@ const setupTestEnvironment = async (
         receipt: depositTxReceipt,
       },
       [actionTxHash]: {
-        input: orderId,
+        input: actionInput,
+        to: options.directNativeTransfer
+          ? isRefund
+            ? testData.refundRecipient
+            : testData.outputRecipient
+          : undefined,
+        value: options.directNativeTransfer ? BigInt(fillAmount) : undefined,
         receipt: actionTxReceipt,
       },
     },
   });
+
+  // Setup the native Tron RPC mock (used to read the transaction memo when the
+  // order id is not referenced in the transaction calldata)
+  (httpTronRpc as jest.Mock).mockImplementation(() => ({
+    trx: {
+      getTransaction: async () => ({
+        raw_data: {
+          data: options.orderIdInMemo
+            ? orderId.slice(2)
+            : options.missingOrderIdReference
+              ? randomHex(32).slice(2)
+              : undefined,
+        },
+      }),
+    },
+  }));
 
   // Create order signature
   const signerWallet = options.invalidSignature
@@ -1474,6 +1528,9 @@ const testAttestSolverFill = async (options: {
   insufficientPayment?: boolean;
   duplicateOnchainIds?: boolean;
   customPaymentAmount?: string;
+  directNativeTransfer?: boolean;
+  orderIdInMemo?: boolean;
+  missingOrderIdReference?: boolean;
   expectError?: string;
 }) => {
   // Setup test environment with fill action type

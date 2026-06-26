@@ -24,7 +24,7 @@ import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError, internalError } from "../../../../common/error";
 import { undefinedOnThrow } from "../../../../common/utils";
-import { httpRpc } from "../../../../common/vm/tron-vm/rpc";
+import { httpRpc, httpTronRpc } from "../../../../common/vm/tron-vm/rpc";
 
 const VM_TYPE = "tron-vm";
 
@@ -354,14 +354,41 @@ export class TronVmAttestor extends VmAttestor {
       throw externalError(`Missing transaction ${transactionId}`);
     }
 
-    if (!transaction.input.endsWith(payment.orderId.slice(2))) {
+    let referencesOrderId = transaction.input.endsWith(
+      payment.orderId.slice(2),
+    );
+    if (!referencesOrderId) {
+      // For native transfers (`TransferContract`), the eth-compatible JSON-RPC does not
+      // expose the transaction's memo, so the order id reference is missing from `input`.
+      // Fall back to the native HTTP API and check the raw transaction's `data` memo field.
+      const tronRpc = await httpTronRpc(chainId);
+      const rawTransaction = await tronRpc.trx.getTransaction(
+        transactionId.replace(/^0x/, ""),
+      );
+      const data = rawTransaction?.raw_data?.data as string | undefined;
+      if (
+        data &&
+        data.toLowerCase().endsWith(payment.orderId.slice(2).toLowerCase())
+      ) {
+        referencesOrderId = true;
+      }
+    }
+    if (!referencesOrderId) {
       throw externalError(
         `Transaction ${transactionId} does not reference order id`,
       );
     }
 
     if (payment.currency === getVmTypeNativeCurrency(VM_TYPE)) {
-      // If the payment involves native currency, check for SolverNativeTransfer events
+      // If the payment involves native currency, we first try to see if this is a direct transfer
+      if (
+        transaction.to &&
+        fromHexAddress(transaction.to) === payment.recipient
+      ) {
+        return transaction.value;
+      }
+
+      // Otherwise, check for any native transfer events emitted via the fill contract specified by the order
       const fillContract = decodeOrderExtraData(payment.extraData, VM_TYPE)
         .extraData.fillContract;
 

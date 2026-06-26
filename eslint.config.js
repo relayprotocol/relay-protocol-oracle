@@ -55,14 +55,14 @@ module.exports = [
     files: ["**/package.json"],
     languageOptions: { parser: jsonParser },
     plugins: {
-      "unevenlabs-policy": {
+      "relay-policy": {
         rules: {
           "pinned-deps": require("./eslint-rules/pinned-deps.cjs"),
         },
       },
     },
     rules: {
-      "unevenlabs-policy/pinned-deps": [
+      "relay-policy/pinned-deps": [
         "error",
         {
           excludeList: [
