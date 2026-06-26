@@ -46,11 +46,18 @@ class PublicReleaseScriptsTest(unittest.TestCase):
             write(root / "AGENTS.md", "private agent instructions\n")
             write(root / "CLAUDE.md", "private assistant instructions\n")
             write(root / "docs" / "public-release.md", "private release runbook\n")
+            write(root / "docs" / "overview.md", "stale public docs\n")
+            write(root / "internal" / "notes.txt", "future private-only directory\n")
             write(
                 root / ".gitleaks-baseline.json",
                 "https://github.com/unevenlabs/relay-protocol-oracle/blob/private\n",
             )
             write(root / ".env.example", "RELAY_RPC_URL=https://rpc.chain.relay.link/rpc\n")
+            write(root / "README.md", "Relay oracle\n")
+            write(root / "Dockerfile", "FROM node:23-slim\n")
+            write(root / "configs" / "chains.mainnets.prod.json", "[]\n")
+            write(root / "src" / "index.ts", "export {}\n")
+            write(root / "test" / "index.test.ts", "test('ok', () => {})\n")
 
             result = subprocess.run(
                 [sys.executable, str(SANITIZER), "--root", str(root)],
@@ -72,9 +79,15 @@ class PublicReleaseScriptsTest(unittest.TestCase):
             self.assertFalse((root / ".codex").exists())
             self.assertFalse((root / "AGENTS.md").exists())
             self.assertFalse((root / "CLAUDE.md").exists())
-            self.assertFalse((root / "docs" / "public-release.md").exists())
+            self.assertFalse((root / "docs").exists())
+            self.assertFalse((root / "internal").exists())
             self.assertFalse((root / ".gitleaks-baseline.json").exists())
             self.assertTrue((root / ".env.example").exists())
+            self.assertTrue((root / "README.md").exists())
+            self.assertTrue((root / "Dockerfile").exists())
+            self.assertTrue((root / "configs" / "chains.mainnets.prod.json").exists())
+            self.assertTrue((root / "src" / "index.ts").exists())
+            self.assertTrue((root / "test" / "index.test.ts").exists())
 
     def test_leak_gate_passes_clean_public_tree_and_release_notes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

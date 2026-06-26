@@ -18,16 +18,27 @@ PUBLIC_REPOSITORY = "relay-protocol-oracle"
 SOURCE_REPOSITORY_URL = f"https://github.com/{PRIVATE_OWNER}/{SOURCE_REPOSITORY}"
 PUBLIC_REPOSITORY_URL = f"https://github.com/{PUBLIC_OWNER}/{PUBLIC_REPOSITORY}"
 
-PUBLIC_EXPORT_REMOVE_PATHS = [
-    ".claude",
-    ".codex",
-    ".github",
-    ".gitleaks-baseline.json",
-    "AGENTS.md",
-    "CLAUDE.md",
-    "docs/public-release.md",
-    "docs/superpowers",
-]
+PUBLIC_EXPORT_INCLUDE_PATHS = {
+    ".env.example",
+    ".gitignore",
+    ".gitleaks.toml",
+    ".yarn",
+    ".yarnrc",
+    ".yarnrc.yml",
+    "Dockerfile",
+    "README.md",
+    "configs",
+    "entrypoint.sh",
+    "eslint-rules",
+    "eslint.config.js",
+    "jest.config.ts",
+    "package.json",
+    "src",
+    "test",
+    "tsconfig.eslint.json",
+    "tsconfig.json",
+    "yarn.lock",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -82,18 +93,17 @@ def sanitize_eslint_config(root: Path) -> str:
     return f"rewrote {path.relative_to(root)} policy metadata"
 
 
-def remove_public_export_paths(root: Path) -> list[str]:
+def prune_public_export_paths(root: Path) -> list[str]:
     results: list[str] = []
-    for relative_path in PUBLIC_EXPORT_REMOVE_PATHS:
-        path = root / relative_path
-        if not path.exists():
-            results.append(f"skipped missing {relative_path}")
+    for path in sorted(root.iterdir(), key=lambda entry: entry.name):
+        if path.name in PUBLIC_EXPORT_INCLUDE_PATHS:
+            results.append(f"kept {path.name}")
             continue
         if path.is_dir():
             shutil.rmtree(path)
         else:
             path.unlink()
-        results.append(f"removed {relative_path}")
+        results.append(f"removed {path.name}")
     return results
 
 
@@ -108,7 +118,7 @@ def main() -> int:
         results = [
             sanitize_package_json(root),
             sanitize_eslint_config(root),
-            *remove_public_export_paths(root),
+            *prune_public_export_paths(root),
         ]
     except Exception as exc:
         print(f"public release sanitizer failed: {exc}", file=sys.stderr)
