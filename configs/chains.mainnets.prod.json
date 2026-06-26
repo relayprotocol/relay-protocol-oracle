@@ -463,13 +463,6 @@
     "hubChainId": "7777777"
   },
   {
-    "id": "corn",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$CORN_RPC_URL",
-    "hubChainId": "21000000"
-  },
-  {
     "id": "degen",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
