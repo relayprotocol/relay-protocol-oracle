@@ -484,7 +484,7 @@
     "id": "hyperliquid",
     "vmType": "hyperliquid-vm",
     "httpRpcUrl": "$HYPERLIQUID_RPC_URL",
-    "depository": "0xe2e50eef227c09427fe323b05dd2ffbd221cfd02",
+    "depository": "0xf5b540163ac4ac4068f6e86caebdaeaa4921dcd2",
     "hubChainId": "111378472430415857054556056192544272316610524417112732947551032542507639335976",
     "additionalData": {
       "proxyApiUrl": "$HYPERLIQUID_PROXY_API_URL",
@@ -493,7 +493,7 @@
   },
   {
     "id": "bitcoin",
-    "depository": "1KT3zCYUrmQxjcveUNs1Rs7WcXDcPQZ4av",
+    "depository": "bc1q3q9zxcxlg5s639jqylqjl2mgw6xljnyyucnqjf",
     "vmType": "bitcoin-vm",
     "httpRpcUrl": "$BITCOIN_RPC_URL",
     "hubChainId": "56960375584792109628315999883526364004747792730920852649053369508622489636429",
@@ -507,6 +507,7 @@
   },
   {
     "id": "lighter",
+    "depository": "731032",
     "vmType": "lighter-vm",
     "httpRpcUrl": "$LIGHTER_RPC_URL",
     "hubChainId": "24751429388881399765243452447207376042614090386756997212181931796575290791450",

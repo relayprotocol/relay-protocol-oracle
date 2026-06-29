@@ -1,0 +1,118 @@
+name: Publish public oracle image
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Public release tag to publish images for. Must start with v."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  PUBLIC_IMAGE: ghcr.io/relayprotocol/relay-protocol-oracle
+  PUBLIC_PACKAGE_NAME: relay-protocol-oracle
+  PUBLIC_REGISTRY_OWNER: relayprotocol
+  PUBLIC_REPOSITORY_URL: https://github.com/relayprotocol/relay-protocol-oracle
+
+jobs:
+  publish:
+    name: Build and publish oracle image
+    if: >-
+      ${{
+        github.repository == 'relayprotocol/relay-protocol-oracle' &&
+        (
+          (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v')) ||
+          (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v'))
+        )
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Resolve public release tag
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "release" ]; then
+            public_version="$RELEASE_TAG"
+          else
+            public_version="$INPUT_TAG"
+          fi
+
+          if ! [[ "$public_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?$ ]]; then
+            echo "::error::Public image tags must look like v1.2.3"
+            exit 1
+          fi
+
+          echo "public_version=$public_version" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout public release tag
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ steps.meta.outputs.public_version }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4.0.0
+
+      - name: Login to public GHCR
+        uses: docker/login-action@v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build public oracle image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLIC_VERSION: ${{ steps.meta.outputs.public_version }}
+        run: |
+          set -euo pipefail
+
+          ghcr_tag_exists() {
+            local error_file="$RUNNER_TEMP/ghcr-${PUBLIC_PACKAGE_NAME}.err"
+            local tags
+
+            if tags="$(gh api \
+              "orgs/${PUBLIC_REGISTRY_OWNER}/packages/container/${PUBLIC_PACKAGE_NAME}/versions" \
+              --paginate \
+              --jq '.[].metadata.container.tags[]?' \
+              2>"$error_file")"; then
+              printf '%s\n' "$tags" | grep -Fxq "$PUBLIC_VERSION"
+              return
+            fi
+
+            if grep -q "Package not found" "$error_file"; then
+              return 1
+            fi
+
+            cat "$error_file" >&2
+            return 2
+          }
+
+          if ghcr_tag_exists; then
+            echo "Skipping ${PUBLIC_IMAGE}:${PUBLIC_VERSION}; tag already exists."
+            exit 0
+          else
+            tag_check_status=$?
+            if [ "$tag_check_status" -ne 1 ]; then
+              exit "$tag_check_status"
+            fi
+          fi
+
+          docker buildx build \
+            --file Dockerfile \
+            --label "org.opencontainers.image.source=${PUBLIC_REPOSITORY_URL}" \
+            --tag "${PUBLIC_IMAGE}:${PUBLIC_VERSION}" \
+            --tag "${PUBLIC_IMAGE}:latest" \
+            --push \
+            .
