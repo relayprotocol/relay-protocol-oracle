@@ -12,6 +12,8 @@ import attestationsDepositoryWithdrawalsV3 from "./attestations/depository-withd
 import attestationsSignaturesNoFillOrRefundV1 from "./attestations/signatures/no-fill-or-refund/v1";
 import attestationsSignaturesNonceMappingV2 from "./attestations/signatures/nonce-mapping/v2";
 import attestationsSolverFillV1 from "./attestations/solver-fills/v1";
+import attestationsWithdrawAndFillV1 from "./attestations/withdraw-and-fill/v1";
+import attestationsWithdrawAndRefundV1 from "./attestations/withdraw-and-refund/v1";
 import attestationsRecoverV1 from "./attestations/recover/v1";
 import attestationsSolverRefundV1 from "./attestations/solver-refunds/v1";
 import attestationsTransferV1 from "./attestations/transfer/v1";
@@ -33,6 +35,8 @@ const endpoints = [
   attestationsWithdrawalsInitiationV2,
   attestationsWithdrawalsInitiatedV2,
   attestationsSolverFillV1,
+  attestationsWithdrawAndFillV1,
+  attestationsWithdrawAndRefundV1,
   attestationsSolverRefundV1,
   attestationsRecoverV1,
   attestationsTransferV1,

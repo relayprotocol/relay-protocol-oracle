@@ -44,9 +44,6 @@ export type Chain = {
   };
 };
 
-export const HUB_VM_TYPE = "hub-vm" as any as VmType;
-export const HUB_CHAIN_ID = 0n;
-
 const DEPOSITORY_REQUIRED_VM_TYPES = new Set<VmType>([
   "ethereum-vm",
   "solana-vm",
@@ -173,8 +170,15 @@ export const getChain = async (chainId: string) => {
   return chains[chainId];
 };
 
-export const getChainVmType = async (chainId: string) =>
-  getChain(chainId).then((c) => c.vmType);
+export const RELAY_CHAIN_ID = "relay";
+export const getChainVmType = async (chainId: string) => {
+  // Custom rule for "Relay" chain
+  if (chainId === RELAY_CHAIN_ID) {
+    return "ethereum-vm";
+  }
+
+  return getChain(chainId).then((c) => c.vmType);
+};
 
 export const getSdkChainsConfig = async () => {
   return Object.fromEntries(
@@ -194,6 +198,7 @@ let __hubInfo:
       oracleMultisigAddress: string;
       genericMappingAddress: string;
       allocatorAddress: string;
+      executorAddress: string;
       depositAddressManagerAddress: string;
       auroraHttpRpcUrl: string;
       auroraEvmChainId: string;
@@ -219,6 +224,7 @@ export const getHubInfo = async () => {
     oracleMultisigAddress: readConfigValue(chain.oracleMultisigAddress),
     genericMappingAddress: readConfigValue(chain.genericMappingAddress),
     allocatorAddress: readConfigValue(chain.allocatorAddress),
+    executorAddress: readConfigValue(chain.executorAddress),
     depositAddressManagerAddress: readConfigValue(
       chain.depositAddressManagerAddress,
     ),

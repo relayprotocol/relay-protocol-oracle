@@ -1,6 +1,7 @@
 import v8 from "v8";
 
 import { logger } from "./common/logger";
+import { sanitizeError } from "./common/sanitize-error";
 import { startHttpServer } from "./http-server";
 
 const COMPONENT = "process";
@@ -11,7 +12,7 @@ process.on("unhandledRejection", (error: any) => {
     COMPONENT,
     JSON.stringify({
       msg: "Unhandled rejection",
-      error,
+      error: sanitizeError(error),
       stack: error?.stack,
     }),
   );
@@ -21,7 +22,7 @@ process.on("uncaughtException", (error: any) => {
     COMPONENT,
     JSON.stringify({
       msg: "Uncaught exception",
-      error,
+      error: sanitizeError(error),
       stack: error?.stack,
     }),
   );

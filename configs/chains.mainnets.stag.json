@@ -468,14 +468,14 @@
   },
   {
     "id": "solana",
-    "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
+    "depository": "FUaSZvAAnzPksj1xbShNY9wDC5SGWuqi6gbPw64GUgz4",
     "vmType": "solana-vm",
     "httpRpcUrl": "$SOLANA_RPC_URL",
     "hubChainId": "50176979118388105370421134508366610418687875236156196470082648173271157915018"
   },
   {
     "id": "eclipse",
-    "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
+    "depository": "FUaSZvAAnzPksj1xbShNY9wDC5SGWuqi6gbPw64GUgz4",
     "vmType": "solana-vm",
     "httpRpcUrl": "$ECLIPSE_RPC_URL",
     "hubChainId": "64090895945001603038992093854505754448788867346671798212401362354189266349171"
@@ -517,7 +517,7 @@
   },
   {
     "id": "tron",
-    "depository": "TXtEs6t2oUWQsNos7m68gbHdE9Q5n6x2oN",
+    "depository": "TLt4EEZp2a5uMM5WcRQuABX9qjTfh1UKu5",
     "vmType": "tron-vm",
     "httpRpcUrl": "$TRON_RPC_URL",
     "hubChainId": "728126428"

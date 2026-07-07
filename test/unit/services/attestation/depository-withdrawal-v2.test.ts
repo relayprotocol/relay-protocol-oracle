@@ -195,12 +195,14 @@ describe("attestDepositoryWithdrawalV2 - re-signed inputs", () => {
           method: "eth_getLogs",
           params: [expect.objectContaining({ address: AURORA_ALLOCATOR })],
         }),
+        expect.objectContaining({ timeout: expect.any(Number) }),
       );
       expect(axios.post).not.toHaveBeenCalledWith(
         AURORA_RPC_URL,
         expect.objectContaining({
           params: [expect.objectContaining({ address: HUB_ALLOCATOR })],
         }),
+        expect.objectContaining({ timeout: expect.any(Number) }),
       );
     });
 

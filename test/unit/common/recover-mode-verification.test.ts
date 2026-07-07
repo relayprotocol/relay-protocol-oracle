@@ -43,8 +43,6 @@ jest.mock("../../../src/common/chains", () => {
     },
   };
   return {
-    HUB_VM_TYPE: "hub-vm",
-    HUB_CHAIN_ID: 0n,
     getChains: async () => chains,
     getChain: async (chainId: string) => chains[chainId],
     getChainVmType: jest.fn().mockImplementation(async (chainId) => {
@@ -67,8 +65,7 @@ jest.mock("../../../src/common/chains", () => {
       auroraAllocatorAddress: "0x0000000000000000000000000000000000000005",
       auroraAllocatorSpenderAddress:
         "0x0000000000000000000000000000000000000006",
-      auroraOracleMultisigAddress:
-        "0x0000000000000000000000000000000000000007",
+      auroraOracleMultisigAddress: "0x0000000000000000000000000000000000000007",
     })),
     getSdkChainsConfig: jest.fn(() => ({
       ethereum: "ethereum-vm",
@@ -91,8 +88,7 @@ describe("validateRecoverMode", () => {
   // refund addresses can be checksum or lowercase; the encode-based compare
   // must tolerate either side appearing in either form.
   const refundRecipientLower = "0xaaaabbbbccccddddeeeeffff0011223344556677";
-  const refundRecipientChecksum =
-    "0xaaAAbbBBccCCddDDeeEEffff0011223344556677";
+  const refundRecipientChecksum = "0xaaAAbbBBccCCddDDeeEEffff0011223344556677";
   const solver = "0x0987654321098765432109876543210987654321";
   const currencyLower = "0xdac17f958d2ee523a2206206994597c13d831ec7"; // USDT lowercase
   const currencyChecksum = "0xdAC17F958D2ee523a2206206994597C13D831ec7"; // USDT checksum

@@ -113,8 +113,6 @@ jest.mock("../../../../src/common/chains", () => {
     },
   };
   return {
-    HUB_VM_TYPE: "hub-vm",
-    HUB_CHAIN_ID: 0n,
     getChains: async () => chains,
     getChain: async (chainId: string) => chains[chainId],
     getChainVmType: jest.fn().mockImplementation(async (chainId) => {
@@ -122,6 +120,7 @@ jest.mock("../../../../src/common/chains", () => {
       if (chainId === "solana") return "solana-vm";
       if (chainId === "hyperliquid-vm") return "hyperliquid-vm";
       if (chainId === "base") return "ethereum-vm";
+      if (chainId === "relay") return "ethereum-vm";
       if (chainId === "ton") return "ton-vm";
       if (chainId === "lighter") return "lighter-vm";
       throw new Error(`Unknown chain: ${chainId}`);
@@ -143,6 +142,7 @@ jest.mock("../../../../src/common/chains", () => {
       oracleMultisigAddress: "0x0000000000000000000000000000000000000003",
       genericMappingAddress: "0x0000000000000000000000000000000000000004",
       allocatorAddress: "0x0000000000000000000000000000000000000005",
+      executorAddress: "0x0000000000000000000000000000000000000009",
       depositAddressManagerAddress:
         "0x0000000000000000000000000000000000000008",
       auroraHttpRpcUrl: "http://localhost:8545",
@@ -152,6 +152,7 @@ jest.mock("../../../../src/common/chains", () => {
         "0x0000000000000000000000000000000000000006",
       auroraOracleMultisigAddress: "0x0000000000000000000000000000000000000007",
     })),
+    RELAY_CHAIN_ID: "relay",
     getSdkChainsConfig: jest.fn(() => ({
       ethereum: "ethereum-vm",
       solana: "solana-vm",
@@ -1020,6 +1021,72 @@ describe("AttestationService", () => {
     });
   });
 
+  describe("attestDepositoryWithdrawalV3", () => {
+    const withdrawRequestInput = {
+      chainId: "ethereum",
+      depository: depositoryAddress,
+      currency: "0x1111111111111111111111111111111111111111",
+      amount: "1000",
+      spenderChainId: "relay",
+      spender: "0x0000000000000000000000000000000000000009",
+      receiver: "0xf70da97812cb96acdf810712aa562db8dfa3dbef",
+      nonce:
+        "0x0000000000000000000000000000000000000000000000000000000000000001",
+    };
+
+    it("mints expired swap-verifier withdrawals back to the recorded order address", async () => {
+      const orderAddress = "0x0000000000000000000000000000000000000010";
+      const mockedHubRpc = {
+        readContract: jest
+          .fn<any>()
+          .mockResolvedValueOnce("0x0000000000000000000000000000000000000011")
+          .mockResolvedValueOnce("ethereum-vm")
+          .mockResolvedValueOnce("0x1234")
+          .mockResolvedValueOnce(orderAddress),
+      };
+      jest.mocked(getHubHttpRpc).mockResolvedValue(mockedHubRpc as any);
+
+      const mockAttestor: any = {
+        getDepositoryWithdrawalMessage: jest.fn().mockImplementation(() =>
+          Promise.resolve({
+            data: {
+              chainId: withdrawRequestInput.chainId,
+              withdrawal: "0x1234",
+            },
+            result: {
+              withdrawalId: zeroHash,
+              depository: depositoryAddress,
+              status: DepositoryWithdrawalStatus.EXPIRED,
+            },
+          }),
+        ),
+      };
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      const result =
+        await service.attestDepositoryWithdrawalV3(withdrawRequestInput);
+
+      const [action] = result.execution?.actions || [];
+      expect(decodeAction(action)).toEqual({
+        type: ActionType.MINT,
+        data: {
+          hubTokenId: generateTokenId({
+            address: withdrawRequestInput.currency,
+            chainId: withdrawRequestInput.chainId,
+            family: "ethereum-vm",
+          }),
+          hubToAddress: orderAddress,
+          amount: withdrawRequestInput.amount,
+        },
+      });
+      expect(mockedHubRpc.readContract).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          functionName: "orderAddressByWithdrawRequestHash",
+        }),
+      );
+    });
+  });
+
   describe("attestWithdrawRequest", () => {
     const withdrawRequestInput = {
       chainId: "ethereum",
@@ -1161,6 +1228,467 @@ describe("AttestationService", () => {
       await expect(
         service.attestDepositAddressTrigger(triggerInput),
       ).rejects.toThrow("Trigger hash does not map to the provided order id");
+    });
+  });
+
+  describe("attestWithdrawAndFill", () => {
+    const buildWithdrawAndFillFixture = async (overrides?: {
+      multipleOutputs?: boolean;
+      withFees?: boolean;
+      wrongFeeCurrency?: boolean;
+    }) => {
+      const solverAddress = "0x1234567890123456789012345678901234567890";
+      const depositor = "0x0987654321098765432109876543210987654321";
+      const currency = "0x1111111111111111111111111111111111111111";
+      const outputRecipient = "0x3333333333333333333333333333333333333333";
+      const amount = "1000";
+      const timestamp = "1234567890";
+      const transactionId =
+        "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e";
+      const onchainId =
+        "0x0000000000000000000000000000000000000000000000000000000000000999";
+
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: {
+              chainId: "ethereum",
+              currency,
+              amount,
+              weight: "1",
+            },
+            refunds: [
+              {
+                chainId: "ethereum",
+                recipient: outputRecipient,
+                currency,
+                minimumAmount: amount,
+                deadline: Math.floor(Date.now() / 1000) + 3600,
+                extraData: "0x",
+              },
+            ],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: outputRecipient,
+              currency,
+              minimumAmount: amount,
+              expectedAmount: amount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [],
+      };
+      if (overrides?.multipleOutputs) {
+        order.output.payments.push({
+          recipient: "0x5555555555555555555555555555555555555555",
+          currency,
+          minimumAmount: amount,
+          expectedAmount: amount,
+        });
+      }
+      if (overrides?.withFees) {
+        order.fees.push({
+          recipientChainId: "ethereum",
+          recipient: "0x5555555555555555555555555555555555555555",
+          currencyChainId: "ethereum",
+          currency,
+          amount: "1",
+        });
+      }
+      if (overrides?.wrongFeeCurrency) {
+        order.fees.push({
+          recipientChainId: "ethereum",
+          recipient: "0x5555555555555555555555555555555555555555",
+          currencyChainId: "ethereum",
+          currency: "0x9999999999999999999999999999999999999999",
+          amount: "1",
+        });
+      }
+
+      const orderId = getOrderId(order, await getSdkChainsConfig());
+      const mockDepositMessage = {
+        data: {
+          chainId: "ethereum",
+          transactionId,
+        },
+        result: {
+          depositor,
+          depository: "0x4444444444444444444444444444444444444444",
+          currency,
+          amount,
+          onchainId,
+          depositId: orderId,
+        },
+        extraData: { timestamp },
+      };
+
+      const mockAttestor: any = {
+        getDepositoryDepositMessages: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve([mockDepositMessage])),
+      };
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      return {
+        order,
+        orderId,
+        mockDepositMessage,
+        transactionId,
+        onchainId,
+        amount,
+        currency,
+        outputRecipient,
+        depositor,
+        timestamp,
+      };
+    };
+
+    it("returns deposit execution and swap-and-withdraw request", async () => {
+      const fixture = await buildWithdrawAndFillFixture();
+      const nonce = "explicit-nonce";
+
+      const result = await service.attestWithdrawAndFill({
+        chainId: "ethereum",
+        transactionId: fixture.transactionId,
+        onchainId: fixture.onchainId,
+        order: fixture.order,
+        orderSignature: "0x" + "00".repeat(65),
+        nonce,
+      });
+
+      expect(result.execution).toBeDefined();
+      expect(result.execution.idempotencyKey).toBe(
+        getDeterministicId("ethereum", fixture.transactionId),
+      );
+      expect(result.execution.actions).toHaveLength(1);
+
+      const orderHash = keccak256(
+        encodePacked(
+          ["string", "bytes", "uint256", "bytes32"],
+          [
+            "ethereum",
+            `0x${Buffer.from(
+              encodeAddress(fixture.depositor, "ethereum-vm"),
+            ).toString("hex")}`,
+            BigInt(fixture.timestamp),
+            fixture.orderId as Hex,
+          ],
+        ),
+      );
+      const expectedOrderAddress = `0x${orderHash
+        .slice(2)
+        .slice(-40)}` as `0x${string}`;
+
+      expect(result.executeAndWithdrawRequest).toEqual({
+        inChainId: "ethereum",
+        inCurrency: `0x${Buffer.from(
+          encodeAddress(fixture.currency, "ethereum-vm"),
+        ).toString("hex")}`,
+        outChainId: "ethereum",
+        outCurrency: `0x${Buffer.from(
+          encodeAddress(fixture.currency, "ethereum-vm"),
+        ).toString("hex")}`,
+        outAmountMinimum: fixture.amount,
+        depository: `0x${Buffer.from(
+          encodeAddress(depositoryAddress, "ethereum-vm"),
+        ).toString("hex")}`,
+        orderAddress: expectedOrderAddress,
+        receiver: `0x${Buffer.from(
+          encodeAddress(fixture.outputRecipient, "ethereum-vm"),
+        ).toString("hex")}`,
+        data: "0x",
+        fees: [],
+        nonce,
+      });
+      expect(verifyMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: fixture.order.solver,
+          message: { raw: fixture.orderId },
+        }),
+      );
+    });
+
+    it("rejects orders with multiple outputs", async () => {
+      const fixture = await buildWithdrawAndFillFixture({
+        multipleOutputs: true,
+      });
+
+      await expect(
+        service.attestWithdrawAndFill({
+          chainId: "ethereum",
+          transactionId: fixture.transactionId,
+          onchainId: fixture.onchainId,
+          order: fixture.order,
+          orderSignature: "0x" + "00".repeat(65),
+          nonce: "explicit-nonce",
+        }),
+      ).rejects.toThrow("Only single-output payment orders are allowed");
+    });
+
+    it("maps input-currency order fees into the execute-and-withdraw request", async () => {
+      const fixture = await buildWithdrawAndFillFixture({
+        withFees: true,
+      });
+      const nonce = "explicit-nonce";
+
+      const result = await service.attestWithdrawAndFill({
+        chainId: "ethereum",
+        transactionId: fixture.transactionId,
+        onchainId: fixture.onchainId,
+        order: fixture.order,
+        orderSignature: "0x" + "00".repeat(65),
+        nonce,
+      });
+
+      const feeRecipientAlias = generateAddress({
+        address: "0x5555555555555555555555555555555555555555",
+        chainId: "ethereum",
+        family: "ethereum-vm",
+      });
+      expect(result.executeAndWithdrawRequest.fees).toEqual([
+        {
+          recipient: feeRecipientAlias,
+          amount: "1",
+        },
+      ]);
+    });
+
+    it("rejects fees not denominated in the input currency", async () => {
+      const fixture = await buildWithdrawAndFillFixture({
+        wrongFeeCurrency: true,
+      });
+
+      await expect(
+        service.attestWithdrawAndFill({
+          chainId: "ethereum",
+          transactionId: fixture.transactionId,
+          onchainId: fixture.onchainId,
+          order: fixture.order,
+          orderSignature: "0x" + "00".repeat(65),
+          nonce: "explicit-nonce",
+        }),
+      ).rejects.toThrow("Fee currency must match the input currency");
+    });
+  });
+
+  describe("attestWithdrawAndRefund", () => {
+    const refundRecipient = "0x7777777777777777777777777777777777777777";
+
+    const buildWithdrawAndRefundFixture = async (overrides?: {
+      refunds?: Order["inputs"][number]["refunds"];
+    }) => {
+      const solverAddress = "0x1234567890123456789012345678901234567890";
+      const depositor = "0x0987654321098765432109876543210987654321";
+      const currency = "0x1111111111111111111111111111111111111111";
+      const amount = "1000";
+      const timestamp = "1234567890";
+      const transactionId =
+        "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e";
+      const onchainId =
+        "0x0000000000000000000000000000000000000000000000000000000000000999";
+
+      const order: Order = {
+        version: "v1",
+        salt: "0x1",
+        solverChainId: "ethereum",
+        solver: solverAddress,
+        inputs: [
+          {
+            payment: {
+              chainId: "ethereum",
+              currency,
+              amount,
+              weight: "1",
+            },
+            refunds: overrides?.refunds ?? [
+              {
+                chainId: "ethereum",
+                recipient: refundRecipient,
+                currency,
+                minimumAmount: amount,
+                deadline: Math.floor(Date.now() / 1000) + 3600,
+                extraData: "0x",
+              },
+            ],
+          },
+        ],
+        output: {
+          chainId: "ethereum",
+          payments: [
+            {
+              recipient: "0x3333333333333333333333333333333333333333",
+              currency,
+              minimumAmount: amount,
+              expectedAmount: amount,
+            },
+          ],
+          calls: [],
+          extraData: "0x",
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+        fees: [],
+      };
+
+      const orderId = getOrderId(order, await getSdkChainsConfig());
+      const mockDepositMessage = {
+        data: {
+          chainId: "ethereum",
+          transactionId,
+        },
+        result: {
+          depositor,
+          depository: "0x4444444444444444444444444444444444444444",
+          currency,
+          amount,
+          onchainId,
+          depositId: orderId,
+        },
+        extraData: { timestamp },
+      };
+
+      const mockAttestor: any = {
+        getDepositoryDepositMessages: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve([mockDepositMessage])),
+      };
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      return {
+        order,
+        orderId,
+        transactionId,
+        onchainId,
+        amount,
+        currency,
+        depositor,
+        timestamp,
+      };
+    };
+
+    it("refunds the input currency back to the refund recipient", async () => {
+      const fixture = await buildWithdrawAndRefundFixture();
+      const nonce = "explicit-nonce";
+
+      const result = await service.attestWithdrawAndRefund({
+        chainId: "ethereum",
+        transactionId: fixture.transactionId,
+        onchainId: fixture.onchainId,
+        order: fixture.order,
+        orderSignature: "0x" + "00".repeat(65),
+        nonce,
+      });
+
+      expect(result.execution).toBeDefined();
+
+      const orderHash = keccak256(
+        encodePacked(
+          ["string", "bytes", "uint256", "bytes32"],
+          [
+            "ethereum",
+            `0x${Buffer.from(
+              encodeAddress(fixture.depositor, "ethereum-vm"),
+            ).toString("hex")}`,
+            BigInt(fixture.timestamp),
+            fixture.orderId as Hex,
+          ],
+        ),
+      );
+      const expectedOrderAddress = `0x${orderHash
+        .slice(2)
+        .slice(-40)}` as `0x${string}`;
+
+      expect(result.executeAndWithdrawRequest).toEqual({
+        inChainId: "ethereum",
+        inCurrency: `0x${Buffer.from(
+          encodeAddress(fixture.currency, "ethereum-vm"),
+        ).toString("hex")}`,
+        outChainId: "ethereum",
+        outCurrency: `0x${Buffer.from(
+          encodeAddress(fixture.currency, "ethereum-vm"),
+        ).toString("hex")}`,
+        outAmountMinimum: fixture.amount,
+        depository: `0x${Buffer.from(
+          encodeAddress(depositoryAddress, "ethereum-vm"),
+        ).toString("hex")}`,
+        orderAddress: expectedOrderAddress,
+        receiver: `0x${Buffer.from(
+          encodeAddress(refundRecipient, "ethereum-vm"),
+        ).toString("hex")}`,
+        data: "0x",
+        fees: [],
+        nonce,
+      });
+    });
+
+    it("rejects when no refund matches the input currency/chain", async () => {
+      const fixture = await buildWithdrawAndRefundFixture({
+        refunds: [
+          {
+            chainId: "ethereum",
+            recipient: refundRecipient,
+            currency: "0x9999999999999999999999999999999999999999",
+            minimumAmount: "1000",
+            deadline: Math.floor(Date.now() / 1000) + 3600,
+            extraData: "0x",
+          },
+        ],
+      });
+
+      await expect(
+        service.attestWithdrawAndRefund({
+          chainId: "ethereum",
+          transactionId: fixture.transactionId,
+          onchainId: fixture.onchainId,
+          order: fixture.order,
+          orderSignature: "0x" + "00".repeat(65),
+          nonce: "explicit-nonce",
+        }),
+      ).rejects.toThrow("Non-matching refund option");
+    });
+
+    it("rejects when multiple refunds match the input currency/chain", async () => {
+      const fixture = await buildWithdrawAndRefundFixture({
+        refunds: [
+          {
+            chainId: "ethereum",
+            recipient: refundRecipient,
+            currency: "0x1111111111111111111111111111111111111111",
+            minimumAmount: "1000",
+            deadline: Math.floor(Date.now() / 1000) + 3600,
+            extraData: "0x",
+          },
+          {
+            chainId: "ethereum",
+            recipient: refundRecipient,
+            currency: "0x1111111111111111111111111111111111111111",
+            minimumAmount: "500",
+            deadline: Math.floor(Date.now() / 1000) + 3600,
+            extraData: "0x",
+          },
+        ],
+      });
+
+      await expect(
+        service.attestWithdrawAndRefund({
+          chainId: "ethereum",
+          transactionId: fixture.transactionId,
+          onchainId: fixture.onchainId,
+          order: fixture.order,
+          orderSignature: "0x" + "00".repeat(65),
+          nonce: "explicit-nonce",
+        }),
+      ).rejects.toThrow("Only single-refund options are allowed");
     });
   });
 

@@ -10,6 +10,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: publish-public-oracle-image
+  cancel-in-progress: false
+
 permissions:
   contents: read
   packages: write
@@ -78,17 +82,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          ghcr_tag_exists() {
+          ghcr_tags() {
             local error_file="$RUNNER_TEMP/ghcr-${PUBLIC_PACKAGE_NAME}.err"
-            local tags
 
-            if tags="$(gh api \
+            if gh api \
               "orgs/${PUBLIC_REGISTRY_OWNER}/packages/container/${PUBLIC_PACKAGE_NAME}/versions" \
               --paginate \
               --jq '.[].metadata.container.tags[]?' \
-              2>"$error_file")"; then
-              printf '%s\n' "$tags" | grep -Fxq "$PUBLIC_VERSION"
-              return
+              2>"$error_file"; then
+              return 0
             fi
 
             if grep -q "Package not found" "$error_file"; then
@@ -99,9 +101,12 @@ jobs:
             return 2
           }
 
-          if ghcr_tag_exists; then
-            echo "Skipping ${PUBLIC_IMAGE}:${PUBLIC_VERSION}; tag already exists."
-            exit 0
+          existing_tags=""
+          if existing_tags="$(ghcr_tags)"; then
+            if printf '%s\n' "$existing_tags" | grep -Fxq "$PUBLIC_VERSION"; then
+              echo "Skipping ${PUBLIC_IMAGE}:${PUBLIC_VERSION}; tag already exists."
+              exit 0
+            fi
           else
             tag_check_status=$?
             if [ "$tag_check_status" -ne 1 ]; then
@@ -109,10 +114,23 @@ jobs:
             fi
           fi
 
+          newest="$(
+            printf '%s\n%s\n' "$existing_tags" "$PUBLIC_VERSION" \
+              | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V \
+              | tail -n1 || true
+          )"
+
+          build_tags=(--tag "${PUBLIC_IMAGE}:${PUBLIC_VERSION}")
+          if [ "$newest" = "$PUBLIC_VERSION" ]; then
+            build_tags+=(--tag "${PUBLIC_IMAGE}:latest")
+          else
+            echo "Not tagging ${PUBLIC_IMAGE}:latest; ${PUBLIC_VERSION} is not the newest stable vX.Y.Z tag (${newest:-<none>})."
+          fi
+
           docker buildx build \
             --file Dockerfile \
             --label "org.opencontainers.image.source=${PUBLIC_REPOSITORY_URL}" \
-            --tag "${PUBLIC_IMAGE}:${PUBLIC_VERSION}" \
-            --tag "${PUBLIC_IMAGE}:latest" \
+            "${build_tags[@]}" \
             --push \
             .

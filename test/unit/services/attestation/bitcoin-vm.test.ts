@@ -11,6 +11,7 @@ import { zeroHash } from "viem";
 import { Chain } from "../../../../src/common/chains";
 import { httpRpc } from "../../../../src/common/vm/bitcoin-vm/rpc";
 import { AttestationService } from "../../../../src/services/attestation";
+import { BitcoinVmAttestor } from "../../../../src/services/attestation/vm/bitcoin-vm";
 
 import { randomHex } from "../../../common/utils";
 import { createMockWithdrawalAddressRequest } from "../../../common/withdrawals";
@@ -36,8 +37,6 @@ jest.mock("../../../../src/common/chains", () => {
     },
   };
   return {
-    HUB_VM_TYPE: "hub-vm",
-    HUB_CHAIN_ID: 0n,
     getChains: async () => chains,
     getHubInfo: async () => ({
       id: "hub",
@@ -50,7 +49,8 @@ jest.mock("../../../../src/common/chains", () => {
       auroraHttpRpcUrl: "http://localhost:8545",
       auroraEvmChainId: "1313161554",
       auroraAllocatorAddress: "0x0000000000000000000000000000000000000005",
-      auroraAllocatorSpenderAddress: "0x0000000000000000000000000000000000000006",
+      auroraAllocatorSpenderAddress:
+        "0x0000000000000000000000000000000000000006",
       auroraOracleMultisigAddress: "0x0000000000000000000000000000000000000007",
     }),
     getChain: async (chainId: string) => chains[chainId],
@@ -615,7 +615,10 @@ describe("BitcoinVmAttestor", () => {
       const transactionId = randomHex(32);
       const invalidDepositId = `0x${"g".repeat(64)}`;
       const validDepositId = randomHex(32);
-      const depositTx = createDepositTransaction(transactionId, invalidDepositId);
+      const depositTx = createDepositTransaction(
+        transactionId,
+        invalidDepositId,
+      );
       depositTx.vout.push(generateOpReturnOutput(validDepositId, 2));
       const inputTxid = depositTx.vin[0].txid;
       const inputTx = createInputTransaction(inputTxid);
@@ -710,10 +713,22 @@ describe("BitcoinVmAttestor", () => {
     });
 
     it.each([
-      ["mistyped depositor key", "|depositer=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh|"],
-      ["missing equals sign", "|depositorbc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh|"],
-      ["missing initial pipe", "depositor=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh|"],
-      ["missing ending pipe", "|depositor=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"],
+      [
+        "mistyped depositor key",
+        "|depositer=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh|",
+      ],
+      [
+        "missing equals sign",
+        "|depositorbc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh|",
+      ],
+      [
+        "missing initial pipe",
+        "depositor=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh|",
+      ],
+      [
+        "missing ending pipe",
+        "|depositor=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+      ],
     ])(
       "should ignore malformed OP_RETURN depositor metadata: %s",
       async (_caseName, metadata) => {
@@ -1265,6 +1280,99 @@ describe("BitcoinVmAttestor", () => {
         });
 
       expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
+    });
+  });
+
+  describe("validateSubmitWithdrawRequest", () => {
+    const utxoTxid = randomHex(32);
+
+    const makeWithdrawRequest = (overrides?: Record<string, any>): any => ({
+      chainId: "bitcoin",
+      depository: testDepositoryAddress,
+      currency: testDepositoryAddress,
+      amount: "100000000",
+      spender: testUserAddress,
+      recipient: testUserAddress,
+      nonce: "1",
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it("should return false when bitcoin additional data is missing", async () => {
+      const attestor = new BitcoinVmAttestor();
+      const result = await attestor.validateSubmitWithdrawRequest(
+        makeWithdrawRequest(),
+      );
+      expect(result).toBe(false);
+    });
+
+    it("should return true when all allocator UTXO values match on-chain", async () => {
+      setupRpcMock({
+        getTransaction: async () =>
+          generateBitcoinTransaction(utxoTxid, {
+            vout: [
+              {
+                value: 5000,
+                n: 0,
+                scriptPubKey: {
+                  asm: "",
+                  desc: "",
+                  hex: "",
+                  type: "witness_v0_keyhash",
+                },
+              },
+            ],
+          }),
+      });
+
+      const attestor = new BitcoinVmAttestor();
+      const result = await attestor.validateSubmitWithdrawRequest(
+        makeWithdrawRequest({
+          additionalData: {
+            "bitcoin-vm": {
+              allocatorUtxos: [{ txid: utxoTxid, vout: 0, value: "5000" }],
+              feeRate: 1,
+            },
+          },
+        }),
+      );
+      expect(result).toBe(true);
+    });
+
+    it("should return false when an allocator UTXO value does not match on-chain", async () => {
+      setupRpcMock({
+        getTransaction: async () =>
+          generateBitcoinTransaction(utxoTxid, {
+            vout: [
+              {
+                value: 4000,
+                n: 0,
+                scriptPubKey: {
+                  asm: "",
+                  desc: "",
+                  hex: "",
+                  type: "witness_v0_keyhash",
+                },
+              },
+            ],
+          }),
+      });
+
+      const attestor = new BitcoinVmAttestor();
+      const result = await attestor.validateSubmitWithdrawRequest(
+        makeWithdrawRequest({
+          additionalData: {
+            "bitcoin-vm": {
+              allocatorUtxos: [{ txid: utxoTxid, vout: 0, value: "5000" }],
+              feeRate: 1,
+            },
+          },
+        }),
+      );
+      expect(result).toBe(false);
     });
   });
 });

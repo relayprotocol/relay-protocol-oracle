@@ -34,6 +34,9 @@ import {
   DepositAddressTrigger,
   getDepositAddressTriggerHash,
   encodeAddress,
+  encodeAddressToHex,
+  ExecuteAndWithdrawFee,
+  ExecuteAndWithdrawRequest,
 } from "@relay-protocol/settlement-sdk";
 import axios from "axios";
 import * as bitcoin from "bitcoinjs-lib";
@@ -65,6 +68,7 @@ import {
   getChainVmType,
   getHubInfo,
   getSdkChainsConfig,
+  RELAY_CHAIN_ID,
 } from "../../common/chains";
 import { externalError, internalError } from "../../common/error";
 import {
@@ -122,6 +126,204 @@ const getInputHints = (
 };
 
 export class AttestationService {
+  public async attestWithdrawAndFill(
+    data: {
+      chainId: string;
+      transactionId: string;
+      onchainId: string;
+      order: Order;
+      orderSignature: string;
+      nonce: string;
+    } & { hints?: TxHints },
+  ): Promise<{
+    execution: ExecutionMessage;
+    executeAndWithdrawRequest: ExecuteAndWithdrawRequest;
+  }> {
+    const attested = await this._attestExecuteAndWithdrawDeposit(data);
+
+    const executeAndWithdrawRequest =
+      await this._getExecuteAndWithdrawFillRequest({
+        attested,
+        nonce: data.nonce,
+      });
+
+    return {
+      execution: attested.execution,
+      executeAndWithdrawRequest,
+    };
+  }
+
+  public async attestWithdrawAndRefund(
+    data: {
+      chainId: string;
+      transactionId: string;
+      onchainId: string;
+      order: Order;
+      orderSignature: string;
+      nonce: string;
+    } & { hints?: TxHints },
+  ): Promise<{
+    execution: ExecutionMessage;
+    executeAndWithdrawRequest: ExecuteAndWithdrawRequest;
+  }> {
+    const attested = await this._attestExecuteAndWithdrawDeposit(data);
+
+    const executeAndWithdrawRequest =
+      await this._getExecuteAndWithdrawRefundRequest({
+        attested,
+        nonce: data.nonce,
+      });
+
+    return {
+      execution: attested.execution,
+      executeAndWithdrawRequest,
+    };
+  }
+
+  // Shared validation for the solver withdraw-and-{fill,refund} flows: verifies
+  // the order signature, attests the depository deposit, links it to the order
+  // and validates the order output (fill) and refund (refund) targets. Returns
+  // the Hub execution, the matched deposit and the derived output/refund data.
+  private async _attestExecuteAndWithdrawDeposit(
+    data: {
+      chainId: string;
+      transactionId: string;
+      onchainId: string;
+      order: Order;
+      orderSignature: string;
+      nonce: string;
+    } & { hints?: TxHints },
+  ): Promise<{
+    execution: ExecutionMessage;
+    deposit: EnhancedDepositoryDepositMessage;
+    output: {
+      chainId: string;
+      currency: string;
+      minimumAmount: string;
+      recipient: string;
+      fees: ExecuteAndWithdrawFee[];
+    };
+    refund: {
+      chainId: string;
+      currency: string;
+      minimumAmount: string;
+      recipient: string;
+      fees: ExecuteAndWithdrawFee[];
+    };
+  }> {
+    // Get the order id
+    const orderId = getOrderId(data.order, await getSdkChainsConfig());
+
+    // Verify the order signature
+    const isSignatureValid = await verifyMessage({
+      address: data.order.solver as Address,
+      message: {
+        raw: orderId,
+      },
+      signature: data.orderSignature as Hex,
+    }).catch(() => false);
+    if (!isSignatureValid) {
+      throw externalError("Invalid order signature");
+    }
+
+    const depositoryDepositMessages = await this.attestDepositoryDeposits(data);
+    if (!depositoryDepositMessages.execution) {
+      throw externalError("No depository-deposit messages attested");
+    }
+
+    // Validate the deposit against the order
+    const deposit = depositoryDepositMessages.messages.find(
+      (d) => d.result.onchainId === data.onchainId,
+    );
+    if (!deposit) {
+      throw externalError("Could not find corresponding deposit");
+    }
+    if (deposit.result.depositId !== orderId) {
+      throw externalError("Deposit does not reference order id");
+    }
+
+    // Only single-input orders are allowed
+    if (data.order.inputs.length !== 1) {
+      throw externalError("Only single-input orders are allowed");
+    }
+
+    // Validate the order input against the deposit
+    const orderInput = data.order.inputs[0];
+    if (BigInt(orderInput.payment.weight) !== 1n) {
+      throw externalError("Wrong weight for order input");
+    }
+    if (deposit.data.chainId !== orderInput.payment.chainId) {
+      throw externalError(
+        "Deposit chain id does not match order input chain id",
+      );
+    }
+    if (deposit.result.currency !== orderInput.payment.currency) {
+      throw externalError(
+        "Deposit currency does not match order input currency",
+      );
+    }
+
+    // Only single-refund options are allowed
+    if (orderInput.refunds.length !== 1) {
+      throw externalError("Only single-refund options are allowed");
+    }
+
+    // Validate the refund details against the order input
+    const orderRefund = orderInput.refunds[0];
+    if (
+      orderRefund.chainId !== orderInput.payment.chainId ||
+      orderRefund.currency !== orderInput.payment.currency
+    ) {
+      throw externalError("Non-matching refund option");
+    }
+
+    const orderOutput = data.order.output;
+
+    // Only single-output payment orders are allowed
+    if (data.order.output.payments.length !== 1) {
+      throw externalError("Only single-output payment orders are allowed");
+    }
+
+    const orderOutputPayment = orderOutput.payments[0];
+
+    // The fees are structured as follows:
+    // - fees[0]: fill gas fee
+    // - fees[1]: refund gas fee
+    // - fees[2:]: additional fill fees
+    const allFees = await this._getExecuteAndWithdrawFees(
+      data.order,
+      deposit as EnhancedDepositoryDepositMessage,
+    );
+    const outputFees: ExecuteAndWithdrawFee[] = [];
+    const refundFees: ExecuteAndWithdrawFee[] = [];
+    allFees.forEach((fee, index) => {
+      if (index === 1) {
+        refundFees.push(fee);
+      } else {
+        outputFees.push(fee);
+      }
+    });
+
+    return {
+      execution: depositoryDepositMessages.execution,
+      deposit: deposit as EnhancedDepositoryDepositMessage,
+      output: {
+        chainId: orderOutput.chainId,
+        currency: orderOutputPayment.currency,
+        minimumAmount: orderOutputPayment.minimumAmount,
+        recipient: orderOutputPayment.recipient,
+        fees: outputFees,
+      },
+      refund: {
+        chainId: orderRefund.chainId,
+        currency: orderRefund.currency,
+        minimumAmount: orderRefund.minimumAmount,
+        recipient: orderRefund.recipient,
+        fees: refundFees,
+      },
+    };
+  }
+
   public async attestDepositoryDeposits(
     data: DepositoryDepositMessage["data"] & { hints?: TxHints },
   ): Promise<{
@@ -545,11 +747,37 @@ export class AttestationService {
         family: await getChainVmType(withdrawRequest.chainId),
       });
 
-      const hubToAddress = generateAddress({
+      const spenderAlias = generateAddress({
         address: data.spender,
         chainId: withdrawRequest.spenderChainId,
         family: await getChainVmType(withdrawRequest.spenderChainId),
       });
+      const hubInfo = await getHubInfo();
+      const executorAlias = generateAddress({
+        address: hubInfo.executorAddress,
+        chainId: RELAY_CHAIN_ID,
+        family: await getChainVmType(RELAY_CHAIN_ID),
+      });
+
+      let hubToAddress = spenderAlias;
+      if (spenderAlias.toLowerCase() === executorAlias.toLowerCase()) {
+        const executor = getContract({
+          address: hubInfo.executorAddress as Address,
+          abi: parseAbi([
+            "function orderAddressByWithdrawRequestHash(bytes32 withdrawRequestHash) view returns (address)",
+          ]),
+          client: await getHubHttpRpc(),
+        });
+        const orderAddress =
+          await executor.read.orderAddressByWithdrawRequestHash([
+            withdrawRequestHash as Hex,
+          ]);
+        if (orderAddress === zeroAddress) {
+          throw externalError("Withdrawal has no corresponding order address");
+        }
+
+        hubToAddress = orderAddress;
+      }
 
       // Mint back the funds to the spender
       execution = {
@@ -1197,6 +1425,106 @@ export class AttestationService {
     return { execution };
   }
 
+  private async _getExecuteAndWithdrawFillRequest(data: {
+    attested: Awaited<
+      ReturnType<AttestationService["_attestExecuteAndWithdrawDeposit"]>
+    >;
+    nonce: string;
+  }): Promise<ExecuteAndWithdrawRequest> {
+    const { deposit, output } = data.attested;
+
+    const orderAddress = await this._getOrderAddress({
+      chainId: deposit.data.chainId,
+      timestamp: deposit.extraData.timestamp,
+      depositor: deposit.result.depositor,
+      depositId: deposit.result.depositId,
+    });
+
+    const inChain = await getChain(deposit.data.chainId);
+    const outChain = await getChain(output.chainId);
+
+    return {
+      inChainId: inChain.id,
+      inCurrency: encodeAddressToHex(deposit.result.currency, inChain.vmType),
+      outChainId: outChain.id,
+      outCurrency: encodeAddressToHex(output.currency, outChain.vmType),
+      outAmountMinimum: output.minimumAmount,
+      depository: encodeAddressToHex(outChain.depository!, outChain.vmType),
+      orderAddress,
+      receiver: encodeAddressToHex(output.recipient, outChain.vmType),
+      data: "0x",
+      fees: output.fees,
+      nonce: data.nonce,
+    };
+  }
+
+  // Builds an `ExecuteAndWithdrawRequest` that refunds the input currency back
+  // to the order's refund recipient (rather than filling the order output).
+  // The order must declare exactly one refund matching the input payment
+  // currency/chain.
+  private async _getExecuteAndWithdrawRefundRequest(data: {
+    attested: Awaited<
+      ReturnType<AttestationService["_attestExecuteAndWithdrawDeposit"]>
+    >;
+    nonce: string;
+  }): Promise<ExecuteAndWithdrawRequest> {
+    const { deposit, refund } = data.attested;
+
+    const orderAddress = await this._getOrderAddress({
+      chainId: deposit.data.chainId,
+      timestamp: deposit.extraData.timestamp,
+      depositor: deposit.result.depositor,
+      depositId: deposit.result.depositId,
+    });
+
+    const inChain = await getChain(deposit.data.chainId);
+    const outChain = await getChain(refund.chainId);
+
+    return {
+      inChainId: inChain.id,
+      inCurrency: encodeAddressToHex(deposit.result.currency, inChain.vmType),
+      outChainId: outChain.id,
+      outCurrency: encodeAddressToHex(refund.currency, outChain.vmType),
+      outAmountMinimum: refund.minimumAmount,
+      depository: encodeAddressToHex(outChain.depository!, outChain.vmType),
+      orderAddress,
+      receiver: encodeAddressToHex(refund.recipient, outChain.vmType),
+      data: "0x",
+      fees: refund.fees,
+      nonce: data.nonce,
+    };
+  }
+
+  // `RelayExecutor` charges fees in the input currency, deducted from the
+  // pulled order funds before executing any calls. Every order fee must
+  // therefore be denominated in the deposit's (input) currency, and the
+  // recipient is resolved to its Hub account alias.
+  private async _getExecuteAndWithdrawFees(
+    order: Order,
+    deposit: EnhancedDepositoryDepositMessage,
+  ): Promise<ExecuteAndWithdrawFee[]> {
+    const fees: ExecuteAndWithdrawFee[] = [];
+    for (const fee of order.fees) {
+      if (
+        fee.currencyChainId !== deposit.data.chainId ||
+        fee.currency !== deposit.result.currency
+      ) {
+        throw externalError("Fee currency must match the input currency");
+      }
+
+      fees.push({
+        recipient: generateAddress({
+          address: fee.recipient,
+          chainId: fee.recipientChainId,
+          family: await getChainVmType(fee.recipientChainId),
+        }),
+        amount: fee.amount,
+      });
+    }
+
+    return fees;
+  }
+
   private async _getDepositsDetails(data: {
     order: Order;
     orderSignature: string;
@@ -1413,10 +1741,7 @@ export class AttestationService {
     });
   }
 
-  private _getConfiguredDepository(
-    chain: Chain,
-    requestedDepository?: string,
-  ) {
+  private _getConfiguredDepository(chain: Chain, requestedDepository?: string) {
     const depository = requestedDepository ?? chain.depository;
     if (!depository) {
       throw externalError("Chain has no depository configured");
@@ -1475,7 +1800,10 @@ export class AttestationService {
     const chain = await getChain(data.chainId);
 
     const attestor = await getVmAttestor(data.chainId);
-    await attestor.validateSubmitWithdrawRequest(data);
+    const result = await attestor.validateSubmitWithdrawRequest(data);
+    if (!result) {
+      throw new Error("Invalid withdraw request");
+    }
 
     const payloadParams = normalizePayloadParams({
       ...data,
@@ -1597,23 +1925,27 @@ export class AttestationService {
 
             const PAYLOAD_WITHDRAW_SIGNED_TOPIC =
               "0x0442d576de21d369ae594c20a06e751211e214c91de4b237e5f66edd1900f1f9";
-            const response = await axios.post(hubInfo.auroraHttpRpcUrl, {
-              jsonrpc: "2.0",
-              id: 1,
-              method: "eth_getLogs",
-              params: [
-                {
-                  fromBlock: "earliest",
-                  toBlock: "latest",
-                  address: hubInfo.auroraAllocatorAddress,
-                  topics: [
-                    PAYLOAD_WITHDRAW_SIGNED_TOPIC,
-                    payloadId,
-                    hashToSign,
-                  ],
-                },
-              ],
-            });
+            const response = await axios.post(
+              hubInfo.auroraHttpRpcUrl,
+              {
+                jsonrpc: "2.0",
+                id: 1,
+                method: "eth_getLogs",
+                params: [
+                  {
+                    fromBlock: "earliest",
+                    toBlock: "latest",
+                    address: hubInfo.auroraAllocatorAddress,
+                    topics: [
+                      PAYLOAD_WITHDRAW_SIGNED_TOPIC,
+                      payloadId,
+                      hashToSign,
+                    ],
+                  },
+                ],
+              },
+              { timeout: 10000 },
+            );
             if (response.data?.error) {
               throw internalError(
                 `Allocator signature lookup failed: ${JSON.stringify(

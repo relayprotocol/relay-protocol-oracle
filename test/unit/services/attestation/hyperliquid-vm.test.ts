@@ -1619,4 +1619,57 @@ describe("HyperliquidVmAttestor", () => {
       ).rejects.toThrow("Could not retrieve payment currency decimals");
     });
   });
+
+  describe("validateSubmitWithdrawRequest", () => {
+    const nativeCurrency = "0x00000000000000000000000000000000";
+
+    const makeWithdrawRequest = (overrides?: Record<string, any>): any => ({
+      chainId: "hyperliquid",
+      depository: testDepositoryAddress,
+      currency: nativeCurrency,
+      amount: "100",
+      spender: testUserAddress,
+      recipient: testUserAddress,
+      nonce: "1",
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it("should return true for the native currency without additional data", async () => {
+      const attestor = new HyperliquidVmAttestor();
+      const result = await attestor.validateSubmitWithdrawRequest(
+        makeWithdrawRequest(),
+      );
+      expect(result).toBe(true);
+    });
+
+    it("should return false for a non-native currency without hyperliquid additional data", async () => {
+      const attestor = new HyperliquidVmAttestor();
+      const result = await attestor.validateSubmitWithdrawRequest(
+        makeWithdrawRequest({
+          currency: "0x6d1e7cde53ba9467b783cb7c530ce054",
+        }),
+      );
+      expect(result).toBe(false);
+    });
+
+    it("should return true for a non-native currency with hyperliquid additional data", async () => {
+      const attestor = new HyperliquidVmAttestor();
+      const result = await attestor.validateSubmitWithdrawRequest(
+        makeWithdrawRequest({
+          currency: "0x6d1e7cde53ba9467b783cb7c530ce054",
+          additionalData: {
+            "hyperliquid-vm": {
+              currencyHyperliquidSymbol: "USDC",
+              currentTime: Date.now(),
+            },
+          },
+        }),
+      );
+      expect(result).toBe(true);
+    });
+  });
 });

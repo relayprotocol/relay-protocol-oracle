@@ -1,4 +1,5 @@
 import {
+  ExecuteAndWithdrawRequest,
   ExecutionMessage,
   GenericMappingMessage,
   SubmitWithdrawRequest,
@@ -160,6 +161,69 @@ export const signDepositAddressTriggerMessage = async (m: {
   });
 
   return {
+    oracleSigner: wallet.address.toLowerCase(),
+    signature,
+  };
+};
+
+export const signExecuteAndWithdrawRequestMessage = async (
+  m: ExecuteAndWithdrawRequest,
+) => {
+  const wallet = await getSigningWallet();
+
+  const hubInfo = await getHubInfo();
+  if (!hubInfo.executorAddress) {
+    throw new Error("Missing executor config");
+  }
+
+  const signature = await wallet.signTypedData({
+    domain: {
+      chainId: BigInt(hubInfo.evmChainId),
+      name: "RelayExecutor",
+      verifyingContract: hubInfo.executorAddress as Address,
+      version: "1",
+    },
+    message: {
+      inChainId: m.inChainId,
+      inCurrency: m.inCurrency as Hex,
+      outChainId: m.outChainId,
+      outCurrency: m.outCurrency as Hex,
+      outAmountMinimum: BigInt(m.outAmountMinimum),
+      depository: m.depository as Hex,
+      orderAddress: m.orderAddress as Address,
+      receiver: m.receiver as Hex,
+      data: m.data as Hex,
+      fees: m.fees.map((fee) => ({
+        recipient: fee.recipient as Address,
+        amount: BigInt(fee.amount),
+      })),
+      nonce: m.nonce as Hex,
+    },
+    primaryType: "ExecuteAndWithdrawRequest",
+    types: {
+      ExecuteAndWithdrawRequest: [
+        { name: "inChainId", type: "string" },
+        { name: "inCurrency", type: "bytes" },
+        { name: "outChainId", type: "string" },
+        { name: "outCurrency", type: "bytes" },
+        { name: "outAmountMinimum", type: "uint256" },
+        { name: "depository", type: "bytes" },
+        { name: "orderAddress", type: "address" },
+        { name: "receiver", type: "bytes" },
+        { name: "data", type: "bytes" },
+        { name: "fees", type: "Fee[]" },
+        { name: "nonce", type: "bytes32" },
+      ],
+      Fee: [
+        { name: "recipient", type: "address" },
+        { name: "amount", type: "uint256" },
+      ],
+    },
+  });
+
+  return {
+    executorChainId: BigInt(hubInfo.evmChainId),
+    executorContract: hubInfo.executorAddress as Address,
     oracleSigner: wallet.address.toLowerCase(),
     signature,
   };
