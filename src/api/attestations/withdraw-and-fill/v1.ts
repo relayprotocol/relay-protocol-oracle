@@ -1,23 +1,23 @@
 import { Type } from "@fastify/type-provider-typebox";
 
 import {
-  areExecuteAndWithdrawRequestsEqual,
-  areExecutionsEqual,
+  // areExecuteAndWithdrawRequestsEqual,
+  // areExecutionsEqual,
   Endpoint,
   ErrorResponses,
   executeAndWithdrawRequestSchema,
   executionSchema,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
-  getPeerResponses,
+  // getPeerResponses,
   orderSchema,
 } from "../../utils";
-import {
-  signExecuteAndWithdrawRequestMessage,
-  signExecutionMessage,
-} from "../../../common/signer";
-import { config } from "../../../config";
-import { AttestationService } from "../../../services/attestation";
+// import {
+//   signExecuteAndWithdrawRequestMessage,
+//   signExecutionMessage,
+// } from "../../../common/signer";
+// import { config } from "../../../config";
+// import { AttestationService } from "../../../services/attestation";
 
 const MessageData = Type.Object({
   chainId: Type.String({
@@ -75,74 +75,76 @@ export default {
   url: "/attestations/withdraw-and-fill/v1",
   schema: Schema,
   handler: async (
-    req: FastifyRequestTypeBox<typeof Schema>,
+    _req: FastifyRequestTypeBox<typeof Schema>,
     reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
-    const attestationService = new AttestationService();
-    const { execution, executeAndWithdrawRequest } =
-      await attestationService.attestWithdrawAndFill(req.body);
+    return reply.status(400).send({ message: "Not implemented" });
 
-    const peerResponses =
-      req.body.requestPeerSignatures && config.peers
-        ? await getPeerResponses({
-            endpointPath: req.originalUrl,
-            requestBody: req.body,
-            requestApiKey: req.headers["x-api-key"],
-            validateAndExtractResponse: (peerData: any) => {
-              const executionSigner =
-                peerData?.execution?.signatures?.[0]?.oracleSigner;
-              const withdrawSigner =
-                peerData?.executeAndWithdrawRequest?.signatures?.[0]
-                  ?.oracleSigner;
+    // const attestationService = new AttestationService();
+    // const { execution, executeAndWithdrawRequest } =
+    //   await attestationService.attestWithdrawAndFill(req.body);
 
-              // Accept the peer only if both signed messages match ours AND
-              // both carry a signature from the same oracle signer. The
-              // multisig expects a consistent signer set across the execution
-              // and executeAndWithdrawRequest messages, so a peer missing
-              // either signature (or signing them with different signers) is
-              // unusable and must be skipped.
-              if (
-                areExecutionsEqual(peerData.execution, execution) &&
-                areExecuteAndWithdrawRequestsEqual(
-                  peerData.executeAndWithdrawRequest,
-                  executeAndWithdrawRequest,
-                ) &&
-                executionSigner &&
-                withdrawSigner &&
-                executionSigner.toLowerCase() === withdrawSigner.toLowerCase()
-              ) {
-                // This endpoint signs two messages, so collect the whole peer
-                // payload (one entry per peer) and flatMap both signature
-                // arrays below.
-                return [peerData];
-              }
+    // const peerResponses =
+    //   req.body.requestPeerSignatures && config.peers
+    //     ? await getPeerResponses({
+    //         endpointPath: req.originalUrl,
+    //         requestBody: req.body,
+    //         requestApiKey: req.headers["x-api-key"],
+    //         validateAndExtractResponse: (peerData: any) => {
+    //           const executionSigner =
+    //             peerData?.execution?.signatures?.[0]?.oracleSigner;
+    //           const withdrawSigner =
+    //             peerData?.executeAndWithdrawRequest?.signatures?.[0]
+    //               ?.oracleSigner;
 
-              return [];
-            },
-            getSigner: (peerData: any) =>
-              peerData?.execution?.signatures?.[0]?.oracleSigner,
-          })
-        : [];
+    //           // Accept the peer only if both signed messages match ours AND
+    //           // both carry a signature from the same oracle signer. The
+    //           // multisig expects a consistent signer set across the execution
+    //           // and executeAndWithdrawRequest messages, so a peer missing
+    //           // either signature (or signing them with different signers) is
+    //           // unusable and must be skipped.
+    //           if (
+    //             areExecutionsEqual(peerData.execution, execution) &&
+    //             areExecuteAndWithdrawRequestsEqual(
+    //               peerData.executeAndWithdrawRequest,
+    //               executeAndWithdrawRequest,
+    //             ) &&
+    //             executionSigner &&
+    //             withdrawSigner &&
+    //             executionSigner.toLowerCase() === withdrawSigner.toLowerCase()
+    //           ) {
+    //             // This endpoint signs two messages, so collect the whole peer
+    //             // payload (one entry per peer) and flatMap both signature
+    //             // arrays below.
+    //             return [peerData];
+    //           }
 
-    return reply.send({
-      execution: {
-        ...execution,
-        signatures: [
-          await signExecutionMessage(execution),
-          ...peerResponses.flatMap(
-            (peerResponse) => peerResponse.execution.signatures,
-          ),
-        ],
-      },
-      executeAndWithdrawRequest: {
-        ...executeAndWithdrawRequest,
-        signatures: [
-          await signExecuteAndWithdrawRequestMessage(executeAndWithdrawRequest),
-          ...peerResponses.flatMap(
-            (peerResponse) => peerResponse.executeAndWithdrawRequest.signatures,
-          ),
-        ],
-      },
-    });
+    //           return [];
+    //         },
+    //         getSigner: (peerData: any) =>
+    //           peerData?.execution?.signatures?.[0]?.oracleSigner,
+    //       })
+    //     : [];
+
+    // return reply.send({
+    //   execution: {
+    //     ...execution,
+    //     signatures: [
+    //       await signExecutionMessage(execution),
+    //       ...peerResponses.flatMap(
+    //         (peerResponse) => peerResponse.execution.signatures,
+    //       ),
+    //     ],
+    //   },
+    //   executeAndWithdrawRequest: {
+    //     ...executeAndWithdrawRequest,
+    //     signatures: [
+    //       await signExecuteAndWithdrawRequestMessage(executeAndWithdrawRequest),
+    //       ...peerResponses.flatMap(
+    //         (peerResponse) => peerResponse.executeAndWithdrawRequest.signatures,
+    //       ),
+    //     ],
+    //   },
+    // });
   },
 } as Endpoint;

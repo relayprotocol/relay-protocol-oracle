@@ -667,6 +667,41 @@ export class AttestationService {
     );
 
     if (!withdrawals.length) {
+      // Custom logic for payloads which can never reach the allocator
+      const vmType = await getChainVmType(data.chainId);
+      if (vmType === "hyperliquid-vm") {
+        const currentTime =
+          data.additionalData?.["hyperliquid-vm"]?.currentTime;
+        if (currentTime && currentTime < Date.now() - 3 * 24 * 3600 * 1000) {
+          const { withdrawalAddress, hubTokenId, withdrawerAlias } =
+            await this._getWithdrawalAddress(data.withdrawalAddressRequest);
+          const balance = await getBalanceOnHub(withdrawalAddress, hubTokenId);
+          if (balance >= BigInt(data.amount)) {
+            // Transfer back the funds from withdrawal address to depositor
+            return {
+              status: DepositoryWithdrawalStatus.EXPIRED,
+              execution: {
+                idempotencyKey: getDeterministicId(
+                  data.nonce,
+                  DepositoryWithdrawalStatus.EXPIRED.toString(),
+                ),
+                actions: [
+                  encodeAction({
+                    type: ActionType.TRANSFER,
+                    data: {
+                      hubTokenId,
+                      hubFromAddress: withdrawalAddress,
+                      hubToAddress: withdrawerAlias,
+                      amount: data.amount,
+                    },
+                  }),
+                ],
+              },
+            };
+          }
+        }
+      }
+
       return { status: DepositoryWithdrawalStatus.PENDING };
     }
 
@@ -1861,6 +1896,9 @@ export class AttestationService {
 
     const payloadId = getSubmitWithdrawRequestHash(payloadParams);
     const payload = await allocator.read.payloads([payloadId as Hex]);
+    if (payload === "0x") {
+      return [];
+    }
 
     switch (family) {
       case "ethereum-vm":
