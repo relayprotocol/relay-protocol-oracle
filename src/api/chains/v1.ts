@@ -13,23 +13,25 @@ const Schema = {
             [
               Type.Literal("bitcoin-vm"),
               Type.Literal("ethereum-vm"),
+              Type.Literal("gateway-vm"),
               Type.Literal("hyperliquid-vm"),
               Type.Literal("lighter-vm"),
               Type.Literal("solana-vm"),
               Type.Literal("ton-vm"),
               Type.Literal("tron-vm"),
+              Type.Literal("xrp-vm"),
             ],
             {
               description: "The vm type of the chain",
-            }
+            },
           ),
           depository: Type.Optional(
             Type.String({
               description: "The depository address for the chain",
-            })
+            }),
           ),
         }),
-        { description: "A list of supported chains" }
+        { description: "A list of supported chains" },
       ),
     }),
   },
@@ -41,18 +43,16 @@ export default {
   schema: Schema,
   handler: async (
     _req: FastifyRequestTypeBox<typeof Schema>,
-    reply: FastifyReplyTypeBox<typeof Schema>
+    reply: FastifyReplyTypeBox<typeof Schema>,
   ) => {
     const chains = await getChains();
 
     return reply.send({
-      chains: Object.values(chains)
-        .filter((chain) => chain.vmType !== ("sui-vm" as typeof chain.vmType))
-        .map((chain) => ({
-          id: chain.id,
-          vmType: chain.vmType as Exclude<typeof chain.vmType, "sui-vm">,
-          depository: chain.depository,
-        })),
+      chains: Object.values(chains).map((chain) => ({
+        id: chain.id,
+        vmType: chain.vmType as Exclude<typeof chain.vmType, "sui-vm">,
+        depository: chain.depository,
+      })),
     });
   },
 } as Endpoint;

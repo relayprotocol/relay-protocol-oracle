@@ -214,6 +214,7 @@ export default {
       // digest stays identical across endpoints.
       await verifyOwnerSignature({
         data: {
+          operation: "withdrawal",
           chainId: req.body.chainId,
           currency: req.body.currency,
           amount: req.body.amount,

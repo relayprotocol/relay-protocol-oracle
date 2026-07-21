@@ -79,6 +79,22 @@ jest.mock("../../../../src/common/chains", () => {
       httpRpcUrl: "http://127.0.0.1:8545",
       depository: "0x0987654321098765432109876543210987654321",
       hubChainId: "1",
+      additionalData: {
+        fastMode: {
+          feeRecipient: "0x00000000000000000000000000000000000000fe",
+          finalityTiers: {
+            "0x1111111111111111111111111111111111111111": [
+              {
+                maxAmount: "2000",
+                finalizationBlocks: 1,
+                finalizationTime: 1,
+                // 1% as a 1e18-scaled fraction (1e16)
+                feeBps: "10000000000000000",
+              },
+            ],
+          },
+        },
+      },
     },
     solana: {
       id: "solana",
@@ -151,6 +167,10 @@ jest.mock("../../../../src/common/chains", () => {
       auroraAllocatorSpenderAddress:
         "0x0000000000000000000000000000000000000006",
       auroraOracleMultisigAddress: "0x0000000000000000000000000000000000000007",
+      rateLimiter: {
+        address: "0x00000000000000000000000000000000000000aa",
+        type: "amount",
+      },
     })),
     RELAY_CHAIN_ID: "relay",
     getSdkChainsConfig: jest.fn(() => ({
@@ -167,6 +187,9 @@ describe("AttestationService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // clearAllMocks keeps implementations, so restore the default hub balance each test — otherwise a
+    // per-test getBalanceOnHub override (fast settlement / recover cases) leaks into later tests.
+    jest.mocked(getBalanceOnHub).mockResolvedValue(10000n);
   });
 
   describe("attestDepositoryDeposits", () => {
@@ -230,6 +253,113 @@ describe("AttestationService", () => {
           amount: mockMessage.result.amount,
         },
       });
+    });
+
+    // Shared fast-deposit fixture: the VM returns a message already marked fast with a per-tier fee.
+    const FAST_TX_ID =
+      "0x552985b36c59902b24fde1437a11a2698347aa5ca2bf82697d0f8e8e1e35cc6e";
+    const fastDepositResult = {
+      depositor: "0x1234567890123456789012345678901234567890",
+      depository: "0x0987654321098765432109876543210987654321",
+      currency: "0x1111111111111111111111111111111111111111",
+      amount: "1010", // gross = 1000 net + 10 fee at 1% (1e16 feeBps)
+      onchainId:
+        "0x0000000000000000000000000000000000000000000000000000000000000999",
+      depositId:
+        "0x0000000000000000000000000000000000000000000000000000000000000789",
+    };
+    const fastAttestorMock = () => ({
+      getDepositoryDepositMessages: jest.fn().mockImplementation(() =>
+        Promise.resolve([
+          {
+            data: { chainId: "ethereum", transactionId: FAST_TX_ID },
+            result: fastDepositResult,
+            extraData: {
+              timestamp: "1234567890",
+              mode: "fast",
+              fastFeeBps: "10000000000000000",
+            },
+          },
+        ]),
+      ),
+    });
+    // Stub the hub read the fast pre-check makes (canConsume): within budget / over budget / read error.
+    const mockCanConsume = (outcome: "ok" | "reject" | "error") => {
+      const readContract = jest.fn<any>();
+      if (outcome === "error") {
+        readContract.mockRejectedValue(new Error("rpc down"));
+      } else {
+        readContract.mockResolvedValue(outcome === "ok");
+      }
+      jest.mocked(getHubHttpRpc).mockResolvedValue({
+        readContract,
+        getBlock: jest.fn(),
+      } as any);
+    };
+
+    it(`emits FAST_MINT for a fast-applied deposit`, async () => {
+      mockGetVmAttestor.mockResolvedValue(fastAttestorMock() as any);
+      mockCanConsume("ok"); // within budget
+
+      const result = await service.attestDepositoryDeposits({
+        chainId: "ethereum",
+        transactionId: FAST_TX_ID,
+        mode: "fast",
+      });
+
+      expect(result.messages[0].extraData.mode).toBe("fast");
+      expect(result.execution?.actions.length).toBe(1);
+      const [action] = result.execution?.actions || [];
+      const decoded = decodeAction(action) as any;
+      expect(decoded.type).toBe(ActionType.FAST_MINT);
+      expect(decoded.data.amount).toBe("1010");
+      expect(decoded.data.hubTokenId).toBe(
+        generateTokenId({
+          address: fastDepositResult.currency,
+          chainId: "ethereum",
+          family: await getChainVmType("ethereum"),
+        }),
+      );
+      expect(getAddress(decoded.data.rateLimiter)).toBe(
+        getAddress("0x00000000000000000000000000000000000000aa"),
+      );
+      expect(decoded.data.rateLimiterData).toBe("0x");
+      expect(getAddress(decoded.data.feeCalculator)).toBe(
+        getAddress("0x0000000000000000000000000000000000000000"),
+      );
+      expect(decoded.data.feeCalculatorData).toBe("0x");
+      expect(getAddress(decoded.data.hubToAddress)).toBe(
+        getAddress("0x5dCC0A25a0170DB4D7A4E634b6D416d41717553a"),
+      );
+      // The attested amount stays gross (1010); the contract splits the fee on-chain — we don't rewrite it.
+      expect(result.messages[0].result.amount).toBe("1010");
+    });
+
+    it(`throws (retry-slow) when the rate-limit pre-check rejects a fast deposit`, async () => {
+      mockGetVmAttestor.mockResolvedValue(fastAttestorMock() as any);
+      mockCanConsume("reject"); // bucket over budget → caller re-requests slow
+
+      await expect(
+        service.attestDepositoryDeposits({
+          chainId: "ethereum",
+          transactionId: FAST_TX_ID,
+          mode: "fast",
+        }),
+      ).rejects.toThrow(/rate limit/i);
+    });
+
+    it(`fails open (still emits FAST_MINT) when the rate-limit pre-check read errors`, async () => {
+      mockGetVmAttestor.mockResolvedValue(fastAttestorMock() as any);
+      mockCanConsume("error"); // RPC blip → fail open
+
+      const result = await service.attestDepositoryDeposits({
+        chainId: "ethereum",
+        transactionId: FAST_TX_ID,
+        mode: "fast",
+      });
+      const [action] = result.execution?.actions || [];
+      const decoded = decodeAction(action) as any;
+      expect(decoded.type).toBe(ActionType.FAST_MINT);
     });
 
     it(`uses deposit chain to compute recipient address when depositId is zeroHash`, async () => {
@@ -719,6 +849,42 @@ describe("AttestationService", () => {
           amount: tonWithdrawRequest.amount,
         },
       });
+    });
+
+    it("accepts an equivalent user-friendly TON depository address", async () => {
+      const mockedHubRpc = {
+        readContract: jest
+          .fn<any>()
+          .mockResolvedValueOnce("0x1E501Cb130fac80b3CaD5145AbCbF7393B02C3a5")
+          .mockResolvedValueOnce("ton-vm")
+          .mockResolvedValueOnce("0xdeadbeef"),
+      };
+      jest.mocked(getHubHttpRpc).mockResolvedValue(mockedHubRpc as any);
+
+      const mockAttestor: any = {
+        getDepositoryWithdrawalMessage: jest.fn().mockImplementation(() =>
+          Promise.resolve({
+            data: {
+              chainId: tonWithdrawRequest.chainId,
+              withdrawal: "0xdeadbeef",
+            },
+            result: {
+              withdrawalId: zeroHash,
+              depository: tonWithdrawRequest.depository,
+              status: DepositoryWithdrawalStatus.PENDING,
+            },
+          }),
+        ),
+      };
+      mockGetVmAttestor.mockResolvedValue(mockAttestor);
+
+      const result = await service.attestDepositoryWithdrawalV3({
+        ...tonWithdrawRequest,
+        depository: "EQDze59v2X7OJJy0jZql0CAlcK0TC3t9TOTdD0zVUbPZvWjo",
+      });
+
+      expect(result.status).toBe(DepositoryWithdrawalStatus.PENDING);
+      expect(result.execution).toBeUndefined();
     });
 
     it("attests a lighter-vm v3 withdrawal from an additional depository", async () => {
@@ -1410,6 +1576,7 @@ describe("AttestationService", () => {
         data: "0x",
         fees: [],
         nonce,
+        deadline: fixture.order.output.deadline.toString(),
       });
       expect(verifyMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1628,6 +1795,7 @@ describe("AttestationService", () => {
         data: "0x",
         fees: [],
         nonce,
+        deadline: fixture.order.inputs[0].refunds[0].deadline.toString(),
       });
     });
 

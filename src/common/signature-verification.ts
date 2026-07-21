@@ -13,7 +13,12 @@ import { toHexAddress } from "../services/attestation/vm/tron-vm";
 import { httpRpc as lighterHttpRpc } from "./vm/lighter-vm/rpc";
 import { httpRpc as tonHttpRpc } from "./vm/ton-vm/rpc";
 
+export type OwnerSignatureOperation = "withdrawal" | "transfer";
+
 export type OwnerSignatureData = {
+  // Prevent a signature for one action from authorizing another action with
+  // otherwise identical parameters.
+  operation: OwnerSignatureOperation;
   chainId: string;
   currency: string;
   amount: string;
@@ -69,12 +74,14 @@ export const verifyOwnerSignature = async ({
 };
 
 // All VMs use the same digest: SHA256(json-stable-stringify(params)).
+// `operation` provides domain separation between owner-authorized actions.
 // Each VM signs this digest using its native signing method.
 const computeDigest = (data: OwnerSignatureData): string =>
   crypto
     .createHash("sha256")
     .update(
       stringify({
+        operation: data.operation,
         chainId: data.chainId,
         currency: data.currency,
         amount: data.amount,
@@ -260,7 +267,7 @@ export const verifyTonSignData = async (
     "hex",
   );
 
-  // Payload = the canonical withdrawal digest the user signed.
+  // Payload = the canonical operation-bound digest the user signed.
   const digest = computeDigest(data);
   const payloadBytes = Buffer.from(digest, "utf-8");
 

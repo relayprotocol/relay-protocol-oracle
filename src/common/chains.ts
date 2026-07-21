@@ -41,6 +41,20 @@ export type Chain = {
     explorerApiUrl?: string;
     // For "ton-vm" — TonConnect signData origin domain (e.g. "app.relay.link").
     signDataDomain?: string;
+    // Fast-mode configurations
+    fastMode?: {
+      feeRecipient?: string;
+      // Finality tiers per currency
+      finalityTiers?: {
+        [currency: string]: Array<{
+          maxAmount: string;
+          finalizationBlocks?: number;
+          finalizationTime?: number;
+          // 1e18-scaled fee to charge for fast attestations
+          feeBps?: string;
+        }>;
+      };
+    };
   };
 };
 
@@ -195,6 +209,15 @@ let __hubInfo:
       httpRpcUrl: string;
       hubAddress: string;
       oracleAddress: string;
+      oracleVersion: string;
+      rateLimiter?: {
+        address: string;
+        type: "amount" | "usd";
+      };
+      feeCalculator?: {
+        address: string;
+        type: "bps";
+      };
       oracleMultisigAddress: string;
       genericMappingAddress: string;
       allocatorAddress: string;
@@ -221,6 +244,8 @@ export const getHubInfo = async () => {
     httpRpcUrl: readConfigValue(chain.httpRpcUrl),
     hubAddress: readConfigValue(chain.hubAddress),
     oracleAddress: readConfigValue(chain.oracleAddress),
+    oracleVersion: readConfigValue(chain.oracleVersion),
+    rateLimiter: readConfigValue(chain.rateLimiter),
     oracleMultisigAddress: readConfigValue(chain.oracleMultisigAddress),
     genericMappingAddress: readConfigValue(chain.genericMappingAddress),
     allocatorAddress: readConfigValue(chain.allocatorAddress),

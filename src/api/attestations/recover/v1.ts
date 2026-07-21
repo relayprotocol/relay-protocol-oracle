@@ -2,6 +2,7 @@ import { Type } from "@fastify/type-provider-typebox";
 
 import {
   areExecutionsEqual,
+  filterSignaturesByDomain,
   Endpoint,
   ErrorResponses,
   executionSchema,
@@ -89,12 +90,17 @@ export default {
           })
         : [];
 
+    const localExecutionSignature = await signExecutionMessage(execution);
+
     return reply.send({
       execution: {
         ...execution,
         signatures: [
-          await signExecutionMessage(execution),
-          ...peerSignatures,
+          localExecutionSignature,
+          ...filterSignaturesByDomain(peerSignatures, localExecutionSignature, {
+            chainId: "oracleChainId",
+            contract: "oracleContract",
+          }),
         ],
       },
     });

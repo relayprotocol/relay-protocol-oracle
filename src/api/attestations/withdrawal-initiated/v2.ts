@@ -8,6 +8,7 @@ import {
   ErrorResponses,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
+  filterSignaturesByDomain,
   getPeerResponses,
 } from "../../utils";
 import { getChain } from "../../../common/chains";
@@ -168,7 +169,7 @@ export default {
         throw externalError("ownerSignature is required");
       }
       await verifyOwnerSignature({
-        data: req.body,
+        data: { ...req.body, operation: "withdrawal" },
         signature: req.body.ownerSignature,
       });
     }
@@ -212,10 +213,18 @@ export default {
           })
         : [];
 
+    const localPayloadSignature = await signPayloadParams(payloadParams);
+
     return reply.send({
       payloadParams: {
         ...payloadParams,
-        signatures: [await signPayloadParams(payloadParams), ...peerSignatures],
+        signatures: [
+          localPayloadSignature,
+          ...filterSignaturesByDomain(peerSignatures, localPayloadSignature, {
+            chainId: "allocatorSpenderChainId",
+            contract: "allocatorSpenderContract",
+          }),
+        ],
       },
     });
   },

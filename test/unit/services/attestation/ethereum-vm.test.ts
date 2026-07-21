@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from "@jest/globals";
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import {
   decodeWithdrawal,
   encodeWithdrawal,
@@ -67,8 +67,13 @@ jest.mock("../../../../src/common/chains", () => {
       auroraHttpRpcUrl: "http://localhost:8545",
       auroraEvmChainId: "1313161554",
       auroraAllocatorAddress: "0x0000000000000000000000000000000000000005",
-      auroraAllocatorSpenderAddress: "0x0000000000000000000000000000000000000006",
+      auroraAllocatorSpenderAddress:
+        "0x0000000000000000000000000000000000000006",
       auroraOracleMultisigAddress: "0x0000000000000000000000000000000000000007",
+      rateLimiter: {
+        address: "0x00000000000000000000000000000000000000aa",
+        type: "amount",
+      },
     }),
     getChain: async (chainId: string) => chains[chainId],
     getChainVmType: async (chainId: string) =>
@@ -77,7 +82,7 @@ jest.mock("../../../../src/common/chains", () => {
       chainId === "base" ? "8453" : chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
       Object.fromEntries(
-        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+        Object.values(chains).map((chain) => [chain.id, chain.vmType]),
       ),
   };
 });
@@ -102,7 +107,7 @@ jest.mock("@relay-protocol/settlement-sdk", () => {
 
 const generateTransactionReceipt = (
   transactionHash: string,
-  logs: Log<bigint, number, false>[]
+  logs: Log<bigint, number, false>[],
 ): TransactionReceipt => {
   return {
     blockHash: randomHex(32) as Hex,
@@ -170,7 +175,7 @@ const generateTransferLog = ({
   });
   const data = encodeAbiParameters(
     [{ name: "amount", type: "uint256" }],
-    [BigInt(amount)]
+    [BigInt(amount)],
   );
 
   return generateTransactionLog({
@@ -207,7 +212,7 @@ const generateNativeDepositLog = ({
       { name: "amount", type: "uint256" },
       { name: "id", type: "bytes32" },
     ],
-    [from as Hex, BigInt(amount), id as Hex]
+    [from as Hex, BigInt(amount), id as Hex],
   );
 
   return generateTransactionLog({
@@ -247,7 +252,7 @@ const generateErc20DepositLog = ({
       { name: "amount", type: "uint256" },
       { name: "id", type: "bytes32" },
     ],
-    [from as Hex, token as Hex, BigInt(amount), id as Hex]
+    [from as Hex, token as Hex, BigInt(amount), id as Hex],
   );
 
   return generateTransactionLog({
@@ -281,7 +286,7 @@ const generateSolverNativeTransferLog = ({
       { name: "to", type: "address" },
       { name: "amount", type: "uint256" },
     ],
-    [from as Hex, BigInt(amount)]
+    [from as Hex, BigInt(amount)],
   );
 
   return generateTransactionLog({
@@ -318,7 +323,7 @@ const generateSolverCallExecutedLog = ({
       { name: "data", type: "bytes" },
       { name: "amount", type: "uint256" },
     ],
-    [to as Hex, callData as Hex, BigInt(amount)]
+    [to as Hex, callData as Hex, BigInt(amount)],
   );
 
   return generateTransactionLog({
@@ -370,7 +375,7 @@ function createTestOrder({
             deadline: Math.floor(Date.now() / 1000) + 36000,
             extraData: encodeAbiParameters(
               [{ type: "address" }],
-              [solverContractAddress as Hex]
+              [solverContractAddress as Hex],
             ),
           },
         ],
@@ -389,7 +394,7 @@ function createTestOrder({
       calls: [],
       extraData: encodeAbiParameters(
         [{ type: "address" }],
-        [solverContractAddress as Hex]
+        [solverContractAddress as Hex],
       ),
       deadline: Math.floor(Date.now() / 1000) + 36000,
     },
@@ -639,8 +644,7 @@ describe("EthereumVmAttestor", () => {
     const amount = randomNumber(1e10).toString();
     // An id that starts with the zero hash prefix (first 16 bytes are zeros)
     const zeroishId =
-      zeroHash.slice(0, 34) +
-      "abcdef1234567890abcdef1234567890";
+      zeroHash.slice(0, 34) + "abcdef1234567890abcdef1234567890";
 
     const transferLog = generateTransferLog({
       transactionHash,
@@ -1475,7 +1479,7 @@ describe("EthereumVmAttestor", () => {
       encodeOrderExtraData({
         vmType: "ethereum-vm",
         extraData: { fillContract },
-      })
+      }),
     );
 
     expect(result).toBe(false);
@@ -1542,7 +1546,7 @@ const setupTestEnvironment = async (
     duplicateOnchainIds?: boolean;
     customPaymentAmount?: string;
     actionType?: "fill" | "refund";
-  } = {}
+  } = {},
 ) => {
   const chains = Object.values(await getChains());
   const testData = setupTestData();
@@ -1718,7 +1722,7 @@ const testAttestSolverFill = async (options: {
         fill: {
           transactionId: env.actionTxHash,
         },
-      })
+      }),
     ).rejects.toThrow(options.expectError);
     return null;
   } else {
@@ -1732,10 +1736,10 @@ const testAttestSolverFill = async (options: {
     });
 
     expect(solverFillResult.message.result.status).toBe(
-      SolverFillStatus.SUCCESSFUL
+      SolverFillStatus.SUCCESSFUL,
     );
     expect(
-      solverFillResult.message.result.totalWeightedInputPaymentBpsDiff
+      solverFillResult.message.result.totalWeightedInputPaymentBpsDiff,
     ).toBe("0");
     return solverFillResult;
   }
@@ -1772,7 +1776,7 @@ const testAttestSolverRefund = async (options: {
             refundIndex: 0,
           },
         ],
-      })
+      }),
     ).rejects.toThrow(options.expectError);
     return null;
   } else {
@@ -1791,11 +1795,286 @@ const testAttestSolverRefund = async (options: {
       });
 
     expect(solverRefundResult.message.result.status).toBe(
-      SolverRefundStatus.SUCCESSFUL
+      SolverRefundStatus.SUCCESSFUL,
     );
     expect(
-      solverRefundResult.message.result.totalWeightedInputPaymentBpsDiff
+      solverRefundResult.message.result.totalWeightedInputPaymentBpsDiff,
     ).toBe("0");
     return solverRefundResult;
   }
 };
+
+describe("EthereumVmAttestor - fast-finality deposit thresholds", () => {
+  const TOKEN = "0x1111111111111111111111111111111111111111";
+  const AMOUNT = "1000000";
+
+  // The getBlock mock yields a ~120s gap between the tx and the latest block,
+  // so a 500s finalizationTime default blocks attestation unless a fast tier applies
+  const setAdditionalData = async (
+    thresholds?: NonNullable<
+      NonNullable<Chain["additionalData"]>["fastMode"]
+    >["finalityTiers"],
+    enabled?: boolean,
+  ) => {
+    const chain = (await getChains())["ethereum"];
+    chain.additionalData = {
+      finalizationTime: 500,
+      fastMode: enabled ? { finalityTiers: thresholds } : undefined,
+    };
+    return chain;
+  };
+
+  afterEach(async () => {
+    (await getChains())["ethereum"].additionalData = undefined;
+  });
+
+  // Fast finality fires only on mode=fast; these tests exercise the fast path so
+  // mode defaults to "fast". Slow-mode cases pass "slow" explicitly.
+  const attestTransfers = async (
+    tokenAmounts: { token: string; amount: string }[],
+    receiptBlockNumber?: bigint,
+    mode: "fast" | "slow" = "fast",
+  ) => {
+    const chain = (await getChains())["ethereum"];
+    const transactionHash = randomHex(32);
+    const logs = tokenAmounts.map(({ token, amount }, logIndex) =>
+      generateTransferLog({
+        transactionHash,
+        logIndex,
+        from: randomHex(20),
+        to: chain.depository!,
+        token,
+        amount,
+      }),
+    );
+    const transactionReceipt = generateTransactionReceipt(
+      transactionHash,
+      logs,
+    );
+    if (receiptBlockNumber !== undefined) {
+      transactionReceipt.blockNumber = receiptBlockNumber;
+    }
+
+    (httpRpc as jest.Mock).mockImplementation(() => ({
+      getBlock: getBlockMock,
+      getTransaction: async () => ({ input: "0x" }),
+      getTransactionReceipt: async () => transactionReceipt,
+    }));
+
+    return new AttestationService().attestDepositoryDeposits({
+      chainId: chain.id,
+      transactionId: transactionHash,
+      mode,
+    });
+  };
+
+  it("applies the matching tier instead of the chain default", async () => {
+    await setAdditionalData(
+      {
+        [TOKEN]: [
+          { maxAmount: "2000000", finalizationBlocks: 1, finalizationTime: 30 },
+        ],
+      },
+      true,
+    );
+
+    const { messages } = await attestTransfers([
+      { token: TOKEN, amount: AMOUNT },
+    ]);
+    expect(messages.length).toBe(1);
+    expect(messages[0].result.currency).toEqual(TOKEN);
+    expect(messages[0].result.amount).toEqual(AMOUNT);
+    // Tier applied → the deposit is flagged fast so the shared layer emits MINT_SPLIT.
+    expect(messages[0].extraData.mode).toBe("fast");
+  });
+
+  it("does not mark fast when the tier is no faster than the chain default", async () => {
+    const chain = (await getChains())["ethereum"];
+    // Tier equal to the default finality → matched but no speedup → not flagged fast
+    // (plain MINT, no fee); default time 60 < the ~120s mock gap so it still finalizes.
+    chain.additionalData = {
+      finalizationBlocks: 5,
+      finalizationTime: 60,
+      fastMode: {
+        finalityTiers: {
+          [TOKEN]: [
+            {
+              maxAmount: "2000000",
+              finalizationBlocks: 5,
+              finalizationTime: 60,
+            },
+          ],
+        },
+      },
+    };
+
+    const { messages } = await attestTransfers([
+      { token: TOKEN, amount: AMOUNT },
+    ]);
+    expect(messages.length).toBe(1);
+    expect(messages[0].extraData.mode).toBe("slow");
+  });
+
+  it("drags a mixed-currency tx to slow when one currency has no faster tier", async () => {
+    const TOKEN2 = "0x2222222222222222222222222222222222222222";
+    const chain = (await getChains())["ethereum"];
+    // TOKEN has a faster tier; TOKEN2 has no table → default. The strictest (max) across the two is
+    // the default, so nothing speeds up and both deposits emit plain MINT.
+    chain.additionalData = {
+      finalizationBlocks: 5,
+      finalizationTime: 60,
+      fastMode: {
+        finalityTiers: {
+          [TOKEN]: [
+            {
+              maxAmount: "2000000",
+              finalizationBlocks: 1,
+              finalizationTime: 30,
+            },
+          ],
+        },
+      },
+    };
+
+    const { messages } = await attestTransfers([
+      { token: TOKEN, amount: AMOUNT },
+      { token: TOKEN2, amount: AMOUNT },
+    ]);
+
+    expect(messages.length).toBe(2);
+    // One currency (TOKEN2) has no faster tier → the strictest finality is the default, so neither
+    // deposit speeds up and both emit plain MINT.
+    expect(
+      messages.find((m) => m.result.currency === TOKEN)?.extraData.mode,
+    ).toBe("slow");
+    expect(
+      messages.find((m) => m.result.currency === TOKEN2)?.extraData.mode,
+    ).toBe("slow");
+  });
+
+  it("does not apply the tier when mode is slow even if the chain enables fast", async () => {
+    await setAdditionalData(
+      {
+        [TOKEN]: [
+          { maxAmount: "2000000", finalizationBlocks: 1, finalizationTime: 30 },
+        ],
+      },
+      true,
+    );
+
+    // mode=slow → the fast tier is ignored, default finality gate fails.
+    await expect(
+      attestTransfers([{ token: TOKEN, amount: AMOUNT }], undefined, "slow"),
+    ).rejects.toThrow("is not finalized");
+  });
+
+  it("falls back to the chain default when the amount is above all tiers", async () => {
+    await setAdditionalData(
+      {
+        [TOKEN]: [
+          { maxAmount: AMOUNT, finalizationBlocks: 1, finalizationTime: 30 },
+        ],
+      },
+      true,
+    );
+
+    await expect(
+      attestTransfers([{ token: TOKEN, amount: AMOUNT }]),
+    ).rejects.toThrow("is not finalized");
+  });
+
+  it("ignores the threshold table when fast-finality is off", async () => {
+    await setAdditionalData(
+      {
+        [TOKEN]: [
+          { maxAmount: "2000000", finalizationBlocks: 1, finalizationTime: 30 },
+        ],
+      },
+      undefined,
+    );
+
+    await expect(
+      attestTransfers([{ token: TOKEN, amount: AMOUNT }]),
+    ).rejects.toThrow("is not finalized");
+  });
+
+  it("falls back to the chain default for a currency without a table", async () => {
+    await setAdditionalData(
+      {
+        [TOKEN]: [
+          { maxAmount: "2000000", finalizationBlocks: 1, finalizationTime: 30 },
+        ],
+      },
+      true,
+    );
+
+    await expect(
+      attestTransfers([
+        { token: "0x2222222222222222222222222222222222222222", amount: AMOUNT },
+      ]),
+    ).rejects.toThrow("is not finalized");
+  });
+
+  it("does not sum same-currency deposits — each is tiered independently", async () => {
+    await setAdditionalData(
+      {
+        [TOKEN]: [
+          { maxAmount: AMOUNT, finalizationBlocks: 1, finalizationTime: 30 },
+        ],
+      },
+      true,
+    );
+
+    // Each transfer is under maxAmount; with no summing each selects the fast tier (aggregate
+    // exposure is the rate limiter's job, not the finality gate).
+    const { messages } = await attestTransfers([
+      { token: TOKEN, amount: "600000" },
+      { token: TOKEN, amount: "600000" },
+    ]);
+    expect(messages.length).toBe(2);
+    expect(messages.every((m) => m.extraData.mode === "fast")).toBe(true);
+  });
+
+  it("applies the tier's finalizationBlocks instead of the chain default", async () => {
+    const chain = (await getChains())["ethereum"];
+    // Default blocks gate fails (5 blocks elapsed < 500); the tier passes
+    chain.additionalData = {
+      finalizationBlocks: 500,
+      fastMode: {
+        finalityTiers: {
+          [TOKEN]: [
+            {
+              maxAmount: "2000000",
+              finalizationBlocks: 1,
+              finalizationTime: 30,
+            },
+          ],
+        },
+      },
+    };
+
+    const { messages } = await attestTransfers(
+      [{ token: TOKEN, amount: AMOUNT }],
+      BigInt(1e12) - 5n,
+    );
+    expect(messages.length).toBe(1);
+  });
+
+  it("applies the strictest requirement across multiple deposits", async () => {
+    await setAdditionalData(
+      {
+        [TOKEN]: [
+          { maxAmount: "2000000", finalizationBlocks: 1, finalizationTime: 30 },
+        ],
+      },
+      true,
+    );
+
+    await expect(
+      attestTransfers([
+        { token: TOKEN, amount: AMOUNT },
+        { token: "0x2222222222222222222222222222222222222222", amount: AMOUNT },
+      ]),
+    ).rejects.toThrow("is not finalized");
+  });
+});

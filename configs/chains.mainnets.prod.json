@@ -163,13 +163,6 @@
     "hubChainId": "1868"
   },
   {
-    "id": "swellchain",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$SWELLCHAIN_RPC_URL",
-    "hubChainId": "1923"
-  },
-  {
     "id": "ronin",
     "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
     "vmType": "ethereum-vm",
@@ -470,20 +463,6 @@
     "hubChainId": "666666666"
   },
   {
-    "id": "ancient8",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$ANCIENT8_RPC_URL",
-    "hubChainId": "888888888"
-  },
-  {
-    "id": "rari",
-    "depository": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
-    "vmType": "ethereum-vm",
-    "httpRpcUrl": "$RARI_RPC_URL",
-    "hubChainId": "1380012617"
-  },
-  {
     "id": "solana",
     "depository": "99vQwtBwYtrqqD9YSXbdum3KBdxPAVxYTaQ3cfnJSrN2",
     "vmType": "solana-vm",
@@ -552,5 +531,12 @@
       "finalizationBlocks": 5,
       "signDataDomain": "relay.link"
     }
+  },
+  {
+    "id": "xrp",
+    "vmType": "xrp-vm",
+    "httpRpcUrl": "$XRP_RPC_URL",
+    "depository": "rJBdWA9p5KwBoqSQTyMdg3UHLsJVzGVu5m",
+    "hubChainId": "31029760806336123042097500203561435879477713386608126308500866058055842422762"
   }
 ]

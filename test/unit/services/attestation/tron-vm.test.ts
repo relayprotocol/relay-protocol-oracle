@@ -66,7 +66,8 @@ jest.mock("../../../../src/common/chains", () => {
       auroraHttpRpcUrl: "http://localhost:8545",
       auroraEvmChainId: "1313161554",
       auroraAllocatorAddress: "0x0000000000000000000000000000000000000005",
-      auroraAllocatorSpenderAddress: "0x0000000000000000000000000000000000000006",
+      auroraAllocatorSpenderAddress:
+        "0x0000000000000000000000000000000000000006",
       auroraOracleMultisigAddress: "0x0000000000000000000000000000000000000007",
     }),
     getChain: async (chainId: string) => chains[chainId],
@@ -76,7 +77,7 @@ jest.mock("../../../../src/common/chains", () => {
       chainId === "base" ? "8453" : chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
       Object.fromEntries(
-        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+        Object.values(chains).map((chain) => [chain.id, chain.vmType]),
       ),
   };
 });
@@ -102,7 +103,7 @@ jest.mock("@relay-protocol/settlement-sdk", () => {
 
 const generateTransactionReceipt = (
   transactionHash: string,
-  logs: Log<bigint, number, false>[]
+  logs: Log<bigint, number, false>[],
 ): TransactionReceipt => {
   return {
     blockHash: randomHex(32) as Hex,
@@ -170,7 +171,7 @@ const generateTransferLog = ({
   });
   const data = encodeAbiParameters(
     [{ name: "amount", type: "uint256" }],
-    [BigInt(amount)]
+    [BigInt(amount)],
   );
 
   return generateTransactionLog({
@@ -207,7 +208,7 @@ const generateNativeDepositLog = ({
       { name: "amount", type: "uint256" },
       { name: "id", type: "bytes32" },
     ],
-    [toHexAddress(from) as Hex, BigInt(amount), id as Hex]
+    [toHexAddress(from) as Hex, BigInt(amount), id as Hex],
   );
 
   return generateTransactionLog({
@@ -247,7 +248,7 @@ const generateErc20DepositLog = ({
       { name: "amount", type: "uint256" },
       { name: "id", type: "bytes32" },
     ],
-    [from as Hex, token as Hex, BigInt(amount), id as Hex]
+    [from as Hex, token as Hex, BigInt(amount), id as Hex],
   );
 
   return generateTransactionLog({
@@ -281,7 +282,7 @@ const generateSolverNativeTransferLog = ({
       { name: "to", type: "address" },
       { name: "amount", type: "uint256" },
     ],
-    [from as Hex, BigInt(amount)]
+    [from as Hex, BigInt(amount)],
   );
 
   return generateTransactionLog({
@@ -333,7 +334,7 @@ function createTestOrder({
             deadline: Math.floor(Date.now() / 1000) + 36000,
             extraData: encodeAbiParameters(
               [{ type: "address" }],
-              [solverContractAddress as Hex]
+              [solverContractAddress as Hex],
             ),
           },
         ],
@@ -352,7 +353,7 @@ function createTestOrder({
       calls: [],
       extraData: encodeAbiParameters(
         [{ type: "address" }],
-        [solverContractAddress as Hex]
+        [solverContractAddress as Hex],
       ),
       deadline: Math.floor(Date.now() / 1000) + 36000,
     },
@@ -602,8 +603,7 @@ describe("TronVmAttestor", () => {
     const amount = randomNumber(1e10).toString();
     // An id that starts with the zero hash prefix (first 16 bytes are zeros)
     const zeroishId =
-      zeroHash.slice(0, 34) +
-      "abcdef1234567890abcdef1234567890";
+      zeroHash.slice(0, 34) + "abcdef1234567890abcdef1234567890";
 
     const transferLog = generateTransferLog({
       transactionHash,
@@ -1546,7 +1546,7 @@ const testAttestSolverFill = async (options: {
         fill: {
           transactionId: env.actionTxHash,
         },
-      })
+      }),
     ).rejects.toThrow(options.expectError);
     return null;
   } else {
@@ -1560,10 +1560,10 @@ const testAttestSolverFill = async (options: {
     });
 
     expect(solverFillResult.message.result.status).toBe(
-      SolverFillStatus.SUCCESSFUL
+      SolverFillStatus.SUCCESSFUL,
     );
     expect(
-      solverFillResult.message.result.totalWeightedInputPaymentBpsDiff
+      solverFillResult.message.result.totalWeightedInputPaymentBpsDiff,
     ).toBe("0");
     return solverFillResult;
   }
@@ -1600,7 +1600,7 @@ const testAttestSolverRefund = async (options: {
             refundIndex: 0,
           },
         ],
-      })
+      }),
     ).rejects.toThrow(options.expectError);
     return null;
   } else {
@@ -1619,10 +1619,10 @@ const testAttestSolverRefund = async (options: {
       });
 
     expect(solverRefundResult.message.result.status).toBe(
-      SolverRefundStatus.SUCCESSFUL
+      SolverRefundStatus.SUCCESSFUL,
     );
     expect(
-      solverRefundResult.message.result.totalWeightedInputPaymentBpsDiff
+      solverRefundResult.message.result.totalWeightedInputPaymentBpsDiff,
     ).toBe("0");
     return solverRefundResult;
   }

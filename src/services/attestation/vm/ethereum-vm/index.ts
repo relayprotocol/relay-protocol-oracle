@@ -19,8 +19,18 @@ import {
   zeroHash,
 } from "viem";
 
-import { getDeterministicId } from "../../utils";
-import { EnhancedDepositoryDepositMessage, VmAttestor } from "../../vm/types";
+import type { TxHints } from "../..";
+import {
+  getDeterministicId,
+  isNumericFinalityMet,
+  resolveAmountTieredFinality,
+} from "../../utils";
+import {
+  DepositFinality,
+  DepositMode,
+  EnhancedDepositoryDepositMessage,
+  VmAttestor,
+} from "../../vm/types";
 import { getChain } from "../../../../common/chains";
 import { externalError } from "../../../../common/error";
 import { getTrackingId, logRpcUsage } from "../../../../common/rpc-usage";
@@ -45,6 +55,8 @@ export class EthereumVmAttestor extends VmAttestor {
   public async getDepositoryDepositMessages(
     chainId: string,
     transactionId: string,
+    _hints?: TxHints,
+    opts?: { mode?: DepositMode },
   ): Promise<EnhancedDepositoryDepositMessage[]> {
     const trackingId = getTrackingId();
 
@@ -70,13 +82,6 @@ export class EthereumVmAttestor extends VmAttestor {
         `Reverted transaction ${transactionId} on chain ${chainId}`,
       );
     }
-
-    // Ensure the transaction is finalized
-    const timestamp = await this._ensureTxFinalization(
-      chainId,
-      receipt,
-      trackingId,
-    );
 
     const chain = await getChain(chainId);
 
@@ -118,6 +123,8 @@ export class EthereumVmAttestor extends VmAttestor {
     // Sort the logs accordigng to their onchain order
     parsedLogs.sort((l1, l2) => l1.logIndex - l2.logIndex);
 
+    const finality = await this._measureFinality(chainId, receipt, trackingId);
+
     const messages: EnhancedDepositoryDepositMessage[] = [];
     for (let i = 0; i < parsedLogs.length; i++) {
       const currentLog = parsedLogs[i];
@@ -144,7 +151,7 @@ export class EthereumVmAttestor extends VmAttestor {
             amount: currentLog.args.amount.toString(),
           },
           extraData: {
-            timestamp: String(timestamp),
+            timestamp: finality.timestamp,
           },
         });
       }
@@ -281,10 +288,41 @@ export class EthereumVmAttestor extends VmAttestor {
             amount: currentLog.args.amount.toString(),
           },
           extraData: {
-            timestamp: String(timestamp),
+            timestamp: finality.timestamp,
           },
         });
       }
+    }
+
+    // Finality checks
+    const defaultBlocks = await this._getFinalizationBlocks(chainId);
+    const defaultTime = await this._getFinalizationTime(chainId);
+    if (opts?.mode === "fast" && chain.additionalData?.fastMode) {
+      const { required, usedDefaults, tiers } = resolveAmountTieredFinality(
+        chain,
+        messages,
+        {
+          finalizationBlocks: defaultBlocks,
+          finalizationTime: defaultTime,
+        },
+      );
+      if (!isNumericFinalityMet(finality, required)) {
+        throw externalError(`Transaction ${transactionId} is not finalized`);
+      }
+
+      messages.forEach((m, i) => {
+        m.extraData.mode = usedDefaults ? "slow" : "fast";
+        if (m.extraData.mode === "fast") {
+          m.extraData.fastFeeBps = tiers[i]?.feeBps;
+        }
+      });
+    } else if (
+      !isNumericFinalityMet(finality, {
+        finalizationBlocks: defaultBlocks,
+        finalizationTime: defaultTime,
+      })
+    ) {
+      throw externalError(`Transaction ${transactionId} is not finalized`);
     }
 
     return messages;
@@ -558,37 +596,47 @@ export class EthereumVmAttestor extends VmAttestor {
     );
   }
 
+  private async _measureFinality(
+    chainId: string,
+    tx: TransactionReceipt,
+    trackingId: string,
+  ): Promise<DepositFinality> {
+    const rpc = await httpRpc(chainId);
+
+    await logRpcUsage(chainId, "eth_getBlock", trackingId);
+    await logRpcUsage(chainId, "eth_getBlock", trackingId);
+    const [latestBlock, txTimestamp] = await Promise.all([
+      rpc.getBlock(),
+      rpc.getBlock({ blockNumber: tx.blockNumber }).then((b) => b.timestamp),
+    ]);
+
+    return {
+      confirmations: Number(
+        BigInt(latestBlock.number!) - BigInt(tx.blockNumber),
+      ),
+      elapsedSeconds: Number(
+        BigInt(latestBlock.timestamp) - BigInt(txTimestamp),
+      ),
+      timestamp: String(txTimestamp),
+    };
+  }
+
   private async _ensureTxFinalization(
     chainId: string,
     tx: TransactionReceipt,
     trackingId: string,
   ) {
-    const rpc = await httpRpc(chainId);
-
-    const finalizationBlocks = await this._getFinalizationBlocks(chainId);
-    const finalizationTime = await this._getFinalizationTime(chainId);
-
-    await logRpcUsage(chainId, "eth_getBlock", trackingId);
-    const latestBlock = await rpc.getBlock();
+    const finality = await this._measureFinality(chainId, tx, trackingId);
     if (
-      BigInt(latestBlock.number!) - BigInt(tx.blockNumber) <
-      BigInt(finalizationBlocks)
+      !isNumericFinalityMet(finality, {
+        finalizationBlocks: await this._getFinalizationBlocks(chainId),
+        finalizationTime: await this._getFinalizationTime(chainId),
+      })
     ) {
       throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
     }
 
-    await logRpcUsage(chainId, "eth_getBlock", trackingId);
-    const txTimestamp = await rpc
-      .getBlock({ blockNumber: tx.blockNumber })
-      .then((b) => b.timestamp);
-    if (
-      BigInt(latestBlock.timestamp) - BigInt(txTimestamp) <
-      BigInt(finalizationTime)
-    ) {
-      throw externalError(`Transaction ${tx.transactionHash} is not finalized`);
-    }
-
-    return txTimestamp;
+    return BigInt(finality.timestamp);
   }
 
   private async _getTransaction(chainId: string, transactionId: string) {

@@ -3,6 +3,7 @@ import { generateAddress } from "@relay-protocol/settlement-sdk";
 
 import {
   areExecutionsEqual,
+  filterSignaturesByDomain,
   Endpoint,
   ErrorResponses,
   executionSchema,
@@ -165,7 +166,7 @@ export default {
         throw externalError("ownerSignature is required");
       }
       await verifyOwnerSignature({
-        data: req.body,
+        data: { ...req.body, operation: "withdrawal" },
         signature: req.body.ownerSignature,
       });
     }
@@ -218,17 +219,26 @@ export default {
           })
         : [];
 
+    const localExecutionSignature = execution
+      ? await signExecutionMessage(execution)
+      : undefined;
+
     return reply.send({
       status,
-      execution: execution
-        ? {
-            ...execution,
-            signatures: [
-              await signExecutionMessage(execution),
-              ...peerSignatures,
-            ],
-          }
-        : undefined,
+      execution:
+        execution && localExecutionSignature
+          ? {
+              ...execution,
+              signatures: [
+                localExecutionSignature,
+                ...filterSignaturesByDomain(
+                  peerSignatures,
+                  localExecutionSignature,
+                  { chainId: "oracleChainId", contract: "oracleContract" },
+                ),
+              ],
+            }
+          : undefined,
     });
   },
 } as Endpoint;

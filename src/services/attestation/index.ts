@@ -54,13 +54,15 @@ import {
 } from "viem";
 
 import { getVmAttestor } from "./vm";
-import { EnhancedDepositoryDepositMessage } from "./vm/types";
+import { DepositMode, EnhancedDepositoryDepositMessage } from "./vm/types";
 import {
   cartesianProduct,
   extractEcdsaSignature,
   getBitcoinSignerPubkey,
   getDeterministicId,
   normalizeBitcoinPartialSignature,
+  resolveFeeCalculator,
+  resolveRateLimiter,
 } from "./utils";
 import {
   Chain,
@@ -123,6 +125,21 @@ const getInputHints = (
   }
   const { inputIndex: _idx, ...rest } = entry;
   return rest;
+};
+
+const findEquivalentAddress = (
+  address: string,
+  candidates: string[],
+  vmType: Chain["vmType"],
+) => {
+  try {
+    const encodedAddress = encodeAddressToHex(address, vmType);
+    return candidates.find(
+      (candidate) => encodeAddressToHex(candidate, vmType) === encodedAddress,
+    );
+  } catch {
+    return undefined;
+  }
 };
 
 export class AttestationService {
@@ -201,6 +218,7 @@ export class AttestationService {
       currency: string;
       minimumAmount: string;
       recipient: string;
+      deadline: number;
       fees: ExecuteAndWithdrawFee[];
     };
     refund: {
@@ -208,6 +226,7 @@ export class AttestationService {
       currency: string;
       minimumAmount: string;
       recipient: string;
+      deadline: number;
       fees: ExecuteAndWithdrawFee[];
     };
   }> {
@@ -312,6 +331,7 @@ export class AttestationService {
         currency: orderOutputPayment.currency,
         minimumAmount: orderOutputPayment.minimumAmount,
         recipient: orderOutputPayment.recipient,
+        deadline: orderOutput.deadline,
         fees: outputFees,
       },
       refund: {
@@ -319,31 +339,42 @@ export class AttestationService {
         currency: orderRefund.currency,
         minimumAmount: orderRefund.minimumAmount,
         recipient: orderRefund.recipient,
+        deadline: orderRefund.deadline,
         fees: refundFees,
       },
     };
   }
 
   public async attestDepositoryDeposits(
-    data: DepositoryDepositMessage["data"] & { hints?: TxHints },
+    data: DepositoryDepositMessage["data"] & {
+      hints?: TxHints;
+      mode?: DepositMode;
+    },
   ): Promise<{
-    messages: DepositoryDepositMessage[];
+    messages: EnhancedDepositoryDepositMessage[];
     execution?: ExecutionMessage;
   }> {
+    const mode = data.mode ?? "slow";
+
     const attestor = await getVmAttestor(data.chainId);
+    const chain = await getChain(data.chainId);
+
     const messages = await attestor.getDepositoryDepositMessages(
       data.chainId,
       data.transactionId,
       data.hints,
+      { mode },
     );
 
     // Generate Hub execution
     let execution: ExecutionMessage | undefined;
     if (messages.length) {
-      const actions: string[] = [];
-      const metadata: ExecutionMetadata[] = [];
+      const feeRecipient =
+        chain.additionalData?.fastMode?.feeRecipient ?? zeroAddress;
 
-      await Promise.all(
+      const hubInfo = await getHubInfo();
+
+      const messageEntries = await Promise.all(
         messages.map(async (m) => {
           const origin = {
             address: m.result.currency,
@@ -352,10 +383,7 @@ export class AttestationService {
           };
 
           const hubTokenId = generateTokenId(origin);
-          metadata.push({
-            hubTokenId,
-            origin,
-          });
+          const metadataEntry: ExecutionMetadata = { hubTokenId, origin };
 
           const hubToAddress =
             m.result.depositId !== zeroHash
@@ -369,24 +397,93 @@ export class AttestationService {
                 generateAddress({
                   address: m.result.depositor,
                   chainId: m.data.chainId,
-                  family: await getChainVmType(m.data.chainId),
+                  family: origin.family,
                 });
 
           const amount = m.result.amount;
-          actions.push(
-            encodeAction({
+
+          let action: string;
+          if (m.extraData.mode === "fast") {
+            const feeBps = m.extraData.fastFeeBps ?? "0";
+
+            // Safety checks
+            if (BigInt(feeBps) > 0n && feeRecipient === zeroAddress) {
+              throw internalError(
+                "Missing fast mode feeRecipient configuration",
+              );
+            }
+            if (!hubInfo.rateLimiter) {
+              throw internalError(
+                "Missing fast mode rate-limiter configuration",
+              );
+            }
+
+            // Handle rate-limiting
+            let rateLimiter: string | undefined;
+            let rateLimiterData: string | undefined;
+            if (hubInfo.rateLimiter) {
+              const result = await resolveRateLimiter({
+                type: hubInfo.rateLimiter.type,
+                address: hubInfo.rateLimiter.address,
+                chainId: m.data.chainId,
+                currency: m.result.currency,
+                amount,
+              });
+              if (!result.withinBudget) {
+                throw externalError("Fast mode rate limit exceeded");
+              }
+
+              rateLimiter = hubInfo.rateLimiter.address;
+              rateLimiterData = result.rateLimiterData;
+            }
+
+            // Handle fees
+            let feeCalculator: string | undefined;
+            let feeCalculatorData: string | undefined;
+            if (hubInfo.feeCalculator) {
+              const result = await resolveFeeCalculator({
+                type: hubInfo.feeCalculator.type,
+                address: hubInfo.feeCalculator.address,
+                chainId: m.data.chainId,
+                currency: m.result.currency,
+                amount,
+              });
+
+              feeCalculator = hubInfo.feeCalculator.address;
+              feeCalculatorData = result.feeCalculatorData;
+            }
+
+            action = encodeAction({
+              type: ActionType.FAST_MINT,
+              data: {
+                hubTokenId,
+                hubToAddress,
+                amount,
+                feeCalculator: feeCalculator ?? zeroAddress,
+                feeCalculatorData: feeCalculatorData ?? "0x",
+                rateLimiter: rateLimiter ?? zeroAddress,
+                rateLimiterData: rateLimiterData ?? "0x",
+              },
+            });
+          } else {
+            action = encodeAction({
               type: ActionType.MINT,
               data: {
                 hubTokenId,
                 hubToAddress,
                 amount,
               },
-            }),
-          );
+            });
+          }
+
+          return { action, metadataEntry };
         }),
       );
 
-      const hubInfo = await getHubInfo();
+      // Map in messages order (Promise.all preserves it) so the signed bytes[] is peer-deterministic.
+      const actions = messageEntries.map((p) => p.action);
+      const metadata = messageEntries.map((p) => p.metadataEntry);
+
       execution = {
         idempotencyKey: getDeterministicId(data.chainId, data.transactionId),
         actions,
@@ -665,43 +762,7 @@ export class AttestationService {
       data.chainId,
       payloadParams,
     );
-
     if (!withdrawals.length) {
-      // Custom logic for payloads which can never reach the allocator
-      const vmType = await getChainVmType(data.chainId);
-      if (vmType === "hyperliquid-vm") {
-        const currentTime =
-          data.additionalData?.["hyperliquid-vm"]?.currentTime;
-        if (currentTime && currentTime < Date.now() - 3 * 24 * 3600 * 1000) {
-          const { withdrawalAddress, hubTokenId, withdrawerAlias } =
-            await this._getWithdrawalAddress(data.withdrawalAddressRequest);
-          const balance = await getBalanceOnHub(withdrawalAddress, hubTokenId);
-          if (balance >= BigInt(data.amount)) {
-            // Transfer back the funds from withdrawal address to depositor
-            return {
-              status: DepositoryWithdrawalStatus.EXPIRED,
-              execution: {
-                idempotencyKey: getDeterministicId(
-                  data.nonce,
-                  DepositoryWithdrawalStatus.EXPIRED.toString(),
-                ),
-                actions: [
-                  encodeAction({
-                    type: ActionType.TRANSFER,
-                    data: {
-                      hubTokenId,
-                      hubFromAddress: withdrawalAddress,
-                      hubToAddress: withdrawerAlias,
-                      amount: data.amount,
-                    },
-                  }),
-                ],
-              },
-            };
-          }
-        }
-      }
-
       return { status: DepositoryWithdrawalStatus.PENDING };
     }
 
@@ -1490,6 +1551,10 @@ export class AttestationService {
       data: "0x",
       fees: output.fees,
       nonce: data.nonce,
+      // The oracle authorization expires alongside the solver-signed order's
+      // output deadline. Derived from the order (rather than local time) so
+      // that all peer oracles produce an identical signed request.
+      deadline: output.deadline.toString(),
     };
   }
 
@@ -1527,6 +1592,10 @@ export class AttestationService {
       data: "0x",
       fees: refund.fees,
       nonce: data.nonce,
+      // The oracle authorization expires alongside the solver-signed order's
+      // refund deadline. Derived from the order (rather than local time) so
+      // that all peer oracles produce an identical signed request.
+      deadline: refund.deadline.toString(),
     };
   }
 
@@ -1777,22 +1846,25 @@ export class AttestationService {
   }
 
   private _getConfiguredDepository(chain: Chain, requestedDepository?: string) {
-    const depository = requestedDepository ?? chain.depository;
-    if (!depository) {
+    const requested = requestedDepository ?? chain.depository;
+    if (!requested) {
       throw externalError("Chain has no depository configured");
     }
 
-    if (
-      requestedDepository &&
-      requestedDepository !== chain.depository &&
-      !chain.additionalDepositories?.includes(requestedDepository)
-    ) {
+    const configured = findEquivalentAddress(
+      requested,
+      [chain.depository, ...(chain.additionalDepositories ?? [])].filter(
+        (depository): depository is string => Boolean(depository),
+      ),
+      chain.vmType,
+    );
+    if (!configured) {
       throw externalError(
-        `Depository ${requestedDepository} is not configured for chain ${chain.id}`,
+        `Depository ${requested} is not configured for chain ${chain.id}`,
       );
     }
 
-    return depository;
+    return configured;
   }
 
   private async _getWithdrawalAddress(data: WithdrawalAddressRequest) {
@@ -2079,7 +2151,8 @@ export class AttestationService {
       case "lighter-vm":
       case "solana-vm":
       case "ton-vm":
-      case "tron-vm": {
+      case "tron-vm":
+      case "xrp-vm": {
         return payload;
       }
 

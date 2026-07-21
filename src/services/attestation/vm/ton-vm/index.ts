@@ -1,6 +1,11 @@
 // ABOUTME: TonVmAttestor — verifies ton-vm deposit/fill/refund attestations by parsing
 // ABOUTME: TON wallet inbound (deposit) / outbound (fill) messages. Withdrawal stubbed for later phase.
-import { Address, Cell, loadMessageRelaxed } from "@ton/core";
+import {
+  Address,
+  Cell,
+  loadMessageRelaxed,
+  type Transaction,
+} from "@ton/core";
 import type { TonClient } from "@ton/ton";
 import {
   decodeAddress,
@@ -226,8 +231,7 @@ export class TonVmAttestor extends VmAttestor {
       chain.vmType,
     ) as DecodedTonVmWithdrawal;
     const withdrawalId = getDecodedWithdrawalId(decodedWithdrawal);
-    const { receiver, amount, createdAt, queryId, timeout, subwalletId } =
-      decodedWithdrawal.withdrawal;
+    const { createdAt, queryId, timeout } = decodedWithdrawal.withdrawal;
 
     const depositoryAddr = Address.parse(depository);
     const { client } = await httpRpc(chainId);
@@ -349,10 +353,34 @@ export class TonVmAttestor extends VmAttestor {
         if (createdAt < lastCleanTime - timeout) {
           logger.warn(
             VM_TYPE,
-            `ton-vm-expired-indeterminate: withdrawal ${withdrawalId} chainId=${chainId} queryId=${queryId} createdAt=${createdAt} lastCleanTime=${lastCleanTime} timeout=${timeout} — replay record aged out, refusing EXPIRED`,
+            `ton-vm-expired-indeterminate: withdrawal ${withdrawalId} chainId=${chainId} queryId=${queryId} createdAt=${createdAt} lastCleanTime=${lastCleanTime} timeout=${timeout} — replay record aged out${transactionId ? ", resolving from the supplied consuming tx" : ", refusing EXPIRED"}`,
           );
+          // The aged-out replay bit can't answer, but the consuming tx can: a
+          // signed command is accepted at most once ever, so one verified tx decides.
+          if (transactionId) {
+            const tx = await this._getConsumingTx(
+              chainId,
+              client,
+              depositoryAddr,
+              depository,
+              transactionId,
+              hints,
+              trackingId,
+            );
+            return this._attestFromConsumingTx({
+              chainId,
+              client,
+              tx,
+              decodedWithdrawal,
+              withdrawal,
+              withdrawalId,
+              depository,
+              transactionId,
+              trackingId,
+            });
+          }
           throw externalError(
-            `Withdrawal ${withdrawalId} status indeterminate: the Highload V3 replay record for its queryId has aged out (last_clean_time advanced past its validity window). Attest within the timeout window or resolve from on-chain history; refusing to mark EXPIRED to avoid double-refunding a possibly-executed withdrawal.`,
+            `Withdrawal ${withdrawalId} status indeterminate: the Highload V3 replay record for its queryId has aged out (last_clean_time advanced past its validity window). Supply transactionId + hints["ton-vm"].lt of the tx that consumed queryId ${queryId} to resolve from on-chain history; refusing to mark EXPIRED to avoid double-refunding a possibly-executed withdrawal.`,
           );
         }
       }
@@ -375,6 +403,39 @@ export class TonVmAttestor extends VmAttestor {
         `Withdrawal ${withdrawalId} consumed on chain; pass transactionId to verify outbound`,
       );
     }
+    const tx = await this._getConsumingTx(
+      chainId,
+      client,
+      depositoryAddr,
+      depository,
+      transactionId,
+      hints,
+      trackingId,
+    );
+    return this._attestFromConsumingTx({
+      chainId,
+      client,
+      tx,
+      decodedWithdrawal,
+      withdrawal,
+      withdrawalId,
+      depository,
+      transactionId,
+      trackingId,
+    });
+  }
+
+  // Fetch the claimed consuming tx by its (lt, hash) locator. The hint is an
+  // untrusted locator — only the re-hashed tx returned by our own RPC counts.
+  private async _getConsumingTx(
+    chainId: string,
+    client: TonClient,
+    depositoryAddr: Address,
+    depository: string,
+    transactionId: string,
+    hints: TxHints | undefined,
+    trackingId: string,
+  ): Promise<Transaction> {
     const tonHints = hints?.[VM_TYPE];
     if (!tonHints?.lt) {
       throw externalError(
@@ -403,11 +464,45 @@ export class TonVmAttestor extends VmAttestor {
         `RPC returned tx with mismatched hash for ${transactionId} (got ${returnedHash})`,
       );
     }
+    return tx;
+  }
+
+  // Judge the withdrawal's terminal status from the tx that consumed its
+  // queryId: outbound payout present → EXECUTED; command accepted with zero
+  // outbound (silent-skip send) → EXPIRED.
+  private async _attestFromConsumingTx(opts: {
+    chainId: string;
+    client: TonClient;
+    tx: Transaction;
+    decodedWithdrawal: DecodedTonVmWithdrawal;
+    withdrawal: string;
+    withdrawalId: string;
+    depository: string;
+    transactionId: string;
+    trackingId: string;
+  }): Promise<DepositoryWithdrawalMessage> {
+    const {
+      chainId,
+      client,
+      tx,
+      decodedWithdrawal,
+      withdrawal,
+      withdrawalId,
+      depository,
+      transactionId,
+      trackingId,
+    } = opts;
+    const { receiver, amount, createdAt, queryId, timeout, subwalletId } =
+      decodedWithdrawal.withdrawal;
+
+    const depositoryHash = Buffer.from(encodeAddress(depository, VM_TYPE));
+
+    // A reverted command tx rolled back the replay bit and consumed nothing.
     if (this._isTransactionReverted(tx)) {
       throw externalError(`Executing tx ${transactionId} reverted`);
     }
 
-    // Bind EXECUTED to THIS withdrawal's signed Highload V3 command. processed?(Q)
+    // Bind the status to THIS withdrawal's signed Highload V3 command. processed?(Q)
     // proves only that *some* command with queryId Q ran; a 23-bit queryId collision
     // (or a buggy MPC signing other bytes for the same id) could otherwise let a
     // different command's tx pass. Parse the tx's external-in command and require
@@ -416,6 +511,16 @@ export class TonVmAttestor extends VmAttestor {
     if (!inMsg || inMsg.info.type !== "external-in") {
       throw externalError(
         `Executing tx ${transactionId} has no Highload V3 command (external-in) to bind withdrawal ${withdrawalId}`,
+      );
+    }
+    // dest is the queried account by construction — guard against the RPC
+    // returning a foreign wallet's tx that replay-matches the command.
+    if (
+      inMsg.info.dest.workChain !== 0 ||
+      !inMsg.info.dest.hash.equals(depositoryHash)
+    ) {
+      throw externalError(
+        `Executing tx ${transactionId} was not addressed to depository ${depository}`,
       );
     }
     let cmdSubwalletId: bigint;
@@ -469,6 +574,26 @@ export class TonVmAttestor extends VmAttestor {
       return true;
     });
     if (!matched) {
+      // Zero outbound = accepted-but-skipped send (Highload V3 ignores action
+      // errors): the payout never left and the command can never re-land, so
+      // EXPIRED is safe; a differing outbound instead fails closed below.
+      if (tx.outMessagesCount === 0) {
+        await this._ensureTxFinality(
+          chainId,
+          client,
+          tx.now,
+          transactionId,
+          trackingId,
+        );
+        return {
+          data: { chainId, withdrawal },
+          result: {
+            withdrawalId,
+            depository,
+            status: DepositoryWithdrawalStatus.EXPIRED,
+          },
+        };
+      }
       throw externalError(
         `Executing tx ${transactionId} outbound did not match withdrawal ${withdrawalId}`,
       );

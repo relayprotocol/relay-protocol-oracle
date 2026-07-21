@@ -399,19 +399,24 @@ export class HyperliquidVmAttestor extends VmAttestor {
       }
     }
 
-    // Check if the withdrawal can be considered expired
+    // Past HL's 2-day nonce window it can't be submitted anymore, but we can't
+    // tell if it already executed and scrolled out — so surface it, never auto-expire.
     if (status === DepositoryWithdrawalStatus.PENDING) {
       const { parameters } = decodedWithdrawal.withdrawal;
-
       const withdrawalNonce =
         parameters.type === "SendAsset"
           ? Number(parameters.nonce)
           : Number(parameters.time);
-
-      // The nonce will not be accepted if it's older than 2 days
       // https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/nonces-and-api-wallets#hyperliquid-nonces
       if (withdrawalNonce < Date.now() - 2 * 24 * 3600 * 1000) {
-        status = DepositoryWithdrawalStatus.EXPIRED;
+        logger.warn(
+          "hyperliquid-vm",
+          JSON.stringify({
+            msg: "Withdrawal past the 2-day nonce window but not found on-chain; not auto-expiring, needs manual review",
+            withdrawalId,
+            withdrawalNonce,
+          }),
+        );
       }
     }
 

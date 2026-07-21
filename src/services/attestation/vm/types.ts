@@ -6,9 +6,23 @@ import {
 
 import type { TxHints } from "..";
 
+export type DepositMode = "fast" | "slow";
+
+// Measured finality for a deposit transaction (block-count + wall-clock)
+export type DepositFinality = {
+  // Blocks between the deposit transaction and the chain tip
+  confirmations: number;
+  // Wall-clock seconds since the deposit block
+  elapsedSeconds: number;
+  // Deposit block timestamp (epoch seconds)
+  timestamp: string;
+};
+
 export type EnhancedDepositoryDepositMessage = DepositoryDepositMessage & {
   extraData: {
     timestamp: string;
+    mode?: DepositMode;
+    fastFeeBps?: string;
   };
 };
 
@@ -17,6 +31,7 @@ export abstract class VmAttestor {
     chainId: string,
     transactionId: string,
     hints?: TxHints,
+    opts?: { mode?: DepositMode },
   ): Promise<EnhancedDepositoryDepositMessage[]>;
 
   public abstract getDepositoryWithdrawalMessage(

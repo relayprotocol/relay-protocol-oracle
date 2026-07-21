@@ -164,6 +164,7 @@ const buildMockTx = ({
   hash: () => Buffer.from(hashHex, "hex"),
   now,
   outMessages: { values: () => outMessages },
+  outMessagesCount: outMessages.length,
   inMessage: inMessage === null ? undefined : inMessage,
   description: {
     type: "generic",
@@ -210,7 +211,7 @@ const buildInboundMessage = ({
           bounce,
           bounced: false,
         }
-      : { type: "external-in" as const },
+      : { type: "external-in" as const, dest },
     body,
   };
 };
@@ -1779,11 +1780,13 @@ describe("TonVmAttestor", () => {
     // `command: null` attaches an internal inMessage (no Highload V3 command).
     // `amount`/`bounce` override only the OUTBOUND message (the defense-in-depth
     // tx.outMessages check, which runs after the command binding).
+    // `noOutbound` drops all out messages (accepted-but-skipped send).
     const buildMatchingExecutingTx = (
       overrides: {
         hashHex?: string;
         bounce?: boolean;
         amount?: bigint;
+        noOutbound?: boolean;
         command?: {
           subwalletId?: number;
           queryId?: number;
@@ -1821,14 +1824,16 @@ describe("TonVmAttestor", () => {
         hashHex: overrides.hashHex ?? TX_HASH_HEX,
         now: 1_700_000_000,
         inMessage,
-        outMessages: [
-          buildMockMessage({
-            destRaw: RECIPIENT_RAW,
-            amount: overrides.amount ?? BigInt(w.amount),
-            bounce: overrides.bounce ?? false,
-            body: beginCell().endCell(),
-          }),
-        ],
+        outMessages: overrides.noOutbound
+          ? []
+          : [
+              buildMockMessage({
+                destRaw: RECIPIENT_RAW,
+                amount: overrides.amount ?? BigInt(w.amount),
+                bounce: overrides.bounce ?? false,
+                body: beginCell().endCell(),
+              }),
+            ],
       })
     }
 
@@ -2048,6 +2053,24 @@ describe("TonVmAttestor", () => {
         )
         .catch((e: unknown) => e);
       expect((err as Error).message).toMatch(/reverted/i);
+    });
+
+    it("returns EXPIRED when the consuming tx has zero out messages (send skipped under ignore-errors)", async () => {
+      // Command accepted (replay bit committed) but the send was skipped —
+      // e.g. insufficient balance. Payout never left and can never re-land.
+      setupWithdrawalRpcMock({
+        processedValue: -1n,
+        executingTx: buildMatchingExecutingTx({ noOutbound: true }),
+      });
+
+      const message = await new TonVmAttestor().getDepositoryWithdrawalMessage(
+        "ton-testnet",
+        encodedFor(baseWithdrawal),
+        TX_HASH_HEX,
+        { "ton-vm": { lt: "12345" } },
+      );
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
     });
 
     it("returns PENDING when processed? is false and within validator-time timeout window", async () => {
@@ -2271,6 +2294,168 @@ describe("TonVmAttestor", () => {
         .catch((e: unknown) => e);
 
       expect((err as Error).message).toMatch(/status indeterminate/i);
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+    });
+
+    // --- aged-out resolution from the supplied consuming tx ---
+    // Once the replay record is GC'd, a caller-supplied (transactionId, lt)
+    // locator lets the attestor judge from the tx itself: a signed command is
+    // accepted at most once ever, so one hash-verified tx is conclusive.
+
+    const agedOutMock = {
+      processedValue: 0n,
+      latestNow: 1_700_018_000,
+      lastCleanTime: 1_700_014_400, // createdAt + 4*timeout → aged out
+    };
+
+    it("resolves an aged-out withdrawal to EXECUTED from the supplied consuming tx (outbound matches)", async () => {
+      setupWithdrawalRpcMock({
+        ...agedOutMock,
+        executingTx: buildMatchingExecutingTx(),
+      });
+
+      const message = await new TonVmAttestor().getDepositoryWithdrawalMessage(
+        "ton-testnet",
+        encodedFor(baseWithdrawal),
+        TX_HASH_HEX,
+        { "ton-vm": { lt: "12345" } },
+      );
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXECUTED);
+    });
+
+    it("resolves an aged-out withdrawal to EXPIRED when the consuming tx skipped the send (zero outbound)", async () => {
+      setupWithdrawalRpcMock({
+        ...agedOutMock,
+        executingTx: buildMatchingExecutingTx({ noOutbound: true }),
+      });
+
+      const message = await new TonVmAttestor().getDepositoryWithdrawalMessage(
+        "ton-testnet",
+        encodedFor(baseWithdrawal),
+        TX_HASH_HEX,
+        { "ton-vm": { lt: "12345" } },
+      );
+
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
+    });
+
+    it("aged-out + transactionId without the lt hint → missing-hint error, not indeterminate", async () => {
+      setupWithdrawalRpcMock({
+        ...agedOutMock,
+        executingTx: buildMatchingExecutingTx(),
+      });
+
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+          TX_HASH_HEX,
+        )
+        .catch((e: unknown) => e);
+
+      expect((err as Error).message).toMatch(/Missing required hint: ton-vm\.lt/i);
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+    });
+
+    it("aged-out + locator that resolves to no tx → error, never EXPIRED", async () => {
+      setupWithdrawalRpcMock({ ...agedOutMock, executingTx: null });
+
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+          TX_HASH_HEX,
+          { "ton-vm": { lt: "12345" } },
+        )
+        .catch((e: unknown) => e);
+
+      expect((err as Error).message).toMatch(/not found/i);
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+    });
+
+    it("aged-out + supplied tx whose command binds a different withdrawal → command-mismatch error", async () => {
+      setupWithdrawalRpcMock({
+        ...agedOutMock,
+        executingTx: buildMatchingExecutingTx({ command: { queryId: 99 } }),
+      });
+
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+          TX_HASH_HEX,
+          { "ton-vm": { lt: "12345" } },
+        )
+        .catch((e: unknown) => e);
+
+      expect((err as Error).message).toMatch(/command does not match withdrawal/i);
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+    });
+
+    it("throws when the consuming tx was addressed to a foreign wallet (never EXPIRED off another account)", async () => {
+      // An attacker-controlled Highload V3 wallet could carry a command with
+      // identical fields and a skipped send; binding dest to the depository
+      // keeps the invariant even if the RPC ignores the address scope.
+      const w = baseWithdrawal.withdrawal;
+      setupWithdrawalRpcMock({
+        ...agedOutMock,
+        executingTx: buildMockTx({
+          hashHex: TX_HASH_HEX,
+          now: 1_700_000_000,
+          inMessage: buildInboundMessage({
+            srcRaw: RECIPIENT_RAW,
+            destRaw: RECIPIENT_RAW, // not the depository
+            amount: 0n,
+            internal: false,
+            body: buildHighloadCommandBody({
+              subwalletId: w.subwalletId,
+              queryId: w.queryId,
+              createdAt: w.createdAt,
+              timeout: w.timeout,
+              destRaw: RECIPIENT_RAW,
+              amount: BigInt(w.amount),
+            }),
+          }),
+          outMessages: [],
+        }),
+      });
+
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+          TX_HASH_HEX,
+          { "ton-vm": { lt: "12345" } },
+        )
+        .catch((e: unknown) => e);
+
+      expect((err as Error).message).toMatch(/not addressed to depository/i);
+      expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
+    });
+
+    it("aged-out + reverted consuming tx → reverted error (rollback consumed nothing)", async () => {
+      setupWithdrawalRpcMock({
+        ...agedOutMock,
+        executingTx: buildMockTx({
+          hashHex: TX_HASH_HEX,
+          now: 1_700_000_000,
+          aborted: true,
+          computePhase: { type: "vm", success: false, exitCode: 137 },
+          outMessages: [],
+        }),
+      });
+
+      const err = await new TonVmAttestor()
+        .getDepositoryWithdrawalMessage(
+          "ton-testnet",
+          encodedFor(baseWithdrawal),
+          TX_HASH_HEX,
+          { "ton-vm": { lt: "12345" } },
+        )
+        .catch((e: unknown) => e);
+
+      expect((err as Error).message).toMatch(/reverted/i);
       expect((err as { isExternalError?: boolean }).isExternalError).toBe(true);
     });
 

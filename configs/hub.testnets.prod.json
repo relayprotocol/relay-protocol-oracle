@@ -2,5 +2,6 @@
   "id": "relay-testnet",
   "httpRpcUrl": "$RELAY_RPC_URL",
   "evmChainId": "537724",
-  "oracleAddress": "0x259813B665C8f6074391028ef782e27B65840d89"
+  "oracleAddress": "0x259813B665C8f6074391028ef782e27B65840d89",
+  "oracleVersion": "1"
 }

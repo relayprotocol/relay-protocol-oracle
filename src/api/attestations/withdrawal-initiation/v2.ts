@@ -2,6 +2,7 @@ import { Type } from "@fastify/type-provider-typebox";
 import { generateAddress } from "@relay-protocol/settlement-sdk";
 import {
   areExecutionsEqual,
+  filterSignaturesByDomain,
   Endpoint,
   ErrorResponses,
   executionSchema,
@@ -140,7 +141,7 @@ export default {
         throw externalError("ownerSignature is required");
       }
       await verifyOwnerSignature({
-        data: req.body,
+        data: { ...req.body, operation: "withdrawal" },
         signature: req.body.ownerSignature,
       });
     }
@@ -182,11 +183,19 @@ export default {
           })
         : [];
 
+    const localExecutionSignature = await signExecutionMessage(execution);
+
     return reply.send({
       withdrawalAddress,
       execution: {
         ...execution,
-        signatures: [await signExecutionMessage(execution), ...peerSignatures],
+        signatures: [
+          localExecutionSignature,
+          ...filterSignaturesByDomain(peerSignatures, localExecutionSignature, {
+            chainId: "oracleChainId",
+            contract: "oracleContract",
+          }),
+        ],
       },
     });
   },

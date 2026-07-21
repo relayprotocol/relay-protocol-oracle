@@ -77,20 +77,22 @@ export class SolanaVmAttestor extends VmAttestor {
 
     // Get the timestamp of the transaction
     await logRpcUsage(chainId, "getBlock", trackingId);
-    const timestamp = await rpc
-      .getBlock(transaction.slot, {
-        maxSupportedTransactionVersion: 0,
-        // Ensure the block is finalized
-        commitment: "finalized",
-      })
-      .catch((error: any) => {
-        logger.warn(
-          VM_TYPE,
-          `getBlock transient error: chainId=${chainId} transactionId=${transactionId} slot=${transaction.slot} code=${error?.code} message=${error?.message}`,
-        );
-        throw error;
-      })
-      .then((b) => b?.blockTime);
+    const timestamp =
+      transaction.blockTime ??
+      (await rpc
+        .getBlock(transaction.slot, {
+          maxSupportedTransactionVersion: 0,
+          // Ensure the block is finalized
+          commitment: "finalized",
+        })
+        .catch((error: any) => {
+          logger.warn(
+            VM_TYPE,
+            `getBlock transient error: chainId=${chainId} transactionId=${transactionId} slot=${transaction.slot} code=${error?.code} message=${error?.message}`,
+          );
+          throw error;
+        })
+        .then((b) => b?.blockTime));
     if (!timestamp) {
       throw externalError("Could not fetch the timestamp of the transaction");
     }

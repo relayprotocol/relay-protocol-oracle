@@ -261,6 +261,21 @@ export const withdrawRequestAdditionalDataSchema = Type.Object(
         }),
       }),
     ),
+    "xrp-vm": Type.Optional(
+      Type.Object({
+        sequence: Type.Number({
+          description: "The depository account sequence consumed by the withdrawal",
+        }),
+        fee: Type.Union([Type.String(), Type.Number()], {
+          description: "The transaction fee in drops",
+        }),
+        lastLedgerSequence: Type.Number({
+          description: "The last ledger index the transaction is valid for",
+        }),
+        flags: Type.Optional(Type.Number()),
+        destinationTag: Type.Optional(Type.Number()),
+      }),
+    ),
   },
   { description: "Additional data for normalizing a withdraw request" },
 );
@@ -312,6 +327,7 @@ export const executeAndWithdrawRequestSchema = Type.Object({
     }),
   ),
   nonce: Type.String(),
+  deadline: Type.String(),
   signatures: Type.Array(
     Type.Object({
       executorChainId: Type.Unsafe<bigint>({ type: "string" }),
@@ -337,6 +353,41 @@ export const areExecutionsEqual = (
     msg1.actions.length === msg2.actions.length &&
     msg1.actions.every((_, i) => msg1.actions[i] === msg2.actions[i])
   );
+};
+
+// Keeps only peer signatures bound to the SAME EIP-712 domain as our own
+// signature — i.e. the same verifying contract and chain id. The verifying
+// contract address is part of the EIP-712 domain separator (see the signers in
+// `common/signer.ts`), so a peer signing against a different contract address
+// produces signatures that recover to a different digest and are invalid on our
+// contract. This happens, for example, during a contract migration where some
+// signers still attest using the old contract address: bundling their
+// signatures would let the multisig threshold appear satisfied while silently
+// failing verification on-chain. This is NOT covered by the message-equality
+// checks (`areExecutionsEqual` et al.) because the domain contract lives on the
+// signature object, not the attested message. Applied at the aggregation site,
+// so peer signatures over a mismatched domain are dropped before bundling.
+export const filterSignaturesByDomain = (
+  signatures: any[] | undefined,
+  reference: Record<string, unknown>,
+  fields: { chainId: string; contract: string },
+): any[] => {
+  const referenceContract = reference[fields.contract];
+  if (typeof referenceContract !== "string") {
+    return [];
+  }
+
+  const refChainId = String(reference[fields.chainId]);
+  const refContract = referenceContract.toLowerCase();
+
+  return (signatures ?? []).filter((sig) => {
+    const contract = sig?.[fields.contract];
+    return (
+      String(sig?.[fields.chainId]) === refChainId &&
+      typeof contract === "string" &&
+      contract.toLowerCase() === refContract
+    );
+  });
 };
 
 // Utility for comparing two payload params (ignoring signatures)
@@ -402,7 +453,8 @@ export const areExecuteAndWithdrawRequestsEqual = (
         fee.recipient === msg2.fees[i].recipient &&
         fee.amount === msg2.fees[i].amount,
     ) &&
-    msg1.nonce === msg2.nonce
+    msg1.nonce === msg2.nonce &&
+    msg1.deadline === msg2.deadline
   );
 };
 

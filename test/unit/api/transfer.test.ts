@@ -83,7 +83,7 @@ describe("POST /attestations/transfer/v1", () => {
 
     // The owner signature is verified before anything is signed.
     expect(verifyOwnerSignature).toHaveBeenCalledWith({
-      data: body(),
+      data: { ...body(), operation: "transfer" },
       signature: body().ownerSignature,
     });
 

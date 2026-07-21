@@ -2,6 +2,7 @@ import { Type } from "@fastify/type-provider-typebox";
 
 import {
   areExecutionsEqual,
+  filterSignaturesByDomain,
   Endpoint,
   ErrorResponses,
   executionSchema,
@@ -20,6 +21,12 @@ const MessageData = Type.Object({
   transactionId: Type.String({
     description: "The transaction id to attest",
   }),
+  mode: Type.Optional(
+    Type.Union([Type.Literal("fast"), Type.Literal("slow")], {
+      description:
+        "Attestation mode (default slow): 'slow' waits for full finalization, 'fast' might not wait for full finalization (depending on the oracle's configuration)",
+    }),
+  ),
   hints: Type.Optional(
     Type.Object(
       {
@@ -116,17 +123,26 @@ export default {
           })
         : [];
 
+    const localExecutionSignature = execution
+      ? await signExecutionMessage(execution)
+      : undefined;
+
     return reply.send({
       messages,
-      execution: execution
-        ? {
-            ...execution,
-            signatures: [
-              await signExecutionMessage(execution),
-              ...peerSignatures,
-            ],
-          }
-        : undefined,
+      execution:
+        execution && localExecutionSignature
+          ? {
+              ...execution,
+              signatures: [
+                localExecutionSignature,
+                ...filterSignaturesByDomain(
+                  peerSignatures,
+                  localExecutionSignature,
+                  { chainId: "oracleChainId", contract: "oracleContract" },
+                ),
+              ],
+            }
+          : undefined,
     });
   },
 } as Endpoint;

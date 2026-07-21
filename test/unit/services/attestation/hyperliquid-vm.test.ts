@@ -944,7 +944,7 @@ describe("HyperliquidVmAttestor", () => {
         time: Date.now(),
         user: testDepositoryAddress,
         action: {
-          type: "SendAsset",
+          type: "sendAsset",
           hyperliquidChain: "Mainnet",
           destination: testUserAddress,
           sourceDex: "",
@@ -976,7 +976,7 @@ describe("HyperliquidVmAttestor", () => {
       );
     });
 
-    it("should return EXPIRED when transaction is expired", async () => {
+    it("should return PENDING (not auto-expire) when past the nonce window but unmatched", async () => {
       const decodedWithdrawal: ReturnType<typeof decodeWithdrawal> = {
         vmType: "hyperliquid-vm",
         withdrawal: {
@@ -1006,7 +1006,7 @@ describe("HyperliquidVmAttestor", () => {
           withdrawalAddressRequest,
         });
 
-      expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
+      expect(message.result.status).toBe(DepositoryWithdrawalStatus.PENDING);
     });
 
     it("should handle UsdSend withdrawal type", async () => {
@@ -1104,6 +1104,7 @@ describe("HyperliquidVmAttestor", () => {
 
       expect(message.result.status).toBe(DepositoryWithdrawalStatus.EXPIRED);
     });
+
   });
 
   describe("getSolverPaidAmount", () => {

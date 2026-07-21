@@ -2,10 +2,12 @@ import { JsonRpcProvider } from "@near-js/providers";
 import * as bitcoin from "bitcoinjs-lib";
 import bs58 from "bs58";
 import crypto from "crypto";
-import { fromHex, Hex } from "viem";
+import { Address, fromHex, getContract, Hex, parseAbi } from "viem";
 import { publicKeyToAddress } from "viem/accounts";
 
-import { getChains, getHubInfo } from "../../common/chains";
+import { Chain, getChains, getHubInfo } from "../../common/chains";
+import { internalError } from "../../common/error";
+import { getHubHttpRpc } from "../../common/hub";
 
 export const getDeterministicId = (...values: string[]) =>
   "0x" +
@@ -20,6 +22,156 @@ export const cartesianProduct = <T>(lists: T[][]): T[][] =>
     (acc, list) => acc.flatMap((combo) => list.map((item) => [...combo, item])),
     [[]],
   );
+
+// Select the matching finalization threshold based on the oracle's configuration
+export const selectFinalizationThreshold = (
+  chain: Chain,
+  currency: string,
+  amount: bigint,
+): {
+  finalizationBlocks?: number;
+  finalizationTime?: number;
+  feeBps?: string;
+} | null => {
+  if (!chain.additionalData?.fastMode) {
+    return null;
+  }
+
+  const table = chain.additionalData.fastMode.finalityTiers ?? {};
+  const tiers = table[currency] ?? [];
+
+  // Choose the most restrictive tier which matches the amount
+  const matchedTier = [...tiers]
+    .sort((a, b) => {
+      const aMaxAmount = BigInt(a.maxAmount);
+      const bMaxAmount = BigInt(b.maxAmount);
+      return aMaxAmount < bMaxAmount ? -1 : aMaxAmount > bMaxAmount ? 1 : 0;
+    })
+    .find((tier) => amount < BigInt(tier.maxAmount));
+  if (!matchedTier) {
+    return null;
+  }
+
+  return {
+    finalizationBlocks: matchedTier.finalizationBlocks,
+    finalizationTime: matchedTier.finalizationTime,
+    feeBps: matchedTier.feeBps,
+  };
+};
+
+export const isNumericFinalityMet = (
+  measured: { confirmations: number; elapsedSeconds: number },
+  threshold: { finalizationBlocks?: number; finalizationTime?: number },
+): boolean =>
+  measured.confirmations >= (threshold.finalizationBlocks ?? 0) &&
+  measured.elapsedSeconds >= (threshold.finalizationTime ?? 0);
+
+// Select the strictest finalization threshold for a list of deposits within a single transaction
+export const resolveAmountTieredFinality = (
+  chain: Chain,
+  deposits: { result: { currency: string; amount: string } }[],
+  defaults: { finalizationBlocks: number; finalizationTime: number },
+): {
+  required: { finalizationBlocks: number; finalizationTime: number };
+  usedDefaults: boolean;
+  tiers: ReturnType<typeof selectFinalizationThreshold>[];
+} => {
+  const tiers = deposits.map((d) =>
+    selectFinalizationThreshold(
+      chain,
+      d.result.currency,
+      BigInt(d.result.amount),
+    ),
+  );
+
+  let finalizationBlocks = 0;
+  let finalizationTime = 0;
+  for (const tier of tiers) {
+    finalizationBlocks = Math.max(
+      finalizationBlocks,
+      tier?.finalizationBlocks ?? defaults.finalizationBlocks,
+    );
+    finalizationTime = Math.max(
+      finalizationTime,
+      tier?.finalizationTime ?? defaults.finalizationTime,
+    );
+  }
+
+  return {
+    required: {
+      finalizationBlocks,
+      finalizationTime,
+    },
+    usedDefaults:
+      finalizationBlocks >= defaults.finalizationBlocks &&
+      finalizationTime >= defaults.finalizationTime,
+    tiers,
+  };
+};
+
+// Build the rate-limiter's opaque `limiterData` and pre-check its budget off-chain (by limiter type)
+export const resolveRateLimiter = async (params: {
+  type: string;
+  address: string;
+  chainId: string;
+  currency: string;
+  amount: string;
+}): Promise<{ rateLimiterData: string; withinBudget: boolean }> => {
+  const { type, address, chainId, currency, amount } = params;
+  switch (type) {
+    case "amount": {
+      let withinBudget = true;
+      try {
+        const limiter = getContract({
+          address: address as Address,
+          abi: parseAbi([
+            "function canConsume(string chainId, bytes currency, uint256 amount) view returns (bool)",
+          ]),
+          client: await getHubHttpRpc(),
+        });
+
+        withinBudget = await limiter.read.canConsume([
+          chainId,
+          currency as Hex,
+          BigInt(amount),
+        ]);
+      } catch {
+        // Skip errors
+      }
+
+      // TODO: Integrate rate-limiter
+      const rateLimiterData = "0x";
+
+      return { rateLimiterData, withinBudget };
+    }
+
+    default: {
+      throw internalError(`Unsupported rate limiter type "${type}"`);
+    }
+  }
+};
+
+export const resolveFeeCalculator = async (params: {
+  type: string;
+  address: string;
+  chainId: string;
+  currency: string;
+  amount: string;
+}): Promise<{ feeCalculatorData: string }> => {
+  const { type } = params;
+  switch (type) {
+    case "bps": {
+      // TODO: Integrate fee-calculator
+      const feeCalculatorData = "0x";
+
+      return { feeCalculatorData };
+    }
+
+    default: {
+      throw internalError(`Unsupported fee calculator type "${type}"`);
+    }
+  }
+};
 
 export const extractEcdsaSignature = (rawNearSignature: string): string => {
   const parsedSignature = JSON.parse(

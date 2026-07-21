@@ -198,6 +198,7 @@ export const signExecuteAndWithdrawRequestMessage = async (
         amount: BigInt(fee.amount),
       })),
       nonce: m.nonce as Hex,
+      deadline: BigInt(m.deadline),
     },
     primaryType: "ExecuteAndWithdrawRequest",
     types: {
@@ -213,6 +214,7 @@ export const signExecuteAndWithdrawRequestMessage = async (
         { name: "data", type: "bytes" },
         { name: "fees", type: "Fee[]" },
         { name: "nonce", type: "bytes32" },
+        { name: "deadline", type: "uint256" },
       ],
       Fee: [
         { name: "recipient", type: "address" },
@@ -283,7 +285,9 @@ export const signWithdrawRequestMessage = async (m: {
 // `RelayAllocator.consumeSpenderSignature`'s `ORACLE.isValidSignatureNow`
 // fallback authorizes the submission. Domain/types must match PAYLOAD_TYPEHASH
 // in RelayAllocator.sol and the solver's WITHDRAW_REQUEST_TYPES exactly.
-export const signAllocatorWithdrawRequest = async (request: WithdrawRequest) => {
+export const signAllocatorWithdrawRequest = async (
+  request: WithdrawRequest,
+) => {
   const wallet = await getSigningWallet();
   const hubInfo = await getHubInfo();
 
@@ -339,7 +343,7 @@ export const signExecutionMessage = async (m: ExecutionMessage) => {
       chainId: BigInt(hubInfo.evmChainId),
       name: "RelayOracle",
       verifyingContract: hubInfo.oracleAddress as Address,
-      version: "1",
+      version: hubInfo.oracleVersion,
     },
     message: {
       actions: m.actions as Hex[],

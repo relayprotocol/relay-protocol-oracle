@@ -2,6 +2,7 @@ import { Type } from "@fastify/type-provider-typebox";
 
 import {
   areExecutionsEqual,
+  filterSignaturesByDomain,
   Endpoint,
   ErrorResponses,
   executionSchema,
@@ -53,7 +54,7 @@ const MessageData = Type.Object({
   transactionId: Type.Optional(
     Type.String({
       description:
-        "The transaction id that executed the withdrawal (required for Hyperliquid VM)",
+        "The transaction id that executed the withdrawal (required for Hyperliquid VM; for XRP once the withdrawal's sequence has been consumed)",
     }),
   ),
   hints: Type.Optional(
@@ -130,17 +131,26 @@ export default {
           })
         : [];
 
+    const localExecutionSignature = execution
+      ? await signExecutionMessage(execution)
+      : undefined;
+
     return reply.send({
       status,
-      execution: execution
-        ? {
-            ...execution,
-            signatures: [
-              await signExecutionMessage(execution),
-              ...peerSignatures,
-            ],
-          }
-        : undefined,
+      execution:
+        execution && localExecutionSignature
+          ? {
+              ...execution,
+              signatures: [
+                localExecutionSignature,
+                ...filterSignaturesByDomain(
+                  peerSignatures,
+                  localExecutionSignature,
+                  { chainId: "oracleChainId", contract: "oracleContract" },
+                ),
+              ],
+            }
+          : undefined,
     });
   },
 } as Endpoint;

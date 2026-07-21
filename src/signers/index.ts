@@ -7,9 +7,12 @@ import { config } from "../config";
 
 export type SigningModule = "raw-private-key" | "aws-kms";
 
+type SigningWallet = Account & Required<Pick<Account, "signMessage">>;
+
 const DEFAULT_SIGNING_MODULE: SigningModule = "raw-private-key";
 
 let defaultWarningEmitted = false;
+let __cachedSigningWallet: Promise<SigningWallet> | undefined;
 
 export const getSigningModule = (): SigningModule => {
   if (config.signingModule) {
@@ -29,9 +32,9 @@ export const getSigningModule = (): SigningModule => {
   return DEFAULT_SIGNING_MODULE;
 };
 
-export const getSigningWallet = async (
-  module: SigningModule = getSigningModule(),
-): Promise<Account & Required<Pick<Account, "signMessage">>> => {
+const createSigningWallet = async (
+  module: SigningModule,
+): Promise<SigningWallet> => {
   switch (module) {
     case "raw-private-key": {
       if (!config.ecdsaPrivateKey) {
@@ -58,4 +61,20 @@ export const getSigningWallet = async (
       throw new Error(`Unsupported ${module} signing module`);
     }
   }
+};
+
+export const getSigningWallet = async (
+  module: SigningModule = getSigningModule(),
+): Promise<SigningWallet> => {
+  if (!__cachedSigningWallet) {
+    __cachedSigningWallet = createSigningWallet(module).catch(
+      (error: unknown) => {
+        // Allow transient initialization failures to be retried.
+        __cachedSigningWallet = undefined;
+        throw error;
+      },
+    );
+  }
+
+  return __cachedSigningWallet;
 };

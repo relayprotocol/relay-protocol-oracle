@@ -83,6 +83,7 @@ const otherPrivateKey =
 const otherWallet = privateKeyToAccount(otherPrivateKey);
 
 const baseData = {
+  operation: "withdrawal" as const,
   chainId: "8453",
   currency: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   amount: "1000000",
@@ -100,6 +101,7 @@ const computeDigest = (data: OwnerSignatureData): string =>
     .createHash("sha256")
     .update(
       stringify({
+        operation: data.operation,
         chainId: data.chainId,
         currency: data.currency,
         amount: data.amount,
@@ -513,6 +515,16 @@ describe("verifyOwnerSignature", () => {
       await expect(
         verifyOwnerSignature({ data, signature }),
       ).resolves.toBeUndefined();
+    });
+
+    it("should reject a signature bound to a different operation", async () => {
+      const signature = await signEvmMessage(baseData);
+      await expect(
+        verifyOwnerSignature({
+          data: { ...baseData, operation: "transfer" },
+          signature,
+        }),
+      ).rejects.toThrow("Invalid signature");
     });
   });
 

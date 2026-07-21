@@ -7,6 +7,7 @@ import {
   ErrorResponses,
   FastifyReplyTypeBox,
   FastifyRequestTypeBox,
+  filterSignaturesByDomain,
   getPeerResponses,
 } from "../../../utils";
 import { signGenericMappingMessage } from "../../../../common/signer";
@@ -106,12 +107,22 @@ export default {
           })
         : [];
 
+    const localGenericMappingSignature =
+      await signGenericMappingMessage(genericMapping);
+
     return reply.send({
       genericMapping: {
         ...genericMapping,
         signatures: [
-          await signGenericMappingMessage(genericMapping),
-          ...peerSignatures,
+          localGenericMappingSignature,
+          ...filterSignaturesByDomain(
+            peerSignatures,
+            localGenericMappingSignature,
+            {
+              chainId: "genericMappingChainId",
+              contract: "genericMappingContract",
+            },
+          ),
         ],
       },
     });

@@ -165,6 +165,7 @@ describe("POST /attestations/withdraw-request-authorization/v1 — recoverMode",
 
     expect(verifyOwnerSignature).toHaveBeenCalledWith({
       data: expect.objectContaining({
+        operation: "withdrawal",
         chainId: "lighter",
         additionalData: lighterAdditionalData,
       }),

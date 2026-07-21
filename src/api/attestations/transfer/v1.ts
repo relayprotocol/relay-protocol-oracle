@@ -3,6 +3,7 @@ import { generateAddress } from "@relay-protocol/settlement-sdk";
 
 import {
   areExecutionsEqual,
+  filterSignaturesByDomain,
   Endpoint,
   ErrorResponses,
   executionSchema,
@@ -70,7 +71,7 @@ export default {
 
     // Verify the owner controls the alias holding the funds.
     await verifyOwnerSignature({
-      data: req.body,
+      data: { ...req.body, operation: "transfer" },
       signature: req.body.ownerSignature,
     });
 
@@ -108,10 +109,18 @@ export default {
           })
         : [];
 
+    const localExecutionSignature = await signExecutionMessage(execution);
+
     return reply.send({
       execution: {
         ...execution,
-        signatures: [await signExecutionMessage(execution), ...peerSignatures],
+        signatures: [
+          localExecutionSignature,
+          ...filterSignaturesByDomain(peerSignatures, localExecutionSignature, {
+            chainId: "oracleChainId",
+            contract: "oracleContract",
+          }),
+        ],
       },
     });
   },

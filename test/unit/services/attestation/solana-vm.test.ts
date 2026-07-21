@@ -35,7 +35,7 @@ const instructionCoder = new BorshInstructionCoder(RelayDepositoryIdl as Idl);
 function generateDepositInstructionData(
   orderHash: string,
   amount: string,
-  isToken: boolean = false
+  isToken: boolean = false,
 ) {
   // Convert orderHash to id array (remove 0x prefix and convert to Buffer, then to array)
   const idBuffer = Buffer.from(orderHash.slice(2), "hex");
@@ -61,7 +61,7 @@ const generateTransactionResponse = (
     tokenMint?: string;
     preTokenBalances?: any[];
     postTokenBalances?: any[];
-  }
+  },
 ): TransactionResponse => {
   // Default transaction keys - include SystemProgram by default
   const defaultKeys = [
@@ -82,7 +82,7 @@ const generateTransactionResponse = (
   if (options?.paymentAmount && options?.paymentRecipient) {
     // Find recipient index in account keys
     const recipientIndex = keys.findIndex(
-      (key) => key.toBase58() === options.paymentRecipient
+      (key) => key.toBase58() === options.paymentRecipient,
     );
 
     if (recipientIndex !== -1) {
@@ -197,7 +197,7 @@ const createSPLTransferTransaction = ({
   const depositInstructionData = generateDepositInstructionData(
     orderHash,
     amount,
-    true
+    true,
   );
 
   // Create a mock transaction that mimics the working test case for SPL tokens
@@ -320,7 +320,7 @@ function createDepositTransaction(params: {
   const instructionData = generateDepositInstructionData(
     orderHash,
     paymentAmount,
-    false
+    false,
   );
 
   // Create a mock transaction that mimics the working test case
@@ -428,7 +428,7 @@ function createRefundTransaction(params: {
     {
       paymentRecipient: refundRecipient,
       paymentAmount: paymentAmount,
-    }
+    },
   );
 }
 
@@ -472,7 +472,7 @@ function createFillTransaction(params: {
     {
       paymentRecipient: outputRecipient,
       paymentAmount: paymentAmount,
-    }
+    },
   );
 }
 
@@ -582,7 +582,7 @@ const setupTestEnvironment = async (
     duplicateOnchainIds?: boolean;
     customPaymentAmount?: string;
     actionType?: "fill" | "refund";
-  } = {}
+  } = {},
 ) => {
   const chains = Object.values(await getChains());
   const testData = setupTestData();
@@ -807,7 +807,7 @@ const testAttestSolverFill = async (options: {
         fill: {
           transactionId: env.actionTxHash,
         },
-      })
+      }),
     ).rejects.toThrow(options.expectError);
     return null;
   } else {
@@ -821,10 +821,10 @@ const testAttestSolverFill = async (options: {
     });
 
     expect(solverFillResult.message.result.status).toBe(
-      SolverRefundStatus.SUCCESSFUL
+      SolverRefundStatus.SUCCESSFUL,
     );
     expect(
-      solverFillResult.message.result.totalWeightedInputPaymentBpsDiff
+      solverFillResult.message.result.totalWeightedInputPaymentBpsDiff,
     ).toBe("0");
     return solverFillResult;
   }
@@ -861,7 +861,7 @@ const testAttestSolverRefund = async (options: {
             refundIndex: 0,
           },
         ],
-      })
+      }),
     ).rejects.toThrow(options.expectError);
     return null;
   } else {
@@ -880,10 +880,10 @@ const testAttestSolverRefund = async (options: {
       });
 
     expect(solverRefundResult.message.result.status).toBe(
-      SolverRefundStatus.SUCCESSFUL
+      SolverRefundStatus.SUCCESSFUL,
     );
     expect(
-      solverRefundResult.message.result.totalWeightedInputPaymentBpsDiff
+      solverRefundResult.message.result.totalWeightedInputPaymentBpsDiff,
     ).toBe("0");
     return solverRefundResult;
   }
@@ -922,7 +922,8 @@ jest.mock("../../../../src/common/chains", () => {
       auroraHttpRpcUrl: "http://localhost:8545",
       auroraEvmChainId: "1313161554",
       auroraAllocatorAddress: "0x0000000000000000000000000000000000000005",
-      auroraAllocatorSpenderAddress: "0x0000000000000000000000000000000000000006",
+      auroraAllocatorSpenderAddress:
+        "0x0000000000000000000000000000000000000006",
       auroraOracleMultisigAddress: "0x0000000000000000000000000000000000000007",
     }),
     getChain: async (chainId: string) => chains[chainId],
@@ -932,7 +933,7 @@ jest.mock("../../../../src/common/chains", () => {
       chainId === "base" ? "8453" : chains[chainId].hubChainId,
     getSdkChainsConfig: () =>
       Object.fromEntries(
-        Object.values(chains).map((chain) => [chain.id, chain.vmType])
+        Object.values(chains).map((chain) => [chain.id, chain.vmType]),
       ),
   };
 });
@@ -1040,16 +1041,16 @@ describe("SolanaVmAttestor", () => {
 
     // Check the parsed message has the correct format and values
     expect(msg.result.currency).toBe(
-      "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+      "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
     ); // System program ID for native SOL
     expect(msg.result.depositor).toBe(
-      "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv"
+      "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv",
     );
     expect(msg.result.depository).toBe(
-      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
+      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
     );
     expect(msg.result.depositId).toBe(
-      "0xd8dc6c585358c53b2cc109c3c31d8055c94a6e85622ea1196c2abe17a77dac0b"
+      "0xd8dc6c585358c53b2cc109c3c31d8055c94a6e85622ea1196c2abe17a77dac0b",
     );
   });
 
@@ -1150,13 +1151,13 @@ describe("SolanaVmAttestor", () => {
     // Check the parsed message has the correct format and values
     expect(msg.result.currency).toBe("11111111111111111111111111111111"); // System program ID for native SOL
     expect(msg.result.depositor).toBe(
-      "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv"
+      "98gqt9w7M9gZCEnN42HpbeRzaMst89fxdqXBFhuM4Njv",
     );
     expect(msg.result.depository).toBe(
-      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u"
+      "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u",
     );
     expect(msg.result.depositId).toBe(
-      "0x0101010101010101010101010101010101010101010101010101010101010101"
+      "0x0101010101010101010101010101010101010101010101010101010101010101",
     );
   });
 
@@ -1212,7 +1213,7 @@ describe("SolanaVmAttestor", () => {
       service.attestDepositoryDeposits({
         chainId: Object.values(await getChains())[0].id,
         transactionId,
-      })
+      }),
     ).rejects.toThrow(`Transaction failed: ${transactionId}`);
   });
 
@@ -1220,7 +1221,7 @@ describe("SolanaVmAttestor", () => {
     const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
     const [vault] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault")],
-      new PublicKey(depository)
+      new PublicKey(depository),
     );
 
     const depositor = new PublicKey(randomBase58(32));
@@ -1261,16 +1262,15 @@ describe("SolanaVmAttestor", () => {
       getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
-    const { messages } = await new AttestationService().attestDepositoryDeposits(
-      {
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
         chainId: "solana",
         transactionId: randomBase58(32),
-      }
-    );
+      });
 
     expect(messages.length).toBe(1);
     expect(messages[0].result.currency).toBe(
-      "11111111111111111111111111111111"
+      "11111111111111111111111111111111",
     );
     expect(messages[0].result.depository).toBe(depository);
     expect(messages[0].result.depositor).toBe(depositor.toBase58());
@@ -1282,7 +1282,7 @@ describe("SolanaVmAttestor", () => {
     const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
     const [vault] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault")],
-      new PublicKey(depository)
+      new PublicKey(depository),
     );
 
     const depositor = new PublicKey(randomBase58(32));
@@ -1340,16 +1340,15 @@ describe("SolanaVmAttestor", () => {
       getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
-    const { messages } = await new AttestationService().attestDepositoryDeposits(
-      {
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
         chainId: "solana",
         transactionId: randomBase58(32),
-      }
-    );
+      });
 
     expect(messages.length).toBe(1);
     expect(messages[0].result.currency).toBe(
-      "11111111111111111111111111111111"
+      "11111111111111111111111111111111",
     );
     expect(messages[0].result.depository).toBe(depository);
     expect(messages[0].result.depositor).toBe(depositor.toBase58());
@@ -1361,7 +1360,7 @@ describe("SolanaVmAttestor", () => {
     const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
     const [vault] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault")],
-      new PublicKey(depository)
+      new PublicKey(depository),
     );
 
     const tokenProgramId = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
@@ -1380,7 +1379,7 @@ describe("SolanaVmAttestor", () => {
         new PublicKey(tokenProgramId).toBuffer(),
         mint.toBuffer(),
       ],
-      new PublicKey(associatedTokenProgramId)
+      new PublicKey(associatedTokenProgramId),
     );
 
     // SPL `transfer`: u8 type (=3) + u64 LE amount
@@ -1423,12 +1422,11 @@ describe("SolanaVmAttestor", () => {
       }),
     }));
 
-    const { messages } = await new AttestationService().attestDepositoryDeposits(
-      {
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
         chainId: "solana",
         transactionId: randomBase58(32),
-      }
-    );
+      });
 
     expect(messages.length).toBe(1);
     expect(messages[0].result.currency).toBe(mint.toBase58());
@@ -1442,7 +1440,7 @@ describe("SolanaVmAttestor", () => {
     const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
     const [vault] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault")],
-      new PublicKey(depository)
+      new PublicKey(depository),
     );
 
     const tokenProgramId = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
@@ -1461,7 +1459,7 @@ describe("SolanaVmAttestor", () => {
         new PublicKey(tokenProgramId).toBuffer(),
         mint.toBuffer(),
       ],
-      new PublicKey(associatedTokenProgramId)
+      new PublicKey(associatedTokenProgramId),
     );
 
     // SPL `transferChecked`: u8 type (=12) + u64 LE amount + u8 decimals
@@ -1502,12 +1500,11 @@ describe("SolanaVmAttestor", () => {
       getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
-    const { messages } = await new AttestationService().attestDepositoryDeposits(
-      {
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
         chainId: "solana",
         transactionId: randomBase58(32),
-      }
-    );
+      });
 
     expect(messages.length).toBe(1);
     expect(messages[0].result.currency).toBe(mint.toBase58());
@@ -1521,7 +1518,7 @@ describe("SolanaVmAttestor", () => {
     const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
     const [vault] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault")],
-      new PublicKey(depository)
+      new PublicKey(depository),
     );
 
     const tokenProgramId = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
@@ -1540,7 +1537,7 @@ describe("SolanaVmAttestor", () => {
         new PublicKey(tokenProgramId).toBuffer(),
         mint.toBuffer(),
       ],
-      new PublicKey(associatedTokenProgramId)
+      new PublicKey(associatedTokenProgramId),
     );
 
     // SPL `transferChecked`: u8 type (=12) + u64 LE amount + u8 decimals
@@ -1607,12 +1604,11 @@ describe("SolanaVmAttestor", () => {
       getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
-    const { messages } = await new AttestationService().attestDepositoryDeposits(
-      {
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
         chainId: "solana",
         transactionId: randomBase58(32),
-      }
-    );
+      });
 
     expect(messages.length).toBe(1);
     expect(messages[0].result.currency).toBe(mint.toBase58());
@@ -1623,7 +1619,7 @@ describe("SolanaVmAttestor", () => {
     const depository = "FcdAmYWSixzyEGHaPQmDWXzyVFbiKEU2f4MuJfkLKH3u";
     const [vault] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault")],
-      new PublicKey(depository)
+      new PublicKey(depository),
     );
 
     const systemProgram = new PublicKey("11111111111111111111111111111111");
@@ -1652,9 +1648,17 @@ describe("SolanaVmAttestor", () => {
         message: {
           compiledInstructions: [
             // One transfer to the vault
-            { programIdIndex: 3, accountKeyIndexes: [0, 1], data: transferTo(1) },
+            {
+              programIdIndex: 3,
+              accountKeyIndexes: [0, 1],
+              data: transferTo(1),
+            },
             // A second, unrelated instruction (here another transfer)
-            { programIdIndex: 3, accountKeyIndexes: [0, 2], data: transferTo(2) },
+            {
+              programIdIndex: 3,
+              accountKeyIndexes: [0, 2],
+              data: transferTo(2),
+            },
           ],
           addressTableLookups: [],
           getAccountKeys: () => ({ staticAccountKeys: accountKeys }),
@@ -1667,12 +1671,11 @@ describe("SolanaVmAttestor", () => {
       getBlock: async () => ({ blockTime: Math.floor(Date.now() / 1000) }),
     }));
 
-    const { messages } = await new AttestationService().attestDepositoryDeposits(
-      {
+    const { messages } =
+      await new AttestationService().attestDepositoryDeposits({
         chainId: "solana",
         transactionId: randomBase58(32),
-      }
-    );
+      });
 
     expect(messages.length).toBe(0);
   });

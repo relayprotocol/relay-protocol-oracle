@@ -9,6 +9,7 @@ import { LighterVmAttestor } from "./lighter-vm";
 import { SolanaVmAttestor } from "./solana-vm";
 import { TonVmAttestor } from "./ton-vm";
 import { TronVmAttestor } from "./tron-vm";
+import { XrpVmAttestor } from "./xrp-vm";
 
 export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
   const chain = await getChain(chainId);
@@ -33,6 +34,9 @@ export const getVmAttestor = async (chainId: string): Promise<VmAttestor> => {
 
     case "tron-vm":
       return new TronVmAttestor();
+
+    case "xrp-vm":
+      return new XrpVmAttestor();
 
     default:
       throw externalError("Vm type not implemented");

@@ -12,7 +12,9 @@ const config: Config = {
     "^.+\\.(t|j)s?$": "ts-jest",
   },
 
-  transformIgnorePatterns: ["node_modules/(?!(@nktkas/hyperliquid|@noble)/)"],
+  transformIgnorePatterns: [
+    "node_modules/(?!(@nktkas/hyperliquid|@noble|@xrplf|@scure|ripple-address-codec|ripple-binary-codec)/)",
+  ],
 
   // globalSetup: "./test/setup.ts",
 };
